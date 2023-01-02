@@ -1,6 +1,6 @@
 import sys
 from dataclasses import dataclass
-from typing import List, Dict
+from typing import List, Dict, Tuple
 
 
 @dataclass
@@ -14,9 +14,9 @@ class Box:
     build: int = 0
     spawn: int = 0
     in_range_of_recycler: int = 0
-    zone: int = -1
-    scrap_interest: int = 0
-    is_frontier: bool = None
+    calculated_zone: int = None
+    calculated_scrap_interest: int = None
+    calculated_is_frontier: bool = None
 
     @property
     def is_grass(self) -> bool:
@@ -68,9 +68,12 @@ class Grid:
         return box
 
     def update(self, box: Box):
-        x = box.x
-        y = box.y
-        self.grid[y][x] = box
+        box_x, box_y = box.x, box.y
+        self.grid[box_y][box_x] = box
+
+    def get_left_and_upper_neighbors(self, center_box: Box) -> Tuple[Box]:
+        box_x, box_y = center_box.x, center_box.y
+        return (self.get_box(x=box_x - 1, y=box_y), self.get_box(x=box_x, y=box_y - 1))
 
 
 class BoxesClassifier:
@@ -89,6 +92,13 @@ class BoxesClassifier:
 
 def distance_between(box1: Box, box2: Box) -> int:
     return abs(box1.x - box2.x) + abs(box1.y - box2.y)
+
+
+def synchronize_zone(center_box: Box, left_box: Box, upper_box: Box, existing_zones):
+    if center_box.is_grass:
+        center_box.calculated_zone = -1
+    elif (left_box is None) and (upper_box is None):
+        pass
 
 
 BOXES_CLUSTERS_DICT = {"defend": Box.can_defend,
@@ -110,9 +120,11 @@ while True:
             scrap_amount, owner, units, recycler, build, spawn, in_range_of_recycler = [int(k) for k in input().split()]
             current_box = Box(x=x, y=y, scrap_amount=scrap_amount, owner=owner, units=owner, recycler=owner,
                               build=build, spawn=spawn, in_range_of_recycler=in_range_of_recycler)
-            current_grid.update(current_box)
+            current_grid.update(box=current_box)
+            current_left_box, current_upper_box = current_grid.get_left_and_upper_neighbors(center_box=current_box)
 
-            # update special attributes pour left and upper neighboors
+
+            # update calculated attributes for itself and its left/upper neighboors
                 # zone
                 # scrap_interest
                 # is_frontier
