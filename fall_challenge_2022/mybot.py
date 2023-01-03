@@ -1,6 +1,6 @@
 import sys
 from dataclasses import dataclass, field
-from typing import List, Dict, Tuple, Set
+from typing import List, Dict, Tuple
 
 
 @dataclass
@@ -72,9 +72,6 @@ class Zone:
     def add_box(self, box: Box):
         self.boxes.append(box)
 
-    def add_boxes(self, boxes: List[Box]):
-        self.boxes.extend(boxes)
-
 
 class Grid:
     def __init__(self, width: int, height: int):
@@ -96,6 +93,13 @@ class Grid:
     def get_left_and_upper_neighbors(self, center_box: Box) -> Tuple[Box, Box]:
         box_x, box_y = center_box.x, center_box.y
         return self.get_box(x=box_x - 1, y=box_y), self.get_box(x=box_x, y=box_y - 1)
+
+    def get_all_boxes(self) -> List[Box]:
+        all_boxes = []
+        for y in range(self.height):
+            for x in range(self.width):
+                all_boxes.append(self.get_box(x, y))
+        return all_boxes
 
 
 class ZoneAssembler:
@@ -162,37 +166,87 @@ class ZoneAssembler:
 class AggregatedZones:
     def __init__(self, zone_assembler: ZoneAssembler):
         self.zone_assembler = zone_assembler
-
-        self.aggr_zones: List[List[int]] = []
+        self.all_connected_ids: List[List[int]] = []
         for z_id_0, z_id_1 in self.zone_assembler.connected_zones:
             zones_connected = [z_id_0, z_id_1]
             to_remove = []
-            for aggr_zone in self.aggr_zones:
-                if (z_id_0 in aggr_zone) or (z_id_1 in aggr_zone):
-                    zones_connected.extend(aggr_zone)
-                    to_remove.append(aggr_zone)
-            for aggr_zone in to_remove:
-                self.aggr_zones.remove(aggr_zone)
-            self.aggr_zones.append(zones_connected)
-        # print([set(az) for az in self.aggr_zones], file=sys.stderr, flush=True)
+            for connected_ids in self.all_connected_ids:
+                if (z_id_0 in connected_ids) or (z_id_1 in connected_ids):
+                    zones_connected.extend(connected_ids)
+                    to_remove.append(connected_ids)
+            for ids in to_remove:
+                self.all_connected_ids.remove(ids)
+            self.all_connected_ids.append(zones_connected)
+        self.aggregated_zones: Dict[int, Zone] = {}
+        for i, zones_ids in enumerate(self.all_connected_ids):
+            aggregated_zone_boxes = []
+            for zone_id in zones_ids:
+                boxes = self.zone_assembler.get_boxes_from_zone(zone_id)
+                for box in boxes:
+                    box.calculated_aggr_zone_id = i
+                aggregated_zone_boxes += boxes
+            self.aggregated_zones[i] = Zone(id=i, boxes=aggregated_zone_boxes)
+
+    def get_aggregated_zone_ids(self) -> List[int]:
+        return list(self.aggregated_zones.keys())
+
+    def get_boxes_from_aggr_zone(self, aggr_zone_id: int) -> List[Box]:
+        try:
+            zone = self.aggregated_zones[aggr_zone_id]
+            return zone.boxes
+        except KeyError:
+            return None
 
 
 class BoxesClassifier:
-    def __init__(self, boxes_clusters_dict: Dict):
+    def __init__(self, boxes_clusters_dict: Dict, aggregated_zones: AggregatedZones):
         self.boxes_clusters_dict = boxes_clusters_dict
-        self.classifier = {box_cluster_name: [] for box_cluster_name in self.boxes_clusters_dict.keys()}
+        self.aggregated_zones = aggregated_zones
+        self.aggregated_zones_ids = self.aggregated_zones.get_aggregated_zone_ids()
+        self.classifier = {box_cluster_name: {aggregated_zones_id: [] \
+                                              for aggregated_zones_id in self.aggregated_zones_ids}
+                           for box_cluster_name in self.boxes_clusters_dict.keys()}
 
     def classify_box(self, box: Box) -> None:
         for box_cluster_name, box_cluster_method in self.boxes_clusters_dict.items():
             if box_cluster_method(box):
-                self.classifier[box_cluster_name].append(box)
+                aggregated_zones_id = box.calculated_aggr_zone_id
+                self.classifier[box_cluster_name][aggregated_zones_id].append(box)
+
+    def classify_boxes(self, boxes: List[Box]):
+        for box in boxes:
+            if not box.is_grass:
+                self.classify_box(box)
+
+    def get_boxes_from_cluster_and_zone(self, box_cluster_name: str, aggregated_zones_id: int) -> List[Box]:
+        return self.classifier[box_cluster_name][aggregated_zones_id]
 
     def get_boxes_from_cluster(self, box_cluster_name: str) -> List[Box]:
-        return self.classifier[box_cluster_name]
+        boxes = []
+        for aggregated_zones_id in self.aggregated_zones_ids:
+            boxes.extend(self.get_boxes_from_cluster_and_zone(box_cluster_name, aggregated_zones_id))
+        return boxes
+
+    def print_boxes_clustering(self):
+        for box_cluster_name in self.boxes_clusters_dict.keys():
+            print(box_cluster_name, file=sys.stderr, flush=True)
+            for aggregated_zones_id in self.aggregated_zones_ids:
+                boxes_ids = [(box.x, box.y) for box in self.get_boxes_from_cluster_and_zone(box_cluster_name, aggregated_zones_id)]
+                print((aggregated_zones_id, boxes_ids), file=sys.stderr, flush=True)
 
 
 def distance_between(box1: Box, box2: Box) -> int:
     return abs(box1.x - box2.x) + abs(box1.y - box2.y)
+
+
+def print_grid_boxes_attribute(grid: Grid, box_attribute_name: str):
+    for y in range(grid.height):
+        grid_line = ""
+        for x in range(grid.width):
+            box = grid.get_box(x, y)
+            attr_value = str(getattr(box, box_attribute_name))
+            grid_line += attr_value + " "
+        print(grid_line, file=sys.stderr, flush=True)
 
 
 BOXES_CLUSTERS_DICT = {"defend": Box.can_defend,
@@ -204,7 +258,6 @@ BOXES_CLUSTERS_DICT = {"defend": Box.can_defend,
 WIDTH, HEIGHT = [int(i) for i in input().split()]
 DISTANCE_MAX = WIDTH ** 2 + HEIGHT ** 2
 current_grid = Grid(width=WIDTH, height=HEIGHT)
-boxes_classifier = BoxesClassifier(boxes_clusters_dict=BOXES_CLUSTERS_DICT)
 
 
 while True:
@@ -221,13 +274,15 @@ while True:
                                             upper_box=current_upper_box)
 
             # update calculated attributes for itself and its left/upper neighboors
-                # zone
                 # scrap_interest
                 # is_frontier
 
-            # boxes_classifier.classify_box(current_box)
-
     aggregated_zones = AggregatedZones(zone_assembler)
+    boxes_classifier = BoxesClassifier(boxes_clusters_dict=BOXES_CLUSTERS_DICT, aggregated_zones=aggregated_zones)
+    boxes_classifier.classify_boxes(current_grid.get_all_boxes())
+
+    #boxes_classifier.print_boxes_clustering()
+    # print_grid_boxes_attribute(current_grid, "calculated_aggr_zone_id")
 
     print("WAIT")
 
