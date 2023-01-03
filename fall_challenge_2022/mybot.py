@@ -1,6 +1,7 @@
 import sys
 from dataclasses import dataclass, field
 from typing import List, Dict, Tuple
+from math import floor
 
 
 @dataclass
@@ -14,10 +15,10 @@ class Box:
     build: int = 0
     spawn: int = 0
     in_range_of_recycler: int = 0
-    calculated_zone_id: int = None
-    calculated_aggr_zone_id: int = None
-    calculated_is_frontier: bool = None
-    calculated_scrap_interest: int = None
+    calculated_zone_id: int = -1
+    calculated_aggr_zone_id: int = -1
+    calculated_is_frontier: bool = False
+    calculated_scrap_interest: int = 0
 
     @property
     def is_grass(self) -> bool:
@@ -52,6 +53,18 @@ class Box:
 
     def can_spawn(self) -> bool:
         assertions = [self.spawn == 1]
+        return all(assertions)
+
+    def my_frontier(self) -> bool:
+        assertions = [not self.is_grass,
+                      self.owner == 1,
+                      self.calculated_is_frontier]
+        return all(assertions)
+
+    def not_mine_frontier(self) -> bool:
+        assertions = [not self.is_grass,
+                      self.owner != 1,
+                      self.calculated_is_frontier]
         return all(assertions)
 
 
@@ -98,7 +111,9 @@ class Grid:
         all_boxes = []
         for y in range(self.height):
             for x in range(self.width):
-                all_boxes.append(self.get_box(x, y))
+                box = self.get_box(x, y)
+                if not box.is_grass:
+                    all_boxes.append(box)
         return all_boxes
 
 
@@ -239,6 +254,46 @@ def distance_between(box1: Box, box2: Box) -> int:
     return abs(box1.x - box2.x) + abs(box1.y - box2.y)
 
 
+def synchronize_frontier(center_box: Box, left_box: Box, upper_box: Box):
+    if center_box.is_grass:
+        pass
+    elif (left_box is not None) and (upper_box is not None):
+        if (not left_box.is_grass):
+            if (left_box.owner != center_box.owner):
+                left_box.calculated_is_frontier = True
+                center_box.calculated_is_frontier = True
+        if (not upper_box.is_grass):
+            if (upper_box.owner != center_box.owner):
+                upper_box.calculated_is_frontier = True
+                center_box.calculated_is_frontier = True
+    elif (left_box is None) and (upper_box is None):
+        pass
+    elif left_box is None:
+        if (not upper_box.is_grass):
+            if (upper_box.owner != center_box.owner):
+                upper_box.calculated_is_frontier = True
+                center_box.calculated_is_frontier = True
+    elif upper_box is None:
+        if (not left_box.is_grass):
+            if (left_box.owner != center_box.owner):
+                left_box.calculated_is_frontier = True
+                center_box.calculated_is_frontier = True
+
+
+def scrap_interest(center: Box, grid: Grid) -> int:
+    xc, yc = center.x, center.y
+    scrap_coords = [(xc, yc), (xc, yc - 1), (xc + 1, yc), (xc, yc + 1), (xc - 1, yc)]
+    sc = center.scrap_amount
+    total_scrap = 0
+    for x, y in scrap_coords:
+        box = grid.get_box(x, y)
+        if box is None:
+            continue
+        if box.owner == 0:
+            total_scrap += min(sc, floor(box.scrap_amount / (1 + box.in_range_of_recycler)))
+    return total_scrap
+
+
 def print_grid_boxes_attribute(grid: Grid, box_attribute_name: str):
     for y in range(grid.height):
         grid_line = ""
@@ -254,7 +309,9 @@ BOXES_CLUSTERS_DICT = {"defend": Box.can_defend,
                        "conquer": Box.can_conquer,
                        "destroy": Box.can_destroy,
                        "spawn": Box.can_spawn,
-                       "build": Box.can_build}
+                       "build": Box.can_build,
+                       "my_frontier": Box.my_frontier,
+                       "ennemy_frontier": Box.not_mine_frontier}
 WIDTH, HEIGHT = [int(i) for i in input().split()]
 DISTANCE_MAX = WIDTH ** 2 + HEIGHT ** 2
 current_grid = Grid(width=WIDTH, height=HEIGHT)
@@ -272,17 +329,21 @@ while True:
             current_left_box, current_upper_box = current_grid.get_left_and_upper_neighbors(center_box=current_box)
             zone_assembler.synchronize_zone(center_box=current_box, left_box=current_left_box,
                                             upper_box=current_upper_box)
+            synchronize_frontier(center_box=current_box, left_box=current_left_box, upper_box=current_upper_box)
 
-            # update calculated attributes for itself and its left/upper neighboors
-                # scrap_interest
-                # is_frontier
+    for y in range(HEIGHT):
+        for x in range(WIDTH):
+            box = current_grid.get_box(x, y)
+            box.calculated_scrap_interest = scrap_interest(box, current_grid)
 
     aggregated_zones = AggregatedZones(zone_assembler)
     boxes_classifier = BoxesClassifier(boxes_clusters_dict=BOXES_CLUSTERS_DICT, aggregated_zones=aggregated_zones)
     boxes_classifier.classify_boxes(current_grid.get_all_boxes())
 
-    #boxes_classifier.print_boxes_clustering()
+    # boxes_classifier.print_boxes_clustering()
     # print_grid_boxes_attribute(current_grid, "calculated_aggr_zone_id")
+    # print_grid_boxes_attribute(current_grid, "calculated_is_frontier")
+    # print_grid_boxes_attribute(current_grid, "calculated_scrap_interest")
 
     print("WAIT")
 
