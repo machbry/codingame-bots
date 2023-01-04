@@ -423,15 +423,13 @@ while True:
                                                                                  min_value=5)
         if len(best_build_boxes) == 0:
             break
-        i = 0
-        while (i < len(best_build_boxes)) and (my_matter >= 10) and (len(build_boxes_chosen) <= 2):
-            best_build_box, build_box_index = best_build_boxes[i], build_boxes_index[i]
-            action = f"BUILD {best_build_box.x} {best_build_box.y};"
-            actions += action
-            my_matter += -10
-            build_boxes.pop(build_box_index)
-            build_boxes_chosen.append(best_build_box)
-            i += 1
+
+        best_build_box, build_box_index = best_build_boxes[0], build_boxes_index[0]
+        action = f"BUILD {best_build_box.x} {best_build_box.y};"
+        actions += action
+        my_matter += -10
+        build_boxes.pop(build_box_index)
+        build_boxes_chosen.append(best_build_box)
 
     enemy_boxes = boxes_classifier.get_boxes_from_cluster("enemy")
     enemy_units_barycenter = barycenter(enemy_boxes, "units")
