@@ -23,7 +23,7 @@ class Box:
 
     @property
     def is_grass(self) -> bool:
-        return self.scrap_amount == 0
+        return (self.scrap_amount == 0) or (self.recycler == 1)
 
     def can_conquer(self) -> bool:
         assertions = [not self.is_grass,
@@ -412,8 +412,11 @@ while True:
     boxes_classifier = BoxesClassifier(boxes_clusters_dict=BOXES_CLUSTERS_DICT, aggregated_zones=aggregated_zones)
     boxes_classifier.classify_boxes(current_grid.get_all_boxes())
 
+    # print_grid_boxes_attribute(current_grid, "spawn")
+
     actions = ""
 
+    # BUILD ALGORITHM
     build_boxes = boxes_classifier.get_boxes_from_cluster("build")
     for box in build_boxes:
         box.calculated_scrap_interest = scrap_interest(box, current_grid)
@@ -424,7 +427,6 @@ while True:
                                                                                  min_value=5)
         if len(best_build_boxes) == 0:
             break
-
         best_build_box, build_box_index = best_build_boxes[0], build_boxes_index[0]
         action = f"BUILD {best_build_box.x} {best_build_box.y};"
         actions += action
@@ -432,6 +434,7 @@ while True:
         build_boxes.pop(build_box_index)
         build_boxes_chosen.append(best_build_box)
 
+    # SPAWN ALGORITHM
     enemy_boxes = boxes_classifier.get_boxes_from_cluster("enemy")
     enemy_units_barycenter = barycenter(enemy_boxes, "units")
     spawn_frontier_boxes = boxes_classifier.get_boxes_from_cluster("spawn_frontier")
@@ -446,16 +449,13 @@ while True:
         actions += action
         my_matter += -10
 
+    # MOVE ALGORITHM
     for aggr_zone_id in boxes_classifier.aggregated_zones_ids:
         boxes_with_my_units = boxes_classifier.get_boxes_from_cluster_and_zone("move", aggr_zone_id)
         my_units = []
         for box in boxes_with_my_units:
             for u in range(box.units):
                 my_units.append(box)
-        my_units_bar = barycenter(boxes_with_my_units, "units")
-
-        aggr_zone_enemy_boxes = boxes_classifier.get_boxes_from_cluster_and_zone("enemy", aggr_zone_id)
-        enemy_bar = barycenter(aggr_zone_enemy_boxes, "units")
 
         boxes_not_mine_frontier = boxes_classifier.get_boxes_from_cluster_and_zone("not_mine_frontier", aggr_zone_id)
         boxes_to_target = []
@@ -471,15 +471,11 @@ while True:
         else:
             targets = boxes_classifier.get_boxes_from_cluster_and_zone("conquer", aggr_zone_id)
 
-        current_targets = targets.copy()
         for my_unit in my_units:
-            if len(current_targets) > 0:
-                closest_box_index, closest_box = closest(from_box=my_unit, to_boxes=current_targets)
-                current_targets.pop(closest_box_index)
+            if len(targets) > 0:
+                closest_box_index, closest_box = closest(from_box=my_unit, to_boxes=targets)
                 action = f"MOVE 1 {str(my_unit.x)} {str(my_unit.y)} {str(closest_box.x)} {str(closest_box.y)};"
                 actions += action
-            else:
-                current_targets = targets.copy()
 
     if actions == "":
         actions = "WAIT"
