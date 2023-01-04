@@ -254,7 +254,7 @@ def distance_between(box1: Box, box2: Box) -> int:
     return abs(box1.x - box2.x) + abs(box1.y - box2.y)
 
 
-def closest(from_box, to_boxes: List[Box]) -> Tuple[int, Box]:
+def closest(from_box: Box, to_boxes: List[Box]) -> Tuple[int, Box]:
     if len(to_boxes) == 0:
         return None
     dmin = DISTANCE_MAX
@@ -267,6 +267,13 @@ def closest(from_box, to_boxes: List[Box]) -> Tuple[int, Box]:
             if d <= 1:
                 break
     return closest_box_index, to_boxes[closest_box_index]
+
+
+def closest_boxes(boxes: List[Box], target: Box) -> List[Box]:
+    if len(boxes) == 1:
+        return boxes
+    sorted_boxes = sorted(boxes, key=lambda x: distance_between(target, x))
+    return sorted_boxes[:len(sorted_boxes)//2]
 
 
 def barycenter(boxes: List[Box], box_attr_ponderation: str = None) -> Box:
@@ -412,8 +419,6 @@ while True:
     boxes_classifier = BoxesClassifier(boxes_clusters_dict=BOXES_CLUSTERS_DICT, aggregated_zones=aggregated_zones)
     boxes_classifier.classify_boxes(current_grid.get_all_boxes())
 
-    # print_grid_boxes_attribute(current_grid, "spawn")
-
     actions = ""
 
     # BUILD ALGORITHM
@@ -452,14 +457,6 @@ while True:
     # MOVE ALGORITHM
     for aggr_zone_id in boxes_classifier.aggregated_zones_ids:
         boxes_with_my_units = boxes_classifier.get_boxes_from_cluster_and_zone("move", aggr_zone_id)
-        my_units = []
-        for box in boxes_with_my_units:
-            for u in range(box.units):
-                my_units.append(box)
-
-        # if all my units and enemy units are separated
-        # select column in the middle
-        # spread my units on that column
 
         boxes_not_mine_frontier = boxes_classifier.get_boxes_from_cluster_and_zone("not_mine_frontier", aggr_zone_id)
         boxes_to_target = []
@@ -475,11 +472,22 @@ while True:
         else:
             targets = boxes_classifier.get_boxes_from_cluster_and_zone("conquer", aggr_zone_id)
 
-        for my_unit in my_units:
-            if len(targets) > 0:
-                closest_box_index, closest_box = closest(from_box=my_unit, to_boxes=targets)
-                action = f"MOVE 1 {str(my_unit.x)} {str(my_unit.y)} {str(closest_box.x)} {str(closest_box.y)};"
-                actions += action
+        if len(targets) > 0:
+            az_enemy_boxes = boxes_classifier.get_boxes_from_cluster_and_zone("enemy", aggr_zone_id)
+            az_enemy_units_barycenter = barycenter(az_enemy_boxes, "units")
+            if az_enemy_units_barycenter is not None:
+                print(len(targets), file=sys.stderr, flush=True)
+                targets = closest_boxes(targets, az_enemy_units_barycenter)
+
+            for box in boxes_with_my_units:
+                targets_copy = targets.copy()
+                for u in range(box.units):
+                    if len(targets_copy) == 0:
+                        targets_copy = targets.copy()
+                    closest_box_index, closest_box = closest(from_box=box, to_boxes=targets_copy)
+                    targets_copy.pop(closest_box_index)
+                    action = f"MOVE 1 {str(box.x)} {str(box.y)} {str(closest_box.x)} {str(closest_box.y)};"
+                    actions += action
 
     if actions == "":
         actions = "WAIT"
