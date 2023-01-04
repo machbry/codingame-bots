@@ -457,6 +457,10 @@ while True:
             for u in range(box.units):
                 my_units.append(box)
 
+        # if all my units and enemy units are separated
+        # select column in the middle
+        # spread my units on that column
+
         boxes_not_mine_frontier = boxes_classifier.get_boxes_from_cluster_and_zone("not_mine_frontier", aggr_zone_id)
         boxes_to_target = []
         for box in boxes_not_mine_frontier:
