@@ -181,7 +181,9 @@ class ZoneAssembler:
 class AggregatedZones:
     def __init__(self, zone_assembler: ZoneAssembler):
         self.zone_assembler = zone_assembler
-        self.all_connected_ids: List[List[int]] = []
+        existing_zones_ids = [zone_id for zone_id in self.zone_assembler.zones_id_list() \
+                              if zone_id != -1]
+        self.all_connected_ids: List[List[int]] = [existing_zones_ids]
         for z_id_0, z_id_1 in self.zone_assembler.connected_zones:
             zones_connected = [z_id_0, z_id_1]
             to_remove = []
@@ -270,10 +272,9 @@ def closest(from_box: Box, to_boxes: List[Box]) -> Tuple[int, Box]:
 
 
 def closest_boxes(boxes: List[Box], target: Box) -> List[Box]:
-    if len(boxes) == 1:
-        return boxes
     sorted_boxes = sorted(boxes, key=lambda x: distance_between(target, x))
-    return sorted_boxes[:len(sorted_boxes)//2]
+    k = len(sorted_boxes)//2 + 1
+    return sorted_boxes[:k]
 
 
 def barycenter(boxes: List[Box], box_attr_ponderation: str = None) -> Box:
@@ -476,7 +477,6 @@ while True:
             az_enemy_boxes = boxes_classifier.get_boxes_from_cluster_and_zone("enemy", aggr_zone_id)
             az_enemy_units_barycenter = barycenter(az_enemy_boxes, "units")
             if az_enemy_units_barycenter is not None:
-                print(len(targets), file=sys.stderr, flush=True)
                 targets = closest_boxes(targets, az_enemy_units_barycenter)
 
             for box in boxes_with_my_units:
