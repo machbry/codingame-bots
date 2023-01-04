@@ -387,7 +387,8 @@ BOXES_CLUSTERS_DICT = {"move": Box.can_move,
                        "build": Box.can_build,
                        "spawn_frontier": Box.spawn_frontier,
                        "not_mine_frontier": Box.not_mine_frontier,
-                       "enemy": Box.has_enemy}
+                       "enemy": Box.has_enemy,
+                       "conquer": Box.can_conquer}
 WIDTH, HEIGHT = [int(i) for i in input().split()]
 DISTANCE_MAX = WIDTH ** 2 + HEIGHT ** 2
 current_grid = Grid(width=WIDTH, height=HEIGHT)
@@ -463,15 +464,22 @@ while True:
             if interest > 0:
                 boxes_to_target.append(box)
 
-        boxes_to_target_copy = boxes_to_target.copy()
-        for my_unit in my_units: # optimize my_unit / box_to_target association
-            if len(boxes_to_target_copy) > 0:
-                closest_box_index, closest_box = closest(from_box=my_unit, to_boxes=boxes_to_target_copy)
-                boxes_to_target_copy.pop(closest_box_index)
+        if len(boxes_to_target) > 0:
+            targets = boxes_to_target
+        elif len(boxes_not_mine_frontier) > 0:
+            targets = boxes_not_mine_frontier
+        else:
+            targets = boxes_classifier.get_boxes_from_cluster_and_zone("conquer", aggr_zone_id)
+
+        current_targets = targets.copy()
+        for my_unit in my_units:
+            if len(current_targets) > 0:
+                closest_box_index, closest_box = closest(from_box=my_unit, to_boxes=current_targets)
+                current_targets.pop(closest_box_index)
                 action = f"MOVE 1 {str(my_unit.x)} {str(my_unit.y)} {str(closest_box.x)} {str(closest_box.y)};"
                 actions += action
             else:
-                boxes_to_target_copy = boxes_to_target.copy()
+                current_targets = targets.copy()
 
     if actions == "":
         actions = "WAIT"
