@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Tuple
 from math import floor
 from random import randrange
+import time
 
 
 @dataclass
@@ -405,6 +406,7 @@ current_grid = Grid(width=WIDTH, height=HEIGHT)
 while True:
     my_matter, opp_matter = [int(i) for i in input().split()]
     zone_assembler = ZoneAssembler()
+    start_time = time.time_ns()
     for y in range(HEIGHT):
         for x in range(WIDTH):
             scrap_amount, owner, units, recycler, build, spawn, in_range_of_recycler = [int(k) for k in input().split()]
@@ -491,6 +493,7 @@ while True:
 
     if actions == "":
         actions = "WAIT"
-    print(actions)
+    end_time = time.time_ns()
+    print(actions + f"MESSAGE {str((end_time-start_time)/1000000)}")
 
     # To debug: print("Debug messages...", file=sys.stderr, flush=True)
