@@ -21,6 +21,7 @@ class Box:
     calculated_is_frontier: bool = False
     calculated_scrap_interest: int = 0
     calculated_move_interest: int = 0
+    calculated_spawn_interest: float = 0
 
     @property
     def is_grass(self) -> bool:
@@ -44,7 +45,7 @@ class Box:
                       self.units > 0]
         return all(assertions)
 
-    def can_destroy(self) -> bool:
+    def has_enemy(self) -> bool:
         assertions = [self.owner == 0,
                       self.units > 0]
         return all(assertions)
@@ -270,6 +271,25 @@ def closest(from_box, to_boxes: List[Box]) -> Tuple[int, Box]:
     return closest_box_index, to_boxes[closest_box_index]
 
 
+def barycenter(boxes: List[Box], box_attr_ponderation: str = None) -> Box:
+    N = len(boxes)
+    if N == 0:
+        return None
+    else:
+        xsum, ysum, total_ponderation = 0, 0, 0
+        for box in boxes:
+            if box_attr_ponderation is None:
+                xsum += box.x
+                ysum += box.y
+                total_ponderation += 1
+            else:
+                ponderation = getattr(box, box_attr_ponderation)
+                xsum += box.x * ponderation
+                ysum += box.y * ponderation
+                total_ponderation += ponderation
+        return Box(x=int(round(xsum/total_ponderation)), y=int(round(ysum/total_ponderation)))
+
+
 def synchronize_frontier(center_box: Box, left_box: Box, upper_box: Box):
     if center_box.is_grass:
         pass
@@ -310,8 +330,11 @@ def scrap_interest(center: Box, grid: Grid) -> int:
     return total_scrap
 
 
-def spawn_interest(center: Box, grid: Grid) -> int:
-    pass
+def spawn_interest(center: Box, attractor: Box) -> float:
+    if not center.spawn_frontier:
+        return 0
+    distance_to_attractor = distance_between(center, attractor)
+    return 1 / (1 + distance_to_attractor)
 
 
 def move_interest(center: Box, grid: Grid) -> int:
@@ -369,7 +392,9 @@ def print_boxes_xy(boxes: List[Box]):
 BOXES_CLUSTERS_DICT = {"move": Box.can_move,
                        "build": Box.can_build,
                        "spawn_frontier": Box.spawn_frontier,
-                       "not_mine_frontier": Box.not_mine_frontier}
+                       "not_mine_frontier": Box.not_mine_frontier,
+                       "enemy": Box.has_enemy,
+                       "conquer": Box.can_conquer}
 WIDTH, HEIGHT = [int(i) for i in input().split()]
 DISTANCE_MAX = WIDTH ** 2 + HEIGHT ** 2
 current_grid = Grid(width=WIDTH, height=HEIGHT)
@@ -393,15 +418,13 @@ while True:
     boxes_classifier = BoxesClassifier(boxes_clusters_dict=BOXES_CLUSTERS_DICT, aggregated_zones=aggregated_zones)
     boxes_classifier.classify_boxes(current_grid.get_all_boxes())
 
-    # TODO: quick stats on aggregated zones
-
     actions = ""
 
     build_boxes = boxes_classifier.get_boxes_from_cluster("build")
     for box in build_boxes:
         box.calculated_scrap_interest = scrap_interest(box, current_grid)
     build_boxes_chosen = []
-    while (len(build_boxes) > 0) and (my_matter >= 10) and (len(build_boxes_chosen) <= 2):
+    while (len(build_boxes) > 0) and (my_matter >= 10) and (len(build_boxes_chosen) <= 1):
         best_build_boxes, build_boxes_index = get_boxes_with_max_attribute_value(boxes=build_boxes,
                                                                                  box_attr_name="calculated_scrap_interest",
                                                                                  min_value=10)
@@ -417,42 +440,50 @@ while True:
             build_boxes_chosen.append(best_build_box)
             i += 1
 
+    enemy_boxes = boxes_classifier.get_boxes_from_cluster("enemy")
+    enemy_units_barycenter = barycenter(enemy_boxes, "units")
     spawn_frontier_boxes = boxes_classifier.get_boxes_from_cluster("spawn_frontier")
     spawn_frontier_boxes = remove_boxes_from_list(boxes=spawn_frontier_boxes, boxes_to_remove=build_boxes_chosen)
-    # TODO : add spawn interest
     while ((my_matter >= 10) and len(spawn_frontier_boxes) > 0):
-        spawn_box_chosen = spawn_frontier_boxes.pop(randrange(len(spawn_frontier_boxes)))
-        action = f"SPAWN 1 {spawn_box_chosen.x} {spawn_box_chosen.y};"
+        if enemy_units_barycenter is not None:
+            spawn_box_index, spawn_box = closest(from_box=enemy_units_barycenter, to_boxes=spawn_frontier_boxes)
+            spawn_frontier_boxes.pop(spawn_box_index)
+        else:
+            spawn_box = spawn_frontier_boxes.pop(randrange(len(spawn_frontier_boxes)))
+        action = f"SPAWN 1 {spawn_box.x} {spawn_box.y};"
         actions += action
         my_matter += -10
 
     for aggr_zone_id in boxes_classifier.aggregated_zones_ids:
-        boxes_not_mine_frontier = boxes_classifier.get_boxes_from_cluster_and_zone("not_mine_frontier", aggr_zone_id)
-        boxes_to_target = []
-        for box in boxes_not_mine_frontier:
-            interest = move_interest(box, current_grid) # TODO : improve move interest
-            if interest > 0:
-                box.calculated_move_interest = interest
-                boxes_to_target.append(box)
-
         boxes_with_my_units = boxes_classifier.get_boxes_from_cluster_and_zone("move", aggr_zone_id)
         my_units = []
         for box in boxes_with_my_units:
             for u in range(box.units):
                 my_units.append(box)
+        my_units_bar = barycenter(boxes_with_my_units, "units")
 
-        for box_to_target in boxes_to_target:
-            if len(my_units) == 0:
-                break
-            closest_unit_index, closest_unit = closest(from_box=box_to_target, to_boxes=my_units)
-            my_units.pop(closest_unit_index)
-            action = f"MOVE 1 {str(closest_unit.x)} {str(closest_unit.y)} {str(box_to_target.x)} {str(box_to_target.y)};"
-            actions += action
+        aggr_zone_enemy_boxes = boxes_classifier.get_boxes_from_cluster_and_zone("enemy", aggr_zone_id)
+        enemy_bar = barycenter(aggr_zone_enemy_boxes, "units")
 
-        for my_unit in my_units:
-            closest_box_index, closest_box = closest(from_box=my_unit, to_boxes=boxes_to_target)
-            action = f"MOVE 1 {str(my_unit.x)} {str(my_unit.y)} {str(closest_box.x)} {str(closest_box.y)};"
-            actions += action
+        aggr_zones_conquer_boxes = boxes_classifier.get_boxes_from_cluster_and_zone("conquer", aggr_zone_id)
+
+        boxes_not_mine_frontier = boxes_classifier.get_boxes_from_cluster_and_zone("not_mine_frontier", aggr_zone_id)
+        boxes_to_target = []
+        for box in boxes_not_mine_frontier:
+            interest = move_interest(box, current_grid)
+            if interest > 0:
+                box.calculated_move_interest = interest
+                boxes_to_target.append(box)
+
+        boxes_to_target_copy = boxes_to_target.copy()
+        for my_unit in my_units: # optimize my_unit / box_to_target association
+            if len(boxes_to_target_copy) > 0:
+                closest_box_index, closest_box = closest(from_box=my_unit, to_boxes=boxes_to_target_copy)
+                boxes_to_target_copy.pop(closest_box_index)
+                action = f"MOVE 1 {str(my_unit.x)} {str(my_unit.y)} {str(closest_box.x)} {str(closest_box.y)};"
+                actions += action
+            else:
+                boxes_to_target_copy = boxes_to_target.copy()
 
     if actions == "":
         actions = "WAIT"
