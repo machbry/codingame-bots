@@ -333,7 +333,7 @@ def scrap_interest(center: Box, grid: Grid) -> int:
         if box is None:
             continue
         if box.owner == 0:
-            total_scrap += min(sc, floor(box.scrap_amount / (1 + box.in_range_of_recycler)))
+            total_scrap += min(sc, floor(box.scrap_amount / (1 + box.in_range_of_recycler))) + box.units
     return total_scrap
 
 
