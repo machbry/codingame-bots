@@ -20,8 +20,6 @@ class Box:
     calculated_aggr_zone_id: int = -1
     calculated_is_frontier: bool = False
     calculated_scrap_interest: int = 0
-    calculated_move_interest: int = 0
-    calculated_spawn_interest: float = 0
 
     @property
     def is_grass(self) -> bool:
@@ -330,13 +328,6 @@ def scrap_interest(center: Box, grid: Grid) -> int:
     return total_scrap
 
 
-def spawn_interest(center: Box, attractor: Box) -> float:
-    if not center.spawn_frontier:
-        return 0
-    distance_to_attractor = distance_between(center, attractor)
-    return 1 / (1 + distance_to_attractor)
-
-
 def move_interest(center: Box, grid: Grid) -> int:
     if not center.calculated_is_frontier:
         return 0
@@ -367,11 +358,14 @@ def get_boxes_with_max_attribute_value(boxes: List[Box], box_attr_name: str, min
 
 
 def remove_boxes_from_list(boxes: List[Box], boxes_to_remove: List[Box]) -> List[Box]:
-    filtered_boxes = boxes.copy()
-    for box_to_remove in boxes_to_remove:
-        for i, box in enumerate(boxes):
+    filtered_boxes = []
+    for box in boxes:
+        to_keep = True
+        for box_to_remove in boxes_to_remove:
             if (box.x, box.y) == (box_to_remove.x, box_to_remove.y):
-                filtered_boxes.pop(i)
+                to_keep = False
+        if to_keep:
+            filtered_boxes.append(box)
     return filtered_boxes
 
 
@@ -393,8 +387,7 @@ BOXES_CLUSTERS_DICT = {"move": Box.can_move,
                        "build": Box.can_build,
                        "spawn_frontier": Box.spawn_frontier,
                        "not_mine_frontier": Box.not_mine_frontier,
-                       "enemy": Box.has_enemy,
-                       "conquer": Box.can_conquer}
+                       "enemy": Box.has_enemy}
 WIDTH, HEIGHT = [int(i) for i in input().split()]
 DISTANCE_MAX = WIDTH ** 2 + HEIGHT ** 2
 current_grid = Grid(width=WIDTH, height=HEIGHT)
@@ -424,10 +417,10 @@ while True:
     for box in build_boxes:
         box.calculated_scrap_interest = scrap_interest(box, current_grid)
     build_boxes_chosen = []
-    while (len(build_boxes) > 0) and (my_matter >= 10) and (len(build_boxes_chosen) <= 1):
+    while (len(build_boxes) > 0) and (my_matter >= 10) and (len(build_boxes_chosen) <= 5):
         best_build_boxes, build_boxes_index = get_boxes_with_max_attribute_value(boxes=build_boxes,
                                                                                  box_attr_name="calculated_scrap_interest",
-                                                                                 min_value=10)
+                                                                                 min_value=5)
         if len(best_build_boxes) == 0:
             break
         i = 0
@@ -465,14 +458,11 @@ while True:
         aggr_zone_enemy_boxes = boxes_classifier.get_boxes_from_cluster_and_zone("enemy", aggr_zone_id)
         enemy_bar = barycenter(aggr_zone_enemy_boxes, "units")
 
-        aggr_zones_conquer_boxes = boxes_classifier.get_boxes_from_cluster_and_zone("conquer", aggr_zone_id)
-
         boxes_not_mine_frontier = boxes_classifier.get_boxes_from_cluster_and_zone("not_mine_frontier", aggr_zone_id)
         boxes_to_target = []
         for box in boxes_not_mine_frontier:
             interest = move_interest(box, current_grid)
             if interest > 0:
-                box.calculated_move_interest = interest
                 boxes_to_target.append(box)
 
         boxes_to_target_copy = boxes_to_target.copy()
