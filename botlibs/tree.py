@@ -1,10 +1,9 @@
-from typing import List, Any
 
 
 class Tree:
-    def __init__(self, value: Any, children: List = []):
+    def __init__(self, value):
         self._value = value
-        self._children = children
+        self._children = []
 
     @property
     def value(self):
