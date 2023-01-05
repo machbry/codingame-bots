@@ -1,9 +1,18 @@
+from typing import List, Any
+
+
 class Tree:
-    def __init__(self, value, children=None):
-        self.value = value
-        self.children = children
-        if self.children is None:
-            self.children = []
+    def __init__(self, value: Any, children: List = []):
+        self._value = value
+        self._children = children
+
+    @property
+    def value(self):
+        return self._value
+
+    @property
+    def children(self):
+        return self._children
 
     def add_child(self, child):
-        self.children.append(child)
+        self._children.append(child)
