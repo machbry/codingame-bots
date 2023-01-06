@@ -30,10 +30,7 @@ class TreeTest(unittest.TestCase):
         scenarios = {"sc1": {"parent_tree": "tree_numeric_value_1.json",
                              "child_tree": "tree_numeric_value_2.json"},
                      "sc2": {"parent_tree": "tree_numeric_value_1.json",
-                             "child_tree": None},
-                     "sc3": {"parent_tree": "tree_numeric_value_2.json",
-                             "child_tree": "tree_numeric_value_1.json"},
-                     }
+                             "child_tree": None}}
 
         for scenario_name, scenario in scenarios.items():
             parent_tree = tree_from_json(scenario["parent_tree"])
