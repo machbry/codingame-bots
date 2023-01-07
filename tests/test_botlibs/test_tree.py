@@ -6,8 +6,8 @@ import unittest
 
 from botlibs.tree import Tree
 
-ABSPATH = Path(__file__).parent.resolve()
-BASE_PATH = join(ABSPATH, "res/Tree")
+ABSPATH = Path(__file__).parent.parent.resolve()
+BASE_PATH = join(ABSPATH, "res/botlibs/Tree")
 
 
 def read_json(path: Path) -> dict:
