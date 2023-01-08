@@ -1,7 +1,8 @@
 $botsDir = "bots"
 $challengePackageName = "challengelibs"
-$challengeName = Read-Host "Enter challenge name"
+$botFileName = "bot.py"
 
+$challengeName = Read-Host "Enter challenge name"
 $challengeName = ($challengeName -replace ' ', '_').ToLower()
 $challengeDir = "$botsDir\$challengeName"
 if (Test-Path $challengeDir) {
@@ -10,9 +11,10 @@ if (Test-Path $challengeDir) {
 {
     $challengePackageDir = "$challengeDir\$challengePackageName"
     New-Item -ItemType Directory -Path $challengeDir
-    New-Item -ItemType File -Path "$challengeDir\bot.py"
-    New-Item -ItemType Directory -Path "$challengePackageDir"
+    New-Item -ItemType File -Path "$challengeDir\$botFileName"
+    New-Item -ItemType Directory -Path $challengePackageDir
     New-Item -ItemType File -Path "$challengePackageDir\__init__.py"
-    git add "$challengeDir\bot.py"
+
+    git add "$challengeDir\$botFileName"
     git add "$challengePackageDir\__init__.py"
 }
