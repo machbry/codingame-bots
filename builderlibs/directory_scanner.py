@@ -14,7 +14,7 @@ class DirectoryScanner:
 
     @property
     def challenges_names(self) -> List[str]:
-        return self.challenges_names
+        return self._challenges_names
 
     def get_challenge_path(self, challenge_name: str) -> str:
         challenge_path = self.challenges_paths.get(challenge_name)
@@ -26,5 +26,5 @@ class DirectoryScanner:
         challenge_path = self.get_challenge_path(challenge_name)
         bot_file_path = os.path.join(challenge_path, bot_file_name)
         if not os.path.isfile(bot_file_path):
-            raise Exception(f"File {bot_file_name} not found in challenge directory {challenge_path}.")
+            raise FileNotFoundError(f"File {bot_file_name} not found in challenge directory {challenge_path}.")
         return bot_file_path
