@@ -6,8 +6,8 @@ import unittest
 
 from botlibs.tree import Tree
 
-TEST_PATH = Path(__file__).parent.parent.resolve()
-BASE_PATH = join(TEST_PATH, "res", "botlibs", "Tree")
+TEST_DIRECTORY = Path(__file__).parent.parent.resolve()
+BASE_PATH = join(TEST_DIRECTORY, "res", "botlibs", "Tree")
 
 
 def read_json(path: Path) -> dict:
@@ -18,7 +18,7 @@ def read_json(path: Path) -> dict:
 def tree_from_json(file_name: str) -> Tree:
     if file_name is None:
         return None
-    return Tree(**read_json(join(BASE_PATH, file_name)))
+    return Tree(**read_json(Path(join(BASE_PATH, file_name)).resolve()))
 
 
 class TestTree(unittest.TestCase):
