@@ -1,17 +1,52 @@
 from pathlib import Path
+import os
+from typing import Set, List
 import ast
-import glob
 
 from builderlibs.directory_scanner import DirectoryScanner
 
-ABSPATH = Path(__file__).parent.resolve()
 CHALLENGE_NAME = "death_first_search_ep1"
 BOT_FILE_NAME = "bot.py"
 
+PROJECT_DIRECTORY = Path(__file__).parent.resolve()
+BUILT_BOTS_DIRECTORY = "built_bots"
+BUILT_BOTS_PATH = Path(os.path.join(PROJECT_DIRECTORY, "built_bots")).resolve()
+
+
+def get_imported_modules(file_path: Path) -> Set[str]:
+    modules = []
+    with open(file_path, 'r') as f:
+        tree = ast.parse(f.read())
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                modules.extend([n.name for n in node.names])
+            elif isinstance(node, ast.ImportFrom):
+                modules.append(node.module)
+    return set(modules)
+
+
+def files_related_to_modules_in_directories(modules: Set[str], look_in_directories: List[Path]) -> Set[Path]:
+    files = []
+    for module in modules:
+        for directory in look_in_directories:
+            module_path = Path(os.path.join(directory, module.replace('.', '\\') + ".py")).resolve()
+            if os.path.isfile(module_path):
+                files.append(module_path)
+    return set(files)
+
+
 directory_scanner = DirectoryScanner()
+
 challenge_path = directory_scanner.get_challenge_path(CHALLENGE_NAME)
 bot_file_path = directory_scanner.get_bot_file_path(CHALLENGE_NAME, BOT_FILE_NAME)
+bot_modules = get_imported_modules(bot_file_path)
+print(bot_modules)
+print(len(bot_modules))
 
+look_in_dirs = [PROJECT_DIRECTORY, challenge_path]
+local_files_to_merge = files_related_to_modules_in_directories(bot_modules, look_in_dirs)
+print(local_files_to_merge)
+print(len(local_files_to_merge))
 
 # with open('destination.py', 'w') as destination:
 #     file_list = glob.glob('bots/*.py')
