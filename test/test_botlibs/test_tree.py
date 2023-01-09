@@ -21,7 +21,7 @@ def tree_from_json(file_name: str) -> Tree:
     return Tree(**read_json(join(BASE_PATH, file_name)))
 
 
-class TreeTest(unittest.TestCase):
+class TestTree(unittest.TestCase):
 
     def setUp(self):
         pass
