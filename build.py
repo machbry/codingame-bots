@@ -1,6 +1,5 @@
 import argparse
 from pathlib import Path
-import os
 from typing import Set, List
 import ast
 
@@ -9,7 +8,7 @@ from builderlibs.directory_scanner import DirectoryScanner
 BOT_FILE_NAME = "bot.py"
 PROJECT_DIRECTORY = Path(__file__).parent.resolve()
 BUILT_BOTS_DIRECTORY = "built_bots"
-BUILT_BOTS_PATH = Path(os.path.join(PROJECT_DIRECTORY, "built_bots")).resolve()
+BUILT_BOTS_PATH = PROJECT_DIRECTORY / BUILT_BOTS_DIRECTORY
 
 
 def get_imported_modules(file_path: Path) -> Set[str]:
@@ -28,8 +27,8 @@ def files_related_to_modules_in_directories(modules: Set[str], look_in_directori
     files = []
     for module in modules:
         for directory in look_in_directories:
-            module_path = Path(os.path.join(directory, module.replace('.', '\\') + ".py")).resolve()
-            if os.path.isfile(module_path):
+            module_path = directory / (module.replace('.', '\\') + ".py")
+            if module_path.is_file():
                 files.append(module_path)
     return set(files)
 
