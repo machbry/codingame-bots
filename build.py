@@ -1,3 +1,4 @@
+import argparse
 from pathlib import Path
 import os
 from typing import Set, List
@@ -5,9 +6,7 @@ import ast
 
 from builderlibs.directory_scanner import DirectoryScanner
 
-CHALLENGE_NAME = "death_first_search_ep1"
 BOT_FILE_NAME = "bot.py"
-
 PROJECT_DIRECTORY = Path(__file__).parent.resolve()
 BUILT_BOTS_DIRECTORY = "built_bots"
 BUILT_BOTS_PATH = Path(os.path.join(PROJECT_DIRECTORY, "built_bots")).resolve()
@@ -35,10 +34,16 @@ def files_related_to_modules_in_directories(modules: Set[str], look_in_directori
     return set(files)
 
 
-directory_scanner = DirectoryScanner()
+parser = argparse.ArgumentParser()
+parser.add_argument("-c", "--challenge_name", type=str)
+parser.add_argument("-b", "--bot_file_name", type=str, default=BOT_FILE_NAME)
+arguments = parser.parse_args().__dict__
+challenge_name = arguments["challenge_name"]
+bot_file_name = arguments["bot_file_name"]
 
-challenge_path = directory_scanner.get_challenge_path(CHALLENGE_NAME)
-bot_file_path = directory_scanner.get_bot_file_path(CHALLENGE_NAME, BOT_FILE_NAME)
+directory_scanner = DirectoryScanner()
+challenge_path = directory_scanner.get_challenge_path(challenge_name)
+bot_file_path = directory_scanner.get_bot_file_path(challenge_name, bot_file_name)
 bot_modules = get_imported_modules(bot_file_path)
 print(bot_modules)
 print(len(bot_modules))
