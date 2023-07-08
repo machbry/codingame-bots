@@ -1,8 +1,9 @@
 import sys
 import math
+import pandas as pd
 
-from botlibs.tree import Tree
 from botlibs.trigonometry import Vector
+from challengelibs.simulator import Turn
 
 # Auto-generated code below aims at helping you parse
 # the standard input according to the problem statement.

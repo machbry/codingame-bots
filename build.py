@@ -1,17 +1,19 @@
 import argparse
 from pathlib import Path
-from typing import Set, List
+from typing import List
 import ast
+from glob import glob
 
 from builderlibs.directory_scanner import DirectoryScanner
 
 BOT_FILE_NAME = "bot.py"
-PROJECT_DIRECTORY = Path(__file__).parent.resolve()
+CHALLENGE_LIBS_NAME = "challengelibs"
+BASE_PATH = Path(__file__).parent.resolve()
 BUILT_BOTS_DIRECTORY = "built_bots"
-BUILT_BOTS_PATH = PROJECT_DIRECTORY / BUILT_BOTS_DIRECTORY
+BUILT_BOTS_PATH = BASE_PATH / BUILT_BOTS_DIRECTORY
 
 
-def get_imported_modules(file_path: Path) -> Set[str]:
+def get_imported_modules(file_path: Path) -> List[str]:
     modules = []
     with open(file_path, 'r') as f:
         tree = ast.parse(f.read())
@@ -20,12 +22,12 @@ def get_imported_modules(file_path: Path) -> Set[str]:
                 modules.extend([n.name for n in node.names])
             elif isinstance(node, ast.ImportFrom):
                 modules.append(node.module)
-    return set(modules)
+    return modules
 
 
-def files_related_to_modules_in_directories(modules: Set[str], look_in_directories: List[Path]) -> Set[Path]:
+def files_related_to_modules_in_directories(modules: List[str], look_in_directories: List[Path]) -> set[Path]:
     files = []
-    for module in modules:
+    for module in set(modules):
         for directory in look_in_directories:
             module_path = directory / (module.replace('.', '\\') + ".py")
             if module_path.is_file():
@@ -36,17 +38,17 @@ def files_related_to_modules_in_directories(modules: Set[str], look_in_directori
 parser = argparse.ArgumentParser()
 parser.add_argument("-c", "--challenge_name", type=str)
 parser.add_argument("-b", "--bot_file_name", type=str, default=BOT_FILE_NAME)
+parser.add_argument("-l", "--challenge_libs_name", type=str, default=CHALLENGE_LIBS_NAME)
 arguments = parser.parse_args().__dict__
-challenge_name = arguments["challenge_name"]
-bot_file_name = arguments["bot_file_name"]
 
 directory_scanner = DirectoryScanner()
-challenge_path, bot_file_path = directory_scanner.get_challenge_paths(challenge_name, bot_file_name)
-bot_modules = get_imported_modules(bot_file_path)
-print(bot_modules)
+challenge_path, bot_file_path, challenge_libs_path = directory_scanner.get_challenge_paths(**arguments)
 
-look_in_dirs = [PROJECT_DIRECTORY, challenge_path]
-local_files_to_merge = files_related_to_modules_in_directories(bot_modules, look_in_dirs)
+imported_modules = get_imported_modules(bot_file_path)
+[imported_modules.extend(get_imported_modules(Path(lib))) for lib in glob(str(challenge_libs_path / "*.py"))]
+
+look_in_dirs = [BASE_PATH, challenge_path, challenge_libs_path]
+local_files_to_merge = files_related_to_modules_in_directories(imported_modules, look_in_dirs)
 print(local_files_to_merge)
 
 # with open('destination.py', 'w') as destination:
