@@ -41,16 +41,13 @@ challenge_name = arguments["challenge_name"]
 bot_file_name = arguments["bot_file_name"]
 
 directory_scanner = DirectoryScanner()
-challenge_path = directory_scanner.get_challenge_path(challenge_name)
-bot_file_path = directory_scanner.get_bot_file_path(challenge_name, bot_file_name)
+challenge_path, bot_file_path = directory_scanner.get_challenge_paths(challenge_name, bot_file_name)
 bot_modules = get_imported_modules(bot_file_path)
 print(bot_modules)
-print(len(bot_modules))
 
 look_in_dirs = [PROJECT_DIRECTORY, challenge_path]
 local_files_to_merge = files_related_to_modules_in_directories(bot_modules, look_in_dirs)
 print(local_files_to_merge)
-print(len(local_files_to_merge))
 
 # with open('destination.py', 'w') as destination:
 #     file_list = glob.glob('bots/*.py')
