@@ -4,13 +4,14 @@ from typing import List
 import ast
 from glob import glob
 
-from builderlibs.directory_scanner import DirectoryScanner
+from builderlibs.old_directory_scanner import DirectoryScanner
 
 BOT_FILE_NAME = "bot.py"
 CHALLENGE_LIBS_NAME = "challengelibs"
 BASE_PATH = Path(__file__).parent.resolve()
 BUILT_BOTS_DIRECTORY = "built_bots"
 BUILT_BOTS_PATH = BASE_PATH / BUILT_BOTS_DIRECTORY
+BUILT_BOTS_PATH.mkdir(parents=True, exist_ok=True)
 
 
 def get_imported_modules(file_path: Path) -> List[str]:
@@ -41,6 +42,8 @@ parser.add_argument("-b", "--bot_file_name", type=str, default=BOT_FILE_NAME)
 parser.add_argument("-l", "--challenge_libs_name", type=str, default=CHALLENGE_LIBS_NAME)
 arguments = parser.parse_args().__dict__
 
+built_bot_file_path = BUILT_BOTS_PATH / (arguments["challenge_name"] + ".py")
+
 directory_scanner = DirectoryScanner()
 challenge_path, bot_file_path, challenge_libs_path = directory_scanner.get_challenge_paths(**arguments)
 
@@ -50,6 +53,11 @@ imported_modules = get_imported_modules(bot_file_path)
 look_in_dirs = [BASE_PATH, challenge_path, challenge_libs_path]
 local_files_to_merge = files_related_to_modules_in_directories(imported_modules, look_in_dirs)
 print(local_files_to_merge)
+print(get_imported_modules(bot_file_path))
+
+
+with open(built_bot_file_path, 'w+') as f:
+    f.write("pouet")
 
 # with open('destination.py', 'w') as destination:
 #     file_list = glob.glob('bots/*.py')
