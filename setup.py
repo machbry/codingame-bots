@@ -5,5 +5,6 @@ setup(
     version="0.1",
     package_dir={"botlibs": "botlibs",
                  "builderlibs": "builderlibs"},
-    packages=["botlibs", "builderlibs"]
+    packages=["botlibs", "builderlibs"],
+    package_data={'builderlibs': ['conf/*.yaml']}
 )
