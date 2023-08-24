@@ -20,10 +20,10 @@ class Directory(Node):
         super().__init__(path=path)
         self.path = self.path.parent / self.path.stem
 
-    def make(self, mode=0o777, parents=False, exist_ok=False):
+    def make(self, mode=0o777, parents=True, exist_ok=True):
         self.path.mkdir(mode=mode, parents=parents, exist_ok=exist_ok)
 
-    def destroy(self, ignore_errors=False, onerror=None):
+    def destroy(self, ignore_errors=True, onerror=None):
         rmtree(self.path, ignore_errors=ignore_errors, onerror=onerror)
 
 
@@ -43,7 +43,7 @@ class File(Node):
     def make(self, mode=0o666, exist_ok=True):
         self.path.touch(mode=mode, exist_ok=exist_ok)
 
-    def destroy(self, missing_ok=False):
+    def destroy(self, missing_ok=True):
         self.path.unlink(missing_ok=missing_ok)
 
 
