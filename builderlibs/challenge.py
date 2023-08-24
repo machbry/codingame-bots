@@ -2,14 +2,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List
 
-from builderlibs.logger import Logger
 from builderlibs.fileutils import Node, Directory, PythonFile
 
 
 CHALLENGE_MAIN_FILE_NAME = "bot"
 CHALLENGE_LIBS_NAME = "challengelibs"
-
-logger = Logger().get()
 
 
 @dataclass
@@ -36,7 +33,7 @@ class ChallengeStructure:
         return PythonFile(self.libs.path / "__init__.py")
 
     @property
-    def core_nodes(self) -> List[Node]:
+    def nodes(self) -> List[Node]:
         return [self.root, self.main_file, self.libs, self.libs_init_file]
 
 
@@ -45,10 +42,10 @@ class ChallengeFolder:
         self._challenge_structure = ChallengeStructure(_name=name, _parent=parent)
 
     def exists(self) -> bool:
-        return all([node.path.exists() for node in self._challenge_structure.core_nodes])
+        return all([node.path.exists() for node in self._challenge_structure.nodes])
 
     def make(self) -> None:
-        [node.make() for node in self._challenge_structure.core_nodes]
+        [node.make() for node in self._challenge_structure.nodes]
 
     def destroy(self) -> None:
-        [node.destroy() for node in self._challenge_structure.core_nodes]
+        [node.destroy() for node in self._challenge_structure.nodes]
