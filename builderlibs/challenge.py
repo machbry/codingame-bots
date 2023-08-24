@@ -15,8 +15,8 @@ logger = Logger().get()
 class ChallengeStructure:
     _name: str
     _parent: Path
-    _main_file_name: str
-    _libs_name: str
+    _main_file_name: str = CHALLENGE_MAIN_FILE_NAME
+    _libs_name: str = CHALLENGE_LIBS_NAME
 
     @property
     def root(self) -> Path:
@@ -42,21 +42,21 @@ class ChallengeStructure:
 
 
 class ChallengeFolder:
-    def __init__(self, name: str, parent: Path, main_file_name: str = CHALLENGE_MAIN_FILE_NAME,
-                 libs_name: str = CHALLENGE_LIBS_NAME):
-        self._challenge_structure = ChallengeStructure(_name=name, _parent=parent, _main_file_name=main_file_name,
-                                                       _libs_name=libs_name)
+    def __init__(self, name: str, parent: Path):
+        self._challenge_structure = ChallengeStructure(_name=name, _parent=parent)
 
     @staticmethod
     def _check_path_exists(path: Path) -> bool:
         exists = path.exists()
-        logger.info(f"{path} doesn't exist.")
+        if not exists:
+            logger.info(f"{path} doesn't exist.")
         return exists
 
     @staticmethod
     def _make(path: Path) -> None:
-        path.touch(exist_ok=True) if path.suffix else path.mkdir(parents=True, exist_ok=True)
-        logger.info(f"{path} made.") # todo : dont't log this if file already exists
+        if not path.exists():
+            path.touch() if path.suffix else path.mkdir()
+            logger.info(f"{path} made.")
 
     def exists(self) -> bool:
         return all([self._check_path_exists(path) for path in self._challenge_structure.core_paths])
