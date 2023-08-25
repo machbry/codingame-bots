@@ -8,6 +8,9 @@ class Node:
     def __init__(self, path: Union[Path, str, PathLike]):
         self.path = Path(path).resolve()
 
+    def exists(self) -> bool:
+        return self.path.exists()
+
     def make(self) -> None:
         pass
 

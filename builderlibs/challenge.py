@@ -42,7 +42,7 @@ class ChallengeFolder:
         self._challenge_structure = ChallengeStructure(_name=name, _parent=parent)
 
     def exists(self) -> bool:
-        return all([node.path.exists() for node in self._challenge_structure.nodes])
+        return all([node.exists() for node in self._challenge_structure.nodes])
 
     def make(self) -> None:
         [node.make() for node in self._challenge_structure.nodes]

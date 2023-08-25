@@ -2,7 +2,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from builderlibs.fileutils import Directory, File
+from builderlibs.fileutils import Node, Directory, File
 
 
 @pytest.mark.parametrize("dirname", [
@@ -83,3 +83,16 @@ def test_file_destroy(data_tests_path, missing_ok):
     file.destroy(missing_ok=missing_ok)
 
     file.path.unlink.assert_called_with(missing_ok=missing_ok)
+
+
+@pytest.mark.parametrize("name", [
+    "node",
+    "node.py"
+])
+def test_node_exists(data_tests_path, name):
+    node = Node(data_tests_path / name)
+    node.path = Mock()
+
+    node.exists()
+
+    node.path.exists.assert_called()
