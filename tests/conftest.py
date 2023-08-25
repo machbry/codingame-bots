@@ -2,6 +2,8 @@ from pathlib import Path
 
 import pytest
 
+from builderlibs.challenge import ChallengeFolder
+
 
 TESTS_ROOT_PATH = Path(__file__).parent.resolve()
 
@@ -28,5 +30,22 @@ def res_tests_path() -> Path:
 
 @pytest.fixture(scope="session")
 @make_dir
-def unbuilt_bots_parent() -> Path:
+def unbuilt_bots_tests_parent() -> Path:
     return TESTS_ROOT_PATH / "res" / "bots"
+
+
+@pytest.fixture(scope="session")
+def create_challenge_folder(unbuilt_bots_tests_parent):
+
+    folders_made = []
+
+    def _create_challenge_folder(name: str, make: bool = False):
+        challenge_folder = ChallengeFolder(name=name, parent=unbuilt_bots_tests_parent)
+        if make:
+            challenge_folder.make()
+            folders_made.append(challenge_folder)
+        return challenge_folder
+
+    yield _create_challenge_folder
+
+    [folder.destroy() for folder in folders_made]

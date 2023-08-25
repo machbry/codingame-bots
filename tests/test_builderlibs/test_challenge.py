@@ -1,24 +1,37 @@
 import pytest
 
-from builderlibs.challenge import ChallengeFolder
+from builderlibs.fileutils import Directory, PythonFile
+from builderlibs.challenge import ChallengeStructure, ChallengeFolder
 
 
-@pytest.fixture(scope="session")
-def create_challenge_folder(unbuilt_bots_parent):
+@pytest.mark.parametrize("name, parent, main_file_name, libs_name", [
+    ("challenge_structure_test", "unbuilt_bots_tests_parent", "bot", "challengelibs")])
+def test_challenge_structure(name, parent, main_file_name, libs_name, request):
+    challenge_structure = ChallengeStructure(_name=name,
+                                             _parent=request.getfixturevalue(parent),
+                                             _main_file_name=main_file_name,
+                                             _libs_name=libs_name)
 
-    folders_made = []
+    root = challenge_structure.root
+    main_file = challenge_structure.main_file
+    libs = challenge_structure.libs
+    libs_init_file = challenge_structure.libs_init_file
 
-    def _create_challenge_folder(name: str, make: bool = False):
-        challenge_folder = ChallengeFolder(name=name, parent=unbuilt_bots_parent)
-        if make:
-            challenge_folder.make()
-            folders_made.append(challenge_folder)
-        return challenge_folder
+    assert isinstance(root, Directory)
+    assert isinstance(main_file, PythonFile)
+    assert isinstance(libs, Directory)
+    assert isinstance(libs_init_file, PythonFile)
 
-    yield _create_challenge_folder
-
-    [folder.destroy() for folder in folders_made]
+    assert main_file.path.parent == root.path
+    assert libs.path.parent == root.path
+    assert libs_init_file.path.parent == libs.path
 
 
-def test_challenge(create_challenge_folder):
-    create_challenge_folder(name="test_challenge", make=True)
+def test_challenge_folder(unbuilt_bots_tests_parent):
+    challenge_folder = ChallengeFolder(name="test_challenge_folder", parent=unbuilt_bots_tests_parent)
+
+    assert not challenge_folder.exists()
+    challenge_folder.make()
+    assert challenge_folder.exists()
+    challenge_folder.destroy()
+    assert not challenge_folder.exists()
