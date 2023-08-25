@@ -16,6 +16,10 @@ class ChallengeStructure:
     _main_file_name: str = CHALLENGE_MAIN_FILE_NAME
     _libs_name: str = CHALLENGE_LIBS_NAME
 
+    def __post_init__(self):
+        if self._name in ["", None]:
+            raise ValueError("_name attribute can't be None or an empty string.")
+
     @property
     def root(self) -> Directory:
         return Directory(self._parent / self._name)
@@ -42,10 +46,17 @@ class ChallengeFolder:
         self._challenge_structure = ChallengeStructure(_name=name, _parent=parent)
 
     def exists(self) -> bool:
-        return all([node.exists() for node in self._challenge_structure.nodes])
+        return any([node.exists() for node in self._challenge_structure.nodes])
 
     def make(self) -> None:
         [node.make() for node in self._challenge_structure.nodes]
 
-    def destroy(self) -> None:
-        [node.destroy() for node in self._challenge_structure.nodes]
+    def destroy(self, force_destroy: bool = True) -> None:
+        destroy = force_destroy
+        if not force_destroy:
+            root = self._challenge_structure.root.path
+            print(f"Are you sure you want to delete \"{root}\" and all files inside ? (Y/n)")
+            user_input = input()
+            destroy = True if user_input == "Y" else False
+        if destroy:
+            [node.destroy() for node in self._challenge_structure.nodes]

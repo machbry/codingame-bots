@@ -16,7 +16,7 @@ def log_node_event(on_path_exists: bool):
             exists = path.exists()
             node_method(*args, **kwargs)
             if on_path_exists == exists:
-                logger.info(f"Method {node_method.__name__} used on node at path {path}.")
+                logger.info(f"Method \"{node_method.__name__}\" used on node at path \"{path}\".")
         return arguments_wrapper
     return _log_node_event
 
