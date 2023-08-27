@@ -23,5 +23,3 @@ if make_challenge:
 if destroy_challenge:
     if challenge_folder.exists():
         challenge_folder.destroy(force_destroy=False)
-
-# pseudo code to build a unique bot file

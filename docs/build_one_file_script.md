@@ -1,0 +1,13 @@
+- given a .py file (start with challenge 's main file) :
+    - get all import statements
+        - separate import ... & from ... import ... (Import & ImportFrom)
+    - save the remaining content of the file
+    - are modules present locally (from botlibs package or within challenge folder) ?
+        - yes : do the same with module's file
+        - no : stop
+
+- create .py destination file (destroy if already exists) and open it :
+    - given all import statements :
+        - copy them
+    - copy each module's file content
+    - adapt if direct import use for local module
