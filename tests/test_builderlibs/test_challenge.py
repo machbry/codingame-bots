@@ -7,9 +7,9 @@ from builderlibs.challenge import ChallengeStructure, ChallengeFolder
 
 
 @pytest.mark.parametrize("name, parent, main_file_name, libs_name", [
-    ("challenge_structure_test", "unbuilt_bots_tests_parent", "bot", "challengelibs"),
-    ("", "unbuilt_bots_tests_parent", "bot", "challengelibs"),
-    (None, "unbuilt_bots_tests_parent", "bot", "challengelibs")])
+    ("challenge_structure_test", "data_tests_path", "bot", "challengelibs"),
+    ("", "data_tests_path", "bot", "challengelibs"),
+    (None, "data_tests_path", "bot", "challengelibs")])
 def test_challenge_structure(name, parent, main_file_name, libs_name, request):
     if name in ["", None]:
         with pytest.raises(ValueError):
@@ -47,8 +47,8 @@ def test_challenge_folder_exists():
     (False, "Y"),
     (False, "n")
 ])
-def test_challenge_folder(unbuilt_bots_tests_parent, force_destroy, user_input):
-    challenge_folder = ChallengeFolder(name="test_challenge_folder", parent=unbuilt_bots_tests_parent)
+def test_challenge_folder(data_tests_path, force_destroy, user_input):
+    challenge_folder = ChallengeFolder(name="test_challenge_folder", parent=data_tests_path)
 
     with patch("builtins.input") as mock_input:
         mock_input.return_value = user_input
