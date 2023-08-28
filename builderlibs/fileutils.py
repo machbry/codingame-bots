@@ -1,4 +1,4 @@
-from typing import Union, Literal
+from typing import Union
 from os import PathLike
 from pathlib import Path
 from shutil import rmtree
