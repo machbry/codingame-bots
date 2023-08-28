@@ -45,6 +45,10 @@ class ChallengeFolder:
     def __init__(self, name: str, parent: Path):
         self._challenge_structure = ChallengeStructure(_name=name, _parent=parent)
 
+    @property
+    def challenge_structure(self):
+        return self._challenge_structure
+
     def exists(self) -> bool:
         return any([node.exists() for node in self._challenge_structure.nodes])
 
