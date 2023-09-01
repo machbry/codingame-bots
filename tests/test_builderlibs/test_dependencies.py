@@ -1,12 +1,26 @@
+import ast
+from unittest.mock import Mock
+from typing import Union
+
 import pytest
 
 from builderlibs.challenge import ChallengeFolder
-from builderlibs.dependencies import Module
+from builderlibs.dependencies import Module, Import, ImportFrom
 
 
 @pytest.fixture(scope="session")
 def dependencies_test_challenge(create_challenge_folder) -> ChallengeFolder:
     return create_challenge_folder(name="dependencies_test_challenge")
+
+
+@pytest.fixture
+def create_ast_import_node():
+    def _create_ast_import_node(source: str) -> Union[Import, ImportFrom]:
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import) or isinstance(node, ast.ImportFrom):
+                return node
+    return _create_ast_import_node
 
 
 @pytest.mark.parametrize("module_name, imported_from, level, relative_path_expected, is_local_expected", [
@@ -26,3 +40,29 @@ def test_module(module_name, imported_from, level, relative_path_expected, is_lo
 
     is_local = module.is_local(imported_from=imported_from, level=level)
     assert is_local == is_local_expected
+
+
+@pytest.mark.parametrize("source, modules_expected, level_expected", [
+    ("from pathlib import Path", [Module(name="pathlib")], 0),
+    ("import math", [Module(name="math")], 0),
+    ("import pandas as pd", [Module(name="pandas", asname="pd")], 0),
+    ("from challengelibs.module import function", [Module(name="challengelibs.module")], 0),
+    ("import os.path", [Module(name="os.path")], 0),
+    ("import ast, pytest", [Module(name="ast"), Module(name="pytest")], 0),
+    ("from ..package import function, Class", [Module(name="package")], 2)
+])
+def test_import_statement(source, modules_expected, level_expected, create_ast_import_node):
+    node = create_ast_import_node(source)
+    file_path = Mock()
+
+    if isinstance(node, ast.Import):
+        import_statement = Import(node=node, file_path=file_path)
+    elif isinstance(node, ast.ImportFrom):
+        import_statement = ImportFrom(node=node, file_path=file_path)
+
+    assert import_statement.to_string() == source
+
+    for i, module in enumerate(import_statement.modules):
+        assert module == modules_expected[i]
+
+    assert import_statement._level == level_expected
