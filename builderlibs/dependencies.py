@@ -42,3 +42,32 @@ class ImportFrom(ImportStatement):
         super().__init__(ast_node=ast_node, file_path=file_path)
         self._modules = [Module(name=self._ast_node.module)]
         self._level = ast_node.level
+
+
+class LocalModule:
+    def __init__(self, file_path: Path):
+        self._file_path = file_path
+
+        with open(file_path, 'r') as f:
+            self._tree = ast.parse(f.read(), mode='exec')
+
+        self._import_statements = []
+        for ast_node in ast.walk(self._tree):
+            if isinstance(ast_node, ast.Import):
+                self._import_statements.append(Import(ast_node=ast_node, file_path=self._file_path))
+            elif isinstance(ast_node, ast.ImportFrom):
+                self._import_statements.append(ImportFrom(ast_node=ast_node, file_path=self._file_path))
+
+        with open(file_path, 'r') as f:
+            self._body = f.readlines()
+
+    @property
+    def import_statements(self) -> List[ImportStatement]:
+        return self._import_statements
+
+    @property
+    def body(self) -> List[str]:
+        return self._body
+
+    def __repr__(self):
+        return ast.dump(node=self._tree, include_attributes=True, indent=4)
