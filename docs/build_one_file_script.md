@@ -1,5 +1,5 @@
 - given a .py module file (start with challenge 's main file) :
-  - save the content of the file without import statements (Script)
+  - save the content of the file without import statements (Body)
   - get all import statements
       - get type of import statement (Import & ImportFrom), check for aliases
       - list imported packages & modules
