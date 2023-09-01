@@ -4,7 +4,6 @@ from pathlib import Path
 from another_module import another_function
 from another_module import AnotherClass
 
-
 CONSTANT = "constant"
 
 

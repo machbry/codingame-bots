@@ -4,8 +4,10 @@ from pathlib import Path
 from os.path import join
 
 import pandas as pd
+import pandas.util
 
-from challengelibs.module import CONSTANT, function, Class
+from challengelibs.module import CONSTANT, function, \
+    Class
 from challengelibs.another_module import AnotherClass
 
 
