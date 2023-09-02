@@ -20,9 +20,8 @@ class Module:
 
 
 class ImportStatement:
-    def __init__(self, node: Union[ast.Import, ast.ImportFrom], file_path: Path):
+    def __init__(self, node: Union[ast.Import, ast.ImportFrom]):
         self._node = node
-        self._file_path = file_path
         self._modules: List[Module] = []
         self._level = 0
 
@@ -35,14 +34,14 @@ class ImportStatement:
 
 
 class Import(ImportStatement):
-    def __init__(self, node: ast.Import, file_path: Path):
-        super().__init__(node=node, file_path=file_path)
+    def __init__(self, node: ast.Import):
+        super().__init__(node=node)
         self._modules = [Module(name=alias.name, asname=alias.asname) for alias in self._node.names]
 
 
 class ImportFrom(ImportStatement):
-    def __init__(self, node: ast.ImportFrom, file_path: Path):
-        super().__init__(node=node, file_path=file_path)
+    def __init__(self, node: ast.ImportFrom):
+        super().__init__(node=node)
         self._modules = [Module(name=self._node.module)]
         self._level = self._node.level
 
@@ -57,9 +56,9 @@ class ImportFrom(ImportStatement):
 #         self._import_statements = []
 #         for node in ast.walk(self._tree):
 #             if isinstance(node, ast.Import):
-#                 self._import_statements.append(Import(node=node, file_path=self._file_path))
+#                 self._import_statements.append(Import(node=node))
 #             elif isinstance(node, ast.ImportFrom):
-#                 self._import_statements.append(ImportFrom(node=node, file_path=self._file_path))
+#                 self._import_statements.append(ImportFrom(node=node))
 #
 #         with open(file_path, 'r') as f:
 #             self._body = f.readlines()

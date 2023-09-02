@@ -1,5 +1,4 @@
 import ast
-from unittest.mock import Mock
 from typing import Union
 
 import pytest
@@ -53,12 +52,13 @@ def test_module(module_name, imported_from, level, relative_path_expected, is_lo
 ])
 def test_import_statement(source, modules_expected, level_expected, create_ast_import_node):
     node = create_ast_import_node(source)
-    file_path = Mock()
 
     if isinstance(node, ast.Import):
-        import_statement = Import(node=node, file_path=file_path)
+        import_statement = Import(node=node)
     elif isinstance(node, ast.ImportFrom):
-        import_statement = ImportFrom(node=node, file_path=file_path)
+        import_statement = ImportFrom(node=node)
+    else:
+        raise TypeError(f"Unexpected path for node: {type(node)}.")
 
     assert import_statement.to_string() == source
 
