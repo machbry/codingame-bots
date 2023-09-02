@@ -4,7 +4,8 @@ from typing import Union
 import pytest
 
 from builderlibs.challenge import ChallengeFolder
-from builderlibs.dependencies import Module, LocalModule, Import, ImportFrom
+from builderlibs.dependencies import (Module, LocalModule, Import, ImportFrom, LocalModuleImportReplacer,
+                                      ModuleAggregater)
 
 
 @pytest.fixture(scope="session")
@@ -34,7 +35,7 @@ def test_module(module_name, base_path, level, relative_path_expected, is_local_
     base_path = getattr(dependencies_test_challenge.challenge_structure, base_path).path
     module = Module(name=module_name)
 
-    path_to_check = module._path_to_check(base_path=base_path, level=level)
+    path_to_check = module.target_path(base_path=base_path, level=level)
     assert path_to_check == base_path.parent / relative_path_expected
 
     is_local = module.is_local(base_path=base_path, level=level)
@@ -78,3 +79,11 @@ def test_local_module(python_file, dependencies_test_challenge):
 
     assert local_module.file_path == python_file.path
     assert isinstance(local_module.tree, ast.Module)
+
+
+def test_module_aggregater(dependencies_test_challenge):
+    main_file = dependencies_test_challenge.challenge_structure.main_file
+    main_module = LocalModule(main_file)
+
+    aggregated_module = ModuleAggregater(main_module)
+    print(aggregated_module.to_source())

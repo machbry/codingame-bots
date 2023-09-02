@@ -11,13 +11,13 @@ class Module:
     name: str = ""
     asname: str = None
 
-    def _path_to_check(self, base_path: Path, level: int) -> Path:
+    def target_path(self, base_path: Path, level: int = 0) -> Path:
         for _ in range(level + 1):
             base_path = base_path.parent
         return base_path / (self.name.replace(".", "/") + ".py")
 
     def is_local(self, base_path: Path, level: int = 0) -> bool:
-        path_to_check = self._path_to_check(base_path=base_path, level=level)
+        path_to_check = self.target_path(base_path=base_path, level=level)
         return path_to_check.is_file()
 
 
@@ -64,3 +64,52 @@ class ImportFrom(ImportStatement):
     @property
     def modules(self) -> List[Module]:
         return [Module(name=self._node.module)]
+
+
+class LocalModuleImportReplacer(ast.NodeTransformer):
+    def __init__(self, main_module: LocalModule):
+        super().__init__()
+        self._main_module = main_module
+        self._local_modules_replaced = []
+
+    def visit_ImportFrom(self, node: ImportFrom) -> Union[ast.ImportFrom, ast.Module]:
+        imported_module = ImportFrom(node=node).modules[0]
+        main_module_path = self._main_module.file_path
+
+        if ((imported_module not in self._local_modules_replaced) and
+                imported_module.is_local(base_path=main_module_path)):
+            self._local_modules_replaced.append(imported_module)
+
+            target_path = imported_module.target_path(base_path=main_module_path)
+            module_file = PythonFile(target_path)
+            local_module_to_import = LocalModule(module_file)
+
+            replacer = LocalModuleImportReplacer(main_module=local_module_to_import)
+
+            return ast.fix_missing_locations(replacer.visit(local_module_to_import.tree))
+
+        return node
+
+    def visit_Import(self, node: Import):
+        imported_modules = Import(node=node).modules
+        main_module_path = self._main_module.file_path
+
+        for module in imported_modules:
+            if module.is_local(base_path=main_module_path):
+                raise ValueError(f"Statement import for local module not supported. Please use from ... import ... "
+                                 f"instead to import {module.name} in file {main_module_path}.")
+
+        return node
+
+
+class ModuleAggregater:
+    def __init__(self, main_module: LocalModule):
+        self._main_module = main_module
+
+        self._replacer = LocalModuleImportReplacer(main_module)
+
+    def aggregate(self) -> ast.AST:
+        return ast.fix_missing_locations(self._replacer.visit(self._main_module.tree))
+
+    def to_source(self) -> str:
+        return ast.unparse(self.aggregate())
