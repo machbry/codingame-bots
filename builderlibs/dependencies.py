@@ -6,28 +6,23 @@ import ast
 
 @dataclass
 class Module:
-    name: str
+    name: str = ""
     asname: str = None
 
-    def _path_to_check(self, imported_from: Path, level: int) -> Path:
+    def _path_to_check(self, base_path: Path, level: int) -> Path:
         for _ in range(level + 1):
-            imported_from = imported_from.parent
-        return imported_from / (self.name.replace(".", "/") + ".py")
+            base_path = base_path.parent
+        return base_path / (self.name.replace(".", "/") + ".py")
 
-    def is_local(self, imported_from: Path, level: int) -> bool:
-        path_to_check = self._path_to_check(imported_from=imported_from, level=level)
+    def is_local(self, base_path: Path, level: int) -> bool:
+        path_to_check = self._path_to_check(base_path=base_path, level=level)
         return path_to_check.is_file()
 
 
 class ImportStatement:
     def __init__(self, node: Union[ast.Import, ast.ImportFrom]):
         self._node = node
-        self._modules: List[Module] = []
         self._level = 0
-
-    @property
-    def modules(self) -> List[Module]:
-        return self._modules
 
     def to_string(self) -> str:
         return ast.unparse(self._node)
@@ -36,14 +31,20 @@ class ImportStatement:
 class Import(ImportStatement):
     def __init__(self, node: ast.Import):
         super().__init__(node=node)
-        self._modules = [Module(name=alias.name, asname=alias.asname) for alias in self._node.names]
+
+    @property
+    def modules(self) -> List[Module]:
+        return [Module(name=alias.name, asname=alias.asname) for alias in self._node.names]
 
 
 class ImportFrom(ImportStatement):
     def __init__(self, node: ast.ImportFrom):
         super().__init__(node=node)
-        self._modules = [Module(name=self._node.module)]
         self._level = self._node.level
+
+    @property
+    def modules(self) -> List[Module]:
+        return [Module(name=self._node.module)]
 
 
 # class LocalModule:
