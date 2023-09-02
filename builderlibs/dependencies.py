@@ -3,6 +3,8 @@ from pathlib import Path
 from typing import List, Union
 import ast
 
+from builderlibs.fileutils import PythonFile
+
 
 @dataclass
 class Module:
@@ -14,9 +16,26 @@ class Module:
             base_path = base_path.parent
         return base_path / (self.name.replace(".", "/") + ".py")
 
-    def is_local(self, base_path: Path, level: int) -> bool:
+    def is_local(self, base_path: Path, level: int = 0) -> bool:
         path_to_check = self._path_to_check(base_path=base_path, level=level)
         return path_to_check.is_file()
+
+
+class LocalModule:
+    def __init__(self, python_file: PythonFile):
+        self._file_path = python_file.path
+
+    @property
+    def file_path(self) -> Path:
+        return self._file_path
+
+    @property
+    def tree(self) -> ast.Module:
+        with open(self._file_path, 'r') as f:
+            return ast.parse(f.read())
+
+    def __repr__(self):
+        return ast.dump(node=self.tree, include_attributes=True, indent=4)
 
 
 class ImportStatement:
@@ -45,32 +64,3 @@ class ImportFrom(ImportStatement):
     @property
     def modules(self) -> List[Module]:
         return [Module(name=self._node.module)]
-
-
-# class LocalModule:
-#     def __init__(self, file_path: Path):
-#         self._file_path = file_path
-#
-#         with open(file_path, 'r') as f:
-#             self._tree = ast.parse(f.read())
-#
-#         self._import_statements = []
-#         for node in ast.walk(self._tree):
-#             if isinstance(node, ast.Import):
-#                 self._import_statements.append(Import(node=node))
-#             elif isinstance(node, ast.ImportFrom):
-#                 self._import_statements.append(ImportFrom(node=node))
-#
-#         with open(file_path, 'r') as f:
-#             self._body = f.readlines()
-#
-#     @property
-#     def import_statements(self) -> List[ImportStatement]:
-#         return self._import_statements
-#
-#     @property
-#     def body(self) -> List[str]:
-#         return self._body
-#
-#     def __repr__(self):
-#         return ast.dump(node=self._tree, include_attributes=True, indent=4)

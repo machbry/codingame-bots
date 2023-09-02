@@ -4,7 +4,7 @@ from typing import Union
 import pytest
 
 from builderlibs.challenge import ChallengeFolder
-from builderlibs.dependencies import Module, Import, ImportFrom
+from builderlibs.dependencies import Module, LocalModule, Import, ImportFrom
 
 
 @pytest.fixture(scope="session")
@@ -66,3 +66,15 @@ def test_import_statement(source, modules_expected, level_expected, create_ast_i
         assert module == modules_expected[i]
 
     assert import_statement._level == level_expected
+
+
+@pytest.mark.parametrize("python_file", [
+    "main_file",
+    "libs_init_file"
+])
+def test_local_module(python_file, dependencies_test_challenge):
+    python_file = getattr(dependencies_test_challenge.challenge_structure, python_file)
+    local_module = LocalModule(python_file)
+
+    assert local_module.file_path == python_file.path
+    assert isinstance(local_module.tree, ast.Module)
