@@ -8,17 +8,21 @@ from builderlibs.fileutils import PythonFile
 
 @dataclass
 class Module:
-    name: str = ""
+    name: str
+    imported_from: Path
+    level: int = 0
     asname: str = None
 
-    def target_path(self, base_path: Path, level: int = 0) -> Path:
-        for _ in range(level + 1):
-            base_path = base_path.parent
-        return base_path / (self.name.replace(".", "/") + ".py")
+    @property
+    def target(self) -> Path:
+        target = self.imported_from
+        for _ in range(self.level + 1):
+            target = target.parent
+        return target / (self.name.replace(".", "/") + ".py")
 
-    def is_local(self, base_path: Path, level: int = 0) -> bool:
-        path_to_check = self.target_path(base_path=base_path, level=level)
-        return path_to_check.is_file()
+    @property
+    def is_local(self) -> bool:
+        return self.target.exists()
 
 
 class LocalModule:
@@ -39,8 +43,9 @@ class LocalModule:
 
 
 class ImportStatement:
-    def __init__(self, node: Union[ast.Import, ast.ImportFrom]):
+    def __init__(self, node: Union[ast.Import, ast.ImportFrom], from_path: Path):
         self._node = node
+        self._from_path = from_path
         self._level = 0
 
     def to_string(self) -> str:
@@ -48,22 +53,23 @@ class ImportStatement:
 
 
 class Import(ImportStatement):
-    def __init__(self, node: ast.Import):
-        super().__init__(node=node)
+    def __init__(self, node: ast.Import, from_path: Path):
+        super().__init__(node=node, from_path=from_path)
 
     @property
     def modules(self) -> List[Module]:
-        return [Module(name=alias.name, asname=alias.asname) for alias in self._node.names]
+        return [Module(name=alias.name, imported_from=self._from_path, level=self._level, asname=alias.asname)
+                for alias in self._node.names]
 
 
 class ImportFrom(ImportStatement):
-    def __init__(self, node: ast.ImportFrom):
-        super().__init__(node=node)
+    def __init__(self, node: ast.ImportFrom, from_path: Path):
+        super().__init__(node=node, from_path=from_path)
         self._level = self._node.level
 
     @property
     def modules(self) -> List[Module]:
-        return [Module(name=self._node.module)]
+        return [Module(name=self._node.module, imported_from=self._from_path, level=self._level)]
 
 
 class LocalModuleImportReplacer(ast.NodeTransformer):
@@ -73,16 +79,16 @@ class LocalModuleImportReplacer(ast.NodeTransformer):
         self._local_modules_replaced = []
 
     def visit_ImportFrom(self, node: ImportFrom) -> Union[ast.ImportFrom, ast.Module]:
-        imported_module = ImportFrom(node=node).modules[0]
         main_module_path = self._main_module.file_path
+        imported_module = ImportFrom(node=node, from_path=main_module_path).modules[0]
 
         if ((imported_module not in self._local_modules_replaced) and
-                imported_module.is_local(base_path=main_module_path)):
+                imported_module.is_local):
             self._local_modules_replaced.append(imported_module)
 
-            target_path = imported_module.target_path(base_path=main_module_path)
-            module_file = PythonFile(target_path)
-            local_module_to_import = LocalModule(module_file)
+            target_path = imported_module.target
+            target_module_file = PythonFile(target_path)
+            local_module_to_import = LocalModule(target_module_file)
 
             replacer = LocalModuleImportReplacer(main_module=local_module_to_import)
 
@@ -91,11 +97,11 @@ class LocalModuleImportReplacer(ast.NodeTransformer):
         return node
 
     def visit_Import(self, node: Import):
-        imported_modules = Import(node=node).modules
         main_module_path = self._main_module.file_path
+        imported_modules = Import(node=node, from_path=main_module_path).modules
 
         for module in imported_modules:
-            if module.is_local(base_path=main_module_path):
+            if module.is_local:
                 raise ValueError(f"Statement import for local module not supported. Please use from ... import ... "
                                  f"instead to import {module.name} in file {main_module_path}.")
 
@@ -105,7 +111,6 @@ class LocalModuleImportReplacer(ast.NodeTransformer):
 class ModuleAggregater:
     def __init__(self, main_module: LocalModule):
         self._main_module = main_module
-
         self._replacer = LocalModuleImportReplacer(main_module)
 
     def aggregate(self) -> ast.AST:
