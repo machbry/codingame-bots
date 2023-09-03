@@ -31,7 +31,7 @@ def res_tests_path() -> Path:
 @pytest.fixture(scope="session")
 @make_dir
 def unbuilt_bots_tests_parent() -> Path:
-    return TESTS_ROOT_PATH / "res" / "bots"
+    return TESTS_ROOT_PATH / "res" / "builderlibs"
 
 
 @pytest.fixture(scope="session")

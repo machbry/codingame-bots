@@ -10,6 +10,7 @@ from challengelibs.module import CONSTANT, function, \
     Class
 from challengelibs.another_module import AnotherClass
 
+from sharedlibs.module import AwesomeClass
 
 pi = math.pi
 path = join(Path(os.getcwd()), "test")

@@ -28,7 +28,12 @@ def create_ast_import_node():
     ("os.path", "main_file", 0, "os/path.py", False),
     ("challengelibs.module", "main_file", 0, "challengelibs/module.py", True),
     ("other_module", "libs_init_file", 0, "other_module.py", True),
-    ("pandas", "libs_init_file", 0, "pandas.py", False)
+    ("pandas", "libs_init_file", 0, "pandas.py", False),
+    ("sharedlibs.module", "main_file", 0, "../../sharedlibs/module.py", True),
+    ("sharedlibs.module", "main_file", 2, "sharedlibs/module.py", True),
+    ("challengelibs", "main_file", 0, "challengelibs", True),
+    ("sharedlibs", "main_file", 0, "../../sharedlibs", True),
+    ("unexistedlibs", "main_file", 0, "unexistedlibs.py", False),
 ])
 def test_module(module_name, base_path, level, relative_path_expected, is_local_expected,
                 dependencies_test_challenge):
