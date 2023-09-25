@@ -87,9 +87,12 @@ def test_local_module(python_file, dependencies_test_challenge):
     assert isinstance(local_module.tree, ast.Module)
 
 
-def test_module_aggregater(dependencies_test_challenge):
+def test_module_aggregater(dependencies_test_challenge, res_tests_path):
     main_file = dependencies_test_challenge.challenge_structure.main_file
     main_module = LocalModule(main_file)
 
-    aggregated_module = ModuleAggregater(main_module)
-    aggregated_module.to_source()
+    aggregated_module = ModuleAggregater(main_module=main_module, local_packages_paths=[res_tests_path / "sharedlibs"])
+    aggregated_source = aggregated_module.to_source()
+
+    with open(dependencies_test_challenge.challenge_structure.root.path / "expected_aggregated_bot.py", 'r') as f:
+        assert aggregated_source == f.read()
