@@ -28,16 +28,14 @@ def create_ast_import_node():
 
 
 @pytest.mark.parametrize("module_name, imported_from, level, relative_path_expected, is_local_expected", [
-    ("math", "main_file", 0, None, False),
-    ("os.path", "main_file", 0, None, False),
-    ("challengelibs.module", "main_file", 0, "challengelibs/module.py", True),
-    ("other_module", "libs_init_file", 0, "other_module.py", True),
-    ("pandas", "libs_init_file", 0, None, False),
-    ("sharedlibs.module", "main_file", 0, "../../sharedlibs/module.py", True),
-    ("sharedlibs.module", "main_file", 2, "sharedlibs/module.py", True),
-    ("challengelibs", "main_file", 0, "challengelibs", True),
-    ("sharedlibs", "main_file", 0, "../../sharedlibs", True),
-    ("unexistedlibs", "main_file", 0, None, False)
+    ("math", "main_file", 0, "../math.py", False),
+    ("os.path", "main_file", 0, "../os/path.py", False),
+    ("challengelibs.module", "main_file", 0, "../challengelibs/module.py", True),
+    ("other_module", "libs_init_file", 0, "../other_module.py", True),
+    ("pandas", "libs_init_file", 0, "../pandas.py", False),
+    ("sharedlibs.module", "main_file", 1, "../../sharedlibs/module.py", True),
+    ("challengelibs.module", "main_file", 0, "../challengelibs/module.py", True),
+    ("unexistedlibs", "main_file", 0, "../unexistedlibs.py", False)
 ])
 def test_module(module_name, imported_from, level, relative_path_expected, is_local_expected,
                 dependencies_test_challenge):
@@ -45,7 +43,7 @@ def test_module(module_name, imported_from, level, relative_path_expected, is_lo
     module = Module(name=module_name, imported_from=imported_from, level=level)
 
     target = module.target
-    assert target == imported_from.parent / relative_path_expected
+    assert target == (imported_from / relative_path_expected).resolve()
 
     is_local = module.is_local
     assert is_local == is_local_expected

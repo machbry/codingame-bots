@@ -18,7 +18,7 @@ class Module:
         target = self.imported_from
         for _ in range(self.level + 1):
             target = target.parent
-        return target / (self.name.replace(".", "/") + ".py")
+        return (target / (self.name.replace(".", "/") + ".py")).resolve()
 
     @property
     def is_local(self) -> bool:
