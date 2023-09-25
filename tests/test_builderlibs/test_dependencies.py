@@ -33,7 +33,7 @@ def create_ast_import_node():
     ("challengelibs.module", "main_file", 0, "../challengelibs/module.py", True),
     ("other_module", "libs_init_file", 0, "../other_module.py", True),
     ("pandas", "libs_init_file", 0, "../pandas.py", False),
-    ("sharedlibs.module", "main_file", 1, "../../sharedlibs/module.py", True),
+    ("sharedlibs.module", "main_file", 2, "../../../sharedlibs/module.py", True),
     ("challengelibs.module", "main_file", 0, "../challengelibs/module.py", True),
     ("unexistedlibs", "main_file", 0, "../unexistedlibs.py", False)
 ])
@@ -92,4 +92,4 @@ def test_module_aggregater(dependencies_test_challenge):
     main_module = LocalModule(main_file)
 
     aggregated_module = ModuleAggregater(main_module)
-    print(aggregated_module.to_source())
+    aggregated_module.to_source()

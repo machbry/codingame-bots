@@ -30,17 +30,17 @@ def res_tests_path() -> Path:
 
 @pytest.fixture(scope="session")
 @make_dir
-def unbuilt_bots_tests_parent() -> Path:
-    return TESTS_ROOT_PATH / "res" / "builderlibs"
+def bots_res_path() -> Path:
+    return TESTS_ROOT_PATH / "res" / "bots"
 
 
 @pytest.fixture(scope="session")
-def create_challenge_folder(unbuilt_bots_tests_parent):
+def create_challenge_folder(bots_res_path):
 
     folders_made = []
 
     def _create_challenge_folder(name: str, make: bool = False):
-        challenge_folder = ChallengeFolder(name=name, parent=unbuilt_bots_tests_parent)
+        challenge_folder = ChallengeFolder(name=name, parent=bots_res_path)
         if make:
             challenge_folder.make()
             folders_made.append(challenge_folder)
