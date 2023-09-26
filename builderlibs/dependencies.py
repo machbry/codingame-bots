@@ -167,7 +167,7 @@ class ModuleAggregater:
         """
         return ast.fix_missing_locations(self._replacer.visit(self._main_module.tree))
 
-    def to_source(self) -> str:
+    def aggregate_to_source(self) -> str:
         """
         Returns the source code representation of the AST node.
 

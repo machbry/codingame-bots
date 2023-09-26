@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import List
 
 from builderlibs.fileutils import Node, Directory, PythonFile
+from builderlibs.dependencies import LocalModule, ModuleAggregater
 
 
 CHALLENGE_MAIN_FILE_NAME = "bot"
@@ -48,6 +49,10 @@ class ChallengeFolder:
     @property
     def challenge_structure(self):
         return self._challenge_structure
+    
+    @property
+    def main_module(self) -> LocalModule:
+        return LocalModule(self.challenge_structure.main_file)
 
     def exists(self) -> bool:
         return any([node.exists() for node in self._challenge_structure.nodes])
@@ -64,3 +69,6 @@ class ChallengeFolder:
             destroy = True if user_input == "Y" else False
         if destroy:
             [node.destroy() for node in self._challenge_structure.nodes]
+
+    def aggregate_to_source(self, local_packages_paths: List[Path] = []) -> str:
+        return ModuleAggregater(main_module=self.main_module, local_packages_paths=local_packages_paths).aggregate_to_source()

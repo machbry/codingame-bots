@@ -4,7 +4,9 @@ from argparse import ArgumentParser
 from builderlibs.challenge import ChallengeFolder
 
 
-UNBUILT_BOTS_DIRECTORY = Path(__file__).parent.parent.resolve() / "bots"
+ROOT = Path(__file__).parent.parent.resolve()
+BOTS_DIRECTORY = ROOT / "bots"
+BOTLIBS_DIRECTORY = ROOT / "botlibs"
 
 
 parser = ArgumentParser()
@@ -17,9 +19,13 @@ challenge_name = arguments["challenge_name"]
 make_challenge = arguments["make"]
 destroy_challenge = arguments["destroy"]
 
-challenge_folder = ChallengeFolder(name=challenge_name, parent=UNBUILT_BOTS_DIRECTORY)
+challenge_folder = ChallengeFolder(name=challenge_name, parent=BOTS_DIRECTORY)
 if make_challenge:
     challenge_folder.make()
 if destroy_challenge:
     if challenge_folder.exists():
         challenge_folder.destroy(force_destroy=False)
+
+challenge_source = challenge_folder.aggregate_to_source(local_packages_paths=[BOTLIBS_DIRECTORY])
+with open(BOTS_DIRECTORY / (challenge_name + ".py"), "w") as f:
+    f.write(challenge_source)
