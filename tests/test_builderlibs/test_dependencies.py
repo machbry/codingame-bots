@@ -5,8 +5,7 @@ from pathlib import Path
 import pytest
 
 from builderlibs.challenge import ChallengeFolder
-from builderlibs.dependencies import (Module, LocalModule, Import, ImportFrom, LocalModuleImportReplacer,
-                                      ModuleAggregater)
+from builderlibs.dependencies import Module, LocalModule, Import, ImportFrom
 
 
 BASE_PATH = Path(__file__).resolve()
@@ -85,14 +84,3 @@ def test_local_module(python_file, dependencies_test_challenge):
 
     assert local_module.file_path == python_file.path
     assert isinstance(local_module.tree, ast.Module)
-
-
-def test_module_aggregater(dependencies_test_challenge, res_tests_path):
-    main_file = dependencies_test_challenge.challenge_structure.main_file
-    main_module = LocalModule(main_file)
-
-    aggregated_module = ModuleAggregater(main_module=main_module, local_packages_paths=[res_tests_path / "sharedlibs"])
-    aggregated_source = aggregated_module.aggregate_to_source()
-
-    with open(dependencies_test_challenge.challenge_structure.root.path / "expected_aggregated_bot.py", 'r') as f:
-        assert aggregated_source == f.read()

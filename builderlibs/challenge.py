@@ -3,7 +3,8 @@ from pathlib import Path
 from typing import List
 
 from builderlibs.fileutils import Node, Directory, PythonFile
-from builderlibs.dependencies import LocalModule, ModuleAggregater
+from builderlibs.dependencies import LocalModule
+from builderlibs.aggregater import ModuleAggregater
 
 
 CHALLENGE_MAIN_FILE_NAME = "bot"

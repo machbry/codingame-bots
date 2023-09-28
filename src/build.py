@@ -25,7 +25,7 @@ if make_challenge:
 if destroy_challenge:
     if challenge_folder.exists():
         challenge_folder.destroy(force_destroy=False)
-
-challenge_source = challenge_folder.aggregate_to_source(local_packages_paths=[BOTLIBS_DIRECTORY])
-with open(BOTS_DIRECTORY / (challenge_name + ".py"), "w") as f:
-    f.write(challenge_source)
+else:
+    challenge_source = challenge_folder.aggregate_to_source(local_packages_paths=[BOTLIBS_DIRECTORY])
+    with open(BOTS_DIRECTORY / (challenge_name + ".py"), "w") as f:
+        f.write(challenge_source)
