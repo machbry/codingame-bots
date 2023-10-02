@@ -1,5 +1,4 @@
 import ast
-from typing import Union
 from pathlib import Path
 
 import pytest
@@ -8,16 +7,6 @@ from builderlibs.dependencies import Module, LocalModule, Import, ImportFrom
 
 
 BASE_PATH = Path(__file__).resolve()
-
-
-@pytest.fixture
-def create_ast_import_node():
-    def _create_ast_import_node(source: str) -> Union[Import, ImportFrom]:
-        tree = ast.parse(source)
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import) or isinstance(node, ast.ImportFrom):
-                return node
-    return _create_ast_import_node
 
 
 @pytest.mark.parametrize("module_name, imported_from, level, relative_path_expected, is_local_expected", [

@@ -1,4 +1,6 @@
 from pathlib import Path
+from typing import Union
+import ast
 
 import pytest
 
@@ -54,3 +56,13 @@ def create_challenge_folder(bots_res_path):
 @pytest.fixture(scope="session")
 def test_challenge(create_challenge_folder) -> ChallengeFolder:
     return create_challenge_folder(name="test_challenge")
+
+
+@pytest.fixture
+def create_ast_import_node():
+    def _create_ast_import_node(source: str) -> Union[ast.Import, ast.ImportFrom]:
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import) or isinstance(node, ast.ImportFrom):
+                return node
+    return _create_ast_import_node

@@ -6,7 +6,6 @@ from builderlibs.fileutils import PythonFile
 from builderlibs.dependencies import LocalModule, Import, ImportFrom
 
 
-
 class LocalModuleImportReplacer(ast.NodeTransformer):
     """
     A class used to replace local module imports with the corresponding module from the local package.
@@ -23,7 +22,7 @@ class LocalModuleImportReplacer(ast.NodeTransformer):
         self._local_packages_paths = local_packages_paths
         self._local_modules_replaced = []
 
-    def visit_ImportFrom(self, node: ImportFrom) -> Union[ast.ImportFrom, ast.Module]:
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> Union[ast.ImportFrom, ast.Module]:
         """
         Visits an ImportFrom node in the AST and replaces any local module imports with the corresponding
         module from the local package.
@@ -40,14 +39,15 @@ class LocalModuleImportReplacer(ast.NodeTransformer):
         for from_path in from_paths:
             imported_module = ImportFrom(node=node, from_path=from_path).modules[0]
             if imported_module.is_local:
-                if (imported_module not in self._local_modules_replaced):
+                if imported_module not in self._local_modules_replaced:
                     self._local_modules_replaced.append(imported_module)
 
                     target_path = imported_module.target
                     target_module_file = PythonFile(target_path)
                     local_module_to_import = LocalModule(target_module_file)
 
-                    replacer = LocalModuleImportReplacer(main_module=local_module_to_import, local_packages_paths=self._local_packages_paths)
+                    replacer = LocalModuleImportReplacer(main_module=local_module_to_import,
+                                                         local_packages_paths=self._local_packages_paths)
 
                     return ast.fix_missing_locations(replacer.visit(local_module_to_import.tree))
                 else:
@@ -55,7 +55,7 @@ class LocalModuleImportReplacer(ast.NodeTransformer):
 
         return node
 
-    def visit_Import(self, node: Import):
+    def visit_Import(self, node: ast.Import):
         """
         Visits an Import node in the AST and raises an error if the imported module is local.
 
@@ -70,6 +70,7 @@ class LocalModuleImportReplacer(ast.NodeTransformer):
         """
         main_module_path = self._main_module.file_path
         imported_modules = Import(node=node, from_path=main_module_path).modules
+        # TODO : check from_paths = [self._main_module.file_path] + self._local_packages_paths
 
         for module in imported_modules:
             if module.is_local:
