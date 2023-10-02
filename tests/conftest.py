@@ -49,3 +49,8 @@ def create_challenge_folder(bots_res_path):
     yield _create_challenge_folder
 
     [folder.destroy() for folder in folders_made]
+
+
+@pytest.fixture(scope="session")
+def test_challenge(create_challenge_folder) -> ChallengeFolder:
+    return create_challenge_folder(name="test_challenge")

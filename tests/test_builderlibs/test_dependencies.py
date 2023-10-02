@@ -4,16 +4,10 @@ from pathlib import Path
 
 import pytest
 
-from builderlibs.challenge import ChallengeFolder
 from builderlibs.dependencies import Module, LocalModule, Import, ImportFrom
 
 
 BASE_PATH = Path(__file__).resolve()
-
-
-@pytest.fixture(scope="session")
-def dependencies_test_challenge(create_challenge_folder) -> ChallengeFolder:
-    return create_challenge_folder(name="dependencies_test_challenge")
 
 
 @pytest.fixture
@@ -37,8 +31,8 @@ def create_ast_import_node():
     ("unexistedlibs", "main_file", 0, "../unexistedlibs.py", False)
 ])
 def test_module(module_name, imported_from, level, relative_path_expected, is_local_expected,
-                dependencies_test_challenge):
-    imported_from = getattr(dependencies_test_challenge.challenge_structure, imported_from).path
+                test_challenge):
+    imported_from = getattr(test_challenge.challenge_structure, imported_from).path
     module = Module(name=module_name, imported_from=imported_from, level=level)
 
     target = module.target
@@ -78,8 +72,8 @@ def test_import_statement(source, modules_expected, create_ast_import_node):
     "main_file",
     "libs_init_file"
 ])
-def test_local_module(python_file, dependencies_test_challenge):
-    python_file = getattr(dependencies_test_challenge.challenge_structure, python_file)
+def test_local_module(python_file, test_challenge):
+    python_file = getattr(test_challenge.challenge_structure, python_file)
     local_module = LocalModule(python_file)
 
     assert local_module.file_path == python_file.path
