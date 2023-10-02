@@ -13,16 +13,33 @@ class Module:
     level: int = 0
     asname: str = None
 
+    def __post_init__(self):
+        self._is_local = False
+        self._target = None
+
+    def look_for_target(self):
+        base_target = self.imported_from
+        for _ in range(self.level + 1):
+            base_target = base_target.parent
+
+        dir_target = (base_target / (self.name.replace(".", "/"))).resolve()
+        py_target = (base_target / (self.name.replace(".", "/") + ".py")).resolve()
+        possible_targets = [dir_target, py_target]
+
+        for possible_target in possible_targets:
+            if possible_target.exists():
+                self._target = possible_target
+                self._is_local = True
+
     @property
     def target(self) -> Path:
-        target = self.imported_from
-        for _ in range(self.level + 1):
-            target = target.parent
-        return (target / (self.name.replace(".", "/") + ".py")).resolve()
+        self.look_for_target()
+        return self._target
 
     @property
     def is_local(self) -> bool:
-        return self.target.exists()
+        self.look_for_target()
+        return self._is_local
 
 
 class LocalModule:

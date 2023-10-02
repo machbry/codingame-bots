@@ -1,5 +1,6 @@
 import ast
 from pathlib import Path
+from typing import Dict
 
 import pytest
 
@@ -9,23 +10,33 @@ from builderlibs.dependencies import Module, LocalModule, Import, ImportFrom
 BASE_PATH = Path(__file__).resolve()
 
 
+@pytest.fixture
+def imported_from_paths(res_tests_path, test_challenge) -> Dict[str, Path]:
+    return {"main_file": test_challenge.challenge_structure.main_file.path,
+            "libs_init_file": test_challenge.challenge_structure.libs_init_file.path,
+            "sharedlibs": res_tests_path / "sharedlibs"}
+
+
 @pytest.mark.parametrize("module_name, imported_from, level, relative_path_expected, is_local_expected", [
-    ("math", "main_file", 0, "../math.py", False),
-    ("os.path", "main_file", 0, "../os/path.py", False),
+    ("math", "main_file", 0, None, False),
+    ("os.path", "main_file", 0, None, False),
     ("challengelibs.module", "main_file", 0, "../challengelibs/module.py", True),
     ("other_module", "libs_init_file", 0, "../other_module.py", True),
-    ("pandas", "libs_init_file", 0, "../pandas.py", False),
+    ("pandas", "libs_init_file", 0, None, False),
     ("sharedlibs.module", "main_file", 2, "../../../sharedlibs/module.py", True),
     ("challengelibs.module", "main_file", 0, "../challengelibs/module.py", True),
-    ("unexistedlibs", "main_file", 0, "../unexistedlibs.py", False)
+    ("sharedlibs", "sharedlibs", 0, "../sharedlibs", True),
+    ("unexistedlibs", "main_file", 0, None, False),
+    ("challengelibs", "main_file", 0, "../challengelibs", True)
 ])
 def test_module(module_name, imported_from, level, relative_path_expected, is_local_expected,
-                test_challenge):
-    imported_from = getattr(test_challenge.challenge_structure, imported_from).path
+                imported_from_paths):
+    imported_from = imported_from_paths[imported_from]
     module = Module(name=module_name, imported_from=imported_from, level=level)
 
     target = module.target
-    assert target == (imported_from / relative_path_expected).resolve()
+    target_expected = (imported_from / relative_path_expected).resolve() if relative_path_expected else None
+    assert target == target_expected
 
     is_local = module.is_local
     assert is_local == is_local_expected
