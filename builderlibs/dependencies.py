@@ -18,12 +18,13 @@ class Module:
         self._target = None
 
     def look_for_target(self):
-        base_target = self.imported_from
+        base_path = self.imported_from
         for _ in range(self.level + 1):
-            base_target = base_target.parent
+            base_path = base_path.parent
 
-        dir_target = (base_target / (self.name.replace(".", "/"))).resolve()
-        py_target = (base_target / (self.name.replace(".", "/") + ".py")).resolve()
+        relative_path = (self.name.replace(".", "/"))
+        dir_target = (base_path / relative_path).resolve()
+        py_target = (base_path / (relative_path + ".py")).resolve()
         possible_targets = [dir_target, py_target]
 
         for possible_target in possible_targets:
