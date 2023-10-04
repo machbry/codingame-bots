@@ -22,6 +22,10 @@ class LocalModuleImportReplacer(ast.NodeTransformer):
         self._local_packages_paths = local_packages_paths
         self._local_modules_replaced = []
 
+    @property
+    def from_paths(self):
+        return [self._main_module.file_path] + self._local_packages_paths
+
     def visit_ImportFrom(self, node: ast.ImportFrom) -> Union[ast.ImportFrom, ast.Module]:
         """
         Visits an ImportFrom node in the AST and replaces any local module imports with the corresponding
@@ -34,9 +38,7 @@ class LocalModuleImportReplacer(ast.NodeTransformer):
             Union[ast.ImportFrom, ast.Module]: The modified ImportFrom node or an empty Module node if the
             imported module is not local.
         """
-        from_paths = [self._main_module.file_path] + self._local_packages_paths
-
-        for from_path in from_paths:
+        for from_path in self.from_paths:
             imported_module = ImportFrom(node=node, from_path=from_path).modules[0]
             if imported_module.is_local:
                 if imported_module not in self._local_modules_replaced:
@@ -68,14 +70,13 @@ class LocalModuleImportReplacer(ast.NodeTransformer):
         Returns:
             ast.Import: The original Import node.
         """
-        main_module_path = self._main_module.file_path
-        imported_modules = Import(node=node, from_path=main_module_path).modules
-        # TODO : check from_paths = [self._main_module.file_path] + self._local_packages_paths
+        for from_path in self.from_paths:
+            imported_modules = Import(node=node, from_path=from_path).modules
 
-        for module in imported_modules:
-            if module.is_local:
-                raise ValueError(f"Statement import for local module not supported. Please use from ... import ... "
-                                 f"instead to import {module.name} in file {main_module_path}.")
+            for module in imported_modules:
+                if module.is_local:
+                    raise ValueError(f"Statement import for local module not supported. Please use from ... import ... "
+                                     f"instead to import {module.name} in file {from_path}.")
 
         return node
 
