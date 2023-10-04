@@ -5,16 +5,16 @@ from typing import Dict
 import pytest
 
 from builderlibs.dependencies import Module, LocalModule, Import, ImportFrom
-
+from constants import TESTS_RES_PATH
 
 BASE_PATH = Path(__file__).resolve()
 
 
 @pytest.fixture
-def imported_from_paths(res_tests_path, test_challenge) -> Dict[str, Path]:
+def imported_from_paths(test_challenge) -> Dict[str, Path]:
     return {"main_file": test_challenge.challenge_structure.main_file.path,
             "libs_init_file": test_challenge.challenge_structure.libs_init_file.path,
-            "sharedlibs": res_tests_path / "sharedlibs"}
+            "sharedlibs": TESTS_RES_PATH / "sharedlibs"}
 
 
 @pytest.mark.parametrize("module_name, imported_from, level, relative_path_expected, is_local_expected", [

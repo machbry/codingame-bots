@@ -4,22 +4,23 @@ import pytest
 
 from builderlibs.fileutils import Directory, PythonFile
 from builderlibs.challenge import ChallengeStructure, ChallengeFolder
+from constants import TESTS_DATA_PATH
 
 
 @pytest.mark.parametrize("name, parent, main_file_name, libs_name", [
-    ("challenge_structure_test", "data_tests_path", "bot", "challengelibs"),
-    ("", "data_tests_path", "bot", "challengelibs"),
-    (None, "data_tests_path", "bot", "challengelibs")])
-def test_challenge_structure(name, parent, main_file_name, libs_name, request):
+    ("challenge_structure_test", TESTS_DATA_PATH, "bot", "challengelibs"),
+    ("", TESTS_DATA_PATH, "bot", "challengelibs"),
+    (None, TESTS_DATA_PATH, "bot", "challengelibs")])
+def test_challenge_structure(name, parent, main_file_name, libs_name):
     if name in ["", None]:
         with pytest.raises(ValueError):
             ChallengeStructure(_name=name,
-                               _parent=request.getfixturevalue(parent),
+                               _parent=parent,
                                _main_file_name=main_file_name,
                                _libs_name=libs_name)
     else:
         challenge_structure = ChallengeStructure(_name=name,
-                                                 _parent=request.getfixturevalue(parent),
+                                                 _parent=parent,
                                                  _main_file_name=main_file_name,
                                                  _libs_name=libs_name)
 
@@ -38,17 +39,13 @@ def test_challenge_structure(name, parent, main_file_name, libs_name, request):
         assert libs_init_file.path.parent == libs.path
 
 
-def test_challenge_folder_exists():
-    assert True
-
-
 @pytest.mark.parametrize("force_destroy, user_input", [
     (True, None),
     (False, "Y"),
     (False, "n")
 ])
-def test_challenge_folder(data_tests_path, force_destroy, user_input):
-    challenge_folder = ChallengeFolder(name="test_challenge_folder", parent=data_tests_path)
+def test_challenge_folder(force_destroy, user_input):
+    challenge_folder = ChallengeFolder(name="test_challenge_folder", parent=TESTS_DATA_PATH)
 
     with patch("builtins.input") as mock_input:
         mock_input.return_value = user_input

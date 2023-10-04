@@ -1,11 +1,12 @@
 import pytest
 
 from builderlibs.aggregater import LocalModuleImportReplacer
+from constants import TESTS_RES_PATH
 
 
 @pytest.fixture
-def local_module_import_replacer(res_tests_path, test_challenge):
-    local_packages_paths = [res_tests_path / "sharelibs"]
+def local_module_import_replacer(test_challenge):
+    local_packages_paths = [TESTS_RES_PATH / "sharelibs"]
     main_module = test_challenge.main_module
     return LocalModuleImportReplacer(main_module, local_packages_paths)
 

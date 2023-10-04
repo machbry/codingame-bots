@@ -3,14 +3,15 @@ from unittest.mock import Mock, patch
 import pytest
 
 from builderlibs.fileutils import Node, Directory, File
+from constants import TESTS_DATA_PATH
 
 
 @pytest.mark.parametrize("dirname", [
     "dirname",
     "dirname.py",
     None])
-def test_directory(data_tests_path, dirname):
-    path = data_tests_path / dirname if dirname is not None else ""
+def test_directory(dirname):
+    path = TESTS_DATA_PATH / dirname if dirname is not None else ""
     directory = Directory(path)
     assert not directory.path.suffix
 
@@ -19,8 +20,8 @@ def test_directory(data_tests_path, dirname):
     (0o777, True, True),
     (0, False, False)
 ])
-def test_directory_make(data_tests_path, mode, parents, exist_ok):
-    directory = Directory(data_tests_path / "dirname")
+def test_directory_make(mode, parents, exist_ok):
+    directory = Directory(TESTS_DATA_PATH / "dirname")
     directory.path = Mock()
 
     directory.make(mode=mode, parents=parents, exist_ok=exist_ok)
@@ -32,9 +33,9 @@ def test_directory_make(data_tests_path, mode, parents, exist_ok):
     (False, None),
     (True, None)
 ])
-def test_directory_destroy(data_tests_path, ignore_errors, onerror):
+def test_directory_destroy(ignore_errors, onerror):
     with patch("builderlibs.fileutils.rmtree") as mock_rmtree:
-        directory = Directory(data_tests_path / "dirname")
+        directory = Directory(TESTS_DATA_PATH / "dirname")
 
         directory.destroy(ignore_errors=ignore_errors, onerror=onerror)
 
@@ -47,14 +48,14 @@ def test_directory_destroy(data_tests_path, ignore_errors, onerror):
     ("document.txt", ".json", "document", ".json"),
     ("document", ".txt.md", "document.txt", ".md"),
     ("main.py", "", None, None)])
-def test_file(data_tests_path, name, suffix, result_stem, result_suffix):
-    path = data_tests_path / name
+def test_file(name, suffix, result_stem, result_suffix):
+    path = TESTS_DATA_PATH / name
     if suffix == "":
         with pytest.raises(ValueError):
             File(path, suffix)
     else:
         file = File(path, suffix)
-        assert file.path.parent == data_tests_path
+        assert file.path.parent == TESTS_DATA_PATH
         assert file.path.stem == result_stem
         assert file.path.suffix == result_suffix
 
@@ -63,8 +64,8 @@ def test_file(data_tests_path, name, suffix, result_stem, result_suffix):
     (0o777, True),
     (0, False)
 ])
-def test_file_make(data_tests_path, mode, exist_ok):
-    file = File(data_tests_path / "filename", suffix=".txt")
+def test_file_make(mode, exist_ok):
+    file = File(TESTS_DATA_PATH / "filename", suffix=".txt")
     file.path = Mock()
 
     file.make(mode=mode, exist_ok=exist_ok)
@@ -76,8 +77,8 @@ def test_file_make(data_tests_path, mode, exist_ok):
     False,
     True
 ])
-def test_file_destroy(data_tests_path, missing_ok):
-    file = File(data_tests_path / "filename", suffix=".txt")
+def test_file_destroy(missing_ok):
+    file = File(TESTS_DATA_PATH / "filename", suffix=".txt")
     file.path = Mock()
 
     file.destroy(missing_ok=missing_ok)
@@ -89,8 +90,8 @@ def test_file_destroy(data_tests_path, missing_ok):
     "node",
     "node.py"
 ])
-def test_node_exists(data_tests_path, name):
-    node = Node(data_tests_path / name)
+def test_node_exists(name):
+    node = Node(TESTS_DATA_PATH / name)
     node.path = Mock()
 
     node.exists()
