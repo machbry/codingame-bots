@@ -6,14 +6,14 @@ from constants import TESTS_RES_PATH
 
 @pytest.fixture
 def local_module_import_replacer(test_challenge):
-    local_packages_paths = [TESTS_RES_PATH / "sharelibs"]
+    local_packages_paths = [TESTS_RES_PATH / "sharedlibs"]
     main_module = test_challenge.main_module
     return LocalModuleImportReplacer(main_module, local_packages_paths)
 
 
 @pytest.mark.parametrize("import_statement, exception_expected", [
     ("import challengelibs", ValueError),
-    ("from sharedlibs import module", ValueError),
+    ("import sharedlibs", ValueError),
     ("import pandas as pd", None)
 ])
 def test_replacer_visit_import(import_statement, exception_expected, local_module_import_replacer, create_ast_import_node):
