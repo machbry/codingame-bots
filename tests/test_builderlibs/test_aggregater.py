@@ -22,6 +22,8 @@ def test_replacer_visit_import(import_statement, exception_expected, local_modul
     if exception_expected:
         with pytest.raises(ValueError):
             local_module_import_replacer.visit_Import(import_node)
+    else:
+        assert import_node == local_module_import_replacer.visit_Import(import_node)
 
 
 def test_challenge_build(test_challenge):
