@@ -23,6 +23,10 @@ class ChallengeStructure:
             raise ValueError("_name attribute can't be None or an empty string.")
 
     @property
+    def name(self):
+        return self._name
+
+    @property
     def root(self) -> Directory:
         return Directory(self._parent / self._name)
 
@@ -48,12 +52,16 @@ class ChallengeFolder:
         self._challenge_structure = ChallengeStructure(_name=name, _parent=parent)
 
     @property
-    def challenge_structure(self):
+    def challenge_structure(self) -> ChallengeStructure:
         return self._challenge_structure
     
     @property
     def main_module(self) -> LocalModule:
         return LocalModule(self.challenge_structure.main_file)
+
+    @property
+    def name(self) -> str:
+        return self._challenge_structure.name
 
     def exists(self) -> bool:
         return any([node.exists() for node in self._challenge_structure.nodes])
