@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Union
+from typing import List, Union, Set
 import ast
 
 from .logger import Logger
@@ -53,13 +53,35 @@ class LocalModuleReplacer(ast.NodeTransformer):
         return node
 
 
+class ImportNodesRemover(ast.NodeTransformer):
+    def __init__(self):
+        self._removed_nodes: Set[ast.AST] = set()
+
+    @property
+    def removed_nodes(self) -> Set[ast.AST]:
+        return self._removed_nodes
+
+    def visit_ImportFrom(self, node: ast.ImportFrom):
+        self._removed_nodes.add(node)
+
+    def visit_Import(self, node: ast.Import):
+        self._removed_nodes.add(node)
+
+
 class ModuleAggregater:
     def __init__(self, main_module: LocalModule, local_packages_paths: List[Path] = []):
         self._main_module = main_module
         self._replacer = LocalModuleReplacer(main_module, local_packages_paths)
+        self._imports_nodes_remover = ImportNodesRemover()
 
     def aggregate(self) -> ast.AST:
-        return ast.fix_missing_locations(self._replacer.visit(self._main_module.tree))
+        aggregated_tree_raw = ast.fix_missing_locations(self._replacer.visit(self._main_module.tree))
+
+        aggregated_tree = self._imports_nodes_remover.visit(aggregated_tree_raw)
+        for node in self._imports_nodes_remover.removed_nodes:
+            aggregated_tree.body.insert(0, node)
+
+        return ast.fix_missing_locations(aggregated_tree)
 
     def aggregate_to_source(self) -> str:
         return ast.unparse(self.aggregate())
