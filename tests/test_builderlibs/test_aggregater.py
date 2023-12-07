@@ -1,7 +1,7 @@
 import pytest
 
 from builderlibs.aggregater import LocalModuleImportReplacer
-from constants import TESTS_RES_PATH, TESTS_SHAREDLIBS_PATH, TESTS_BOTS_PATH
+from constants import TESTS_RES_PATH, TESTS_SHAREDLIBS_PATH, TESTS_DATA_PATH
 
 
 @pytest.fixture
@@ -26,7 +26,16 @@ def test_replacer_visit_import(import_statement, exception_expected, local_modul
         assert import_node == local_module_import_replacer.visit_Import(import_node)
 
 
+@pytest.mark.parametrize("import_statement, node_expected", [
+    ("from challengelibs import module", None)
+])
+def test_replacer_visit_import_from(import_statement, node_expected, local_module_import_replacer,
+                                    create_ast_import_node):
+    import_from_node = create_ast_import_node(import_statement)
+    # TODO
+
+
 def test_challenge_build(test_challenge):
     challenge_source = test_challenge.aggregate_to_source(local_packages_paths=[TESTS_SHAREDLIBS_PATH])
-    with open(TESTS_BOTS_PATH / (test_challenge.name + ".py"), "w") as f:
+    with open(TESTS_DATA_PATH / (test_challenge.name + ".py"), "w") as f:
         f.write(challenge_source)
