@@ -17,7 +17,6 @@ class Module:
         self._is_local = False
         self._target = None
 
-    def look_for_target(self):
         base_path = self.imported_from
         for _ in range(self.level + 1):
             base_path = base_path.parent
@@ -34,13 +33,14 @@ class Module:
 
     @property
     def target(self) -> Path:
-        self.look_for_target()
         return self._target
 
     @property
     def is_local(self) -> bool:
-        self.look_for_target()
         return self._is_local
+
+    def __eq__(self, other):
+        return (self._is_local and self.target == other.target) or (not self._is_local and self.name == other.name)
 
 
 class LocalModule:

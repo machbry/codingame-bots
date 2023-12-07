@@ -2,8 +2,11 @@ from pathlib import Path
 from typing import List, Union
 import ast
 
+from .logger import Logger
 from builderlibs.fileutils import PythonFile
-from builderlibs.dependencies import LocalModule, Import, ImportFrom
+from builderlibs.dependencies import LocalModule, Import, ImportFrom, Module
+
+logger = Logger().get()
 
 
 class LocalModuleImportReplacer(ast.NodeTransformer):
@@ -16,11 +19,12 @@ class LocalModuleImportReplacer(ast.NodeTransformer):
         _local_modules_replaced (List[LocalModule]): A list of local modules that have already been replaced.
     """
 
-    def __init__(self, main_module: LocalModule, local_packages_paths: List[Path] = []):
+    def __init__(self, main_module: LocalModule, local_packages_paths: List[Path] = [],
+                 local_modules_replaced: List[Module] = []):
         super().__init__()
         self._main_module = main_module
         self._local_packages_paths = local_packages_paths
-        self._local_modules_replaced = []
+        self._local_modules_replaced = local_modules_replaced
 
     @property
     def from_paths(self):
@@ -49,7 +53,10 @@ class LocalModuleImportReplacer(ast.NodeTransformer):
                     local_module_to_import = LocalModule(target_module_file)
 
                     replacer = LocalModuleImportReplacer(main_module=local_module_to_import,
-                                                         local_packages_paths=self._local_packages_paths)
+                                                         local_packages_paths=self._local_packages_paths,
+                                                         local_modules_replaced=self._local_modules_replaced)
+
+                    logger.info(f"Module {imported_module.name} imported from file at {target_path}")
 
                     return ast.fix_missing_locations(replacer.visit(local_module_to_import.tree))
                 else:
