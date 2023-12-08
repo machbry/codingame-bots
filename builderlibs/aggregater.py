@@ -1,10 +1,11 @@
 from pathlib import Path
-from typing import List, Union, Set
+from typing import List, Union
 import ast
 
 from .logger import Logger
 from builderlibs.fileutils import PythonFile
 from builderlibs.dependencies import LocalModule, Import, ImportFrom, Module
+from .optimizer import ImportNodesRemover, add_nodes_at_the_beginning
 
 logger = Logger().get()
 
@@ -53,21 +54,6 @@ class LocalModuleReplacer(ast.NodeTransformer):
         return node
 
 
-class ImportNodesRemover(ast.NodeTransformer):
-    def __init__(self):
-        self._removed_nodes: Set[ast.AST] = set()
-
-    @property
-    def removed_nodes(self) -> Set[ast.AST]:
-        return self._removed_nodes
-
-    def visit_ImportFrom(self, node: ast.ImportFrom):
-        self._removed_nodes.add(node)
-
-    def visit_Import(self, node: ast.Import):
-        self._removed_nodes.add(node)
-
-
 class ModuleAggregater:
     def __init__(self, main_module: LocalModule, local_packages_paths: List[Path] = []):
         self._main_module = main_module
@@ -75,13 +61,10 @@ class ModuleAggregater:
         self._imports_nodes_remover = ImportNodesRemover()
 
     def aggregate(self) -> ast.AST:
-        aggregated_tree_raw = ast.fix_missing_locations(self._replacer.visit(self._main_module.tree))
-
+        aggregated_tree_raw = self._replacer.visit(self._main_module.tree)
         aggregated_tree = self._imports_nodes_remover.visit(aggregated_tree_raw)
-        for node in self._imports_nodes_remover.removed_nodes:
-            aggregated_tree.body.insert(0, node)
-
-        return ast.fix_missing_locations(aggregated_tree)
+        return ast.fix_missing_locations(add_nodes_at_the_beginning(tree=aggregated_tree,
+                                                                    nodes=self._imports_nodes_remover.removed_nodes))
 
     def aggregate_to_source(self) -> str:
         return ast.unparse(self.aggregate())
