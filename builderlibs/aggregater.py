@@ -5,7 +5,7 @@ import ast
 from .logger import Logger
 from builderlibs.fileutils import PythonFile
 from builderlibs.dependencies import LocalModule, Import, ImportFrom, Module
-from .optimizer import ImportNodesRemover, add_nodes_at_the_beginning
+from .optimizer import ImportNodesRemover, add_nodes_at_the_beginning, optimize_imports_nodes
 
 logger = Logger().get()
 
@@ -63,8 +63,9 @@ class ModuleAggregater:
     def aggregate(self) -> ast.AST:
         aggregated_tree_raw = self._replacer.visit(self._main_module.tree)
         aggregated_tree = self._imports_nodes_remover.visit(aggregated_tree_raw)
+        imports_nodes_optimized = optimize_imports_nodes(imports_nodes=self._imports_nodes_remover.removed_nodes)
         return ast.fix_missing_locations(add_nodes_at_the_beginning(tree=aggregated_tree,
-                                                                    nodes=self._imports_nodes_remover.removed_nodes))
+                                                                    nodes=imports_nodes_optimized))
 
     def aggregate_to_source(self) -> str:
         return ast.unparse(self.aggregate())
