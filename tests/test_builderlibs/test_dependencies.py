@@ -52,8 +52,8 @@ def test_module(module_name, imported_from, level, relative_path_expected, is_lo
                             Module(name="pytest", imported_from=BASE_PATH)]),
     ("from ..package import function, Class", [Module(name="package", imported_from=BASE_PATH, level=2)])
 ])
-def test_import_statement(source, modules_expected, create_ast_import_node):
-    node = create_ast_import_node(source)
+def test_import_statement(source, modules_expected, create_ast_imports_nodes):
+    node = create_ast_imports_nodes(source)[0]
 
     if isinstance(node, ast.Import):
         import_statement = Import(node=node, from_path=BASE_PATH)

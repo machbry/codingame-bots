@@ -17,8 +17,8 @@ def local_module_replacer(test_challenge):
     ("import pandas as pd", None)
 ])
 def test_replacer_visit_import(import_statement, exception_expected, local_module_replacer,
-                               create_ast_import_node):
-    import_node = create_ast_import_node(import_statement)
+                               create_ast_imports_nodes):
+    import_node = create_ast_imports_nodes(import_statement)[0]
     if exception_expected:
         with pytest.raises(ValueError):
             local_module_replacer.visit_Import(import_node)
@@ -30,8 +30,8 @@ def test_replacer_visit_import(import_statement, exception_expected, local_modul
     ("from challengelibs import module", None)
 ])
 def test_replacer_visit_import_from(import_statement, node_expected, local_module_replacer,
-                                    create_ast_import_node):
-    import_from_node = create_ast_import_node(import_statement)
+                                    create_ast_imports_nodes):
+    import_from_node = create_ast_imports_nodes(import_statement)[0]
     # TODO
 
 

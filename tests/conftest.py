@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, List
 import ast
 
 import pytest
@@ -30,10 +30,12 @@ def test_challenge(create_challenge_folder) -> ChallengeFolder:
 
 
 @pytest.fixture
-def create_ast_import_node():
-    def _create_ast_import_node(source: str) -> Union[ast.Import, ast.ImportFrom]:
+def create_ast_imports_nodes():
+    def _create_ast_imports_nodes(source: str) -> List[Union[ast.Import, ast.ImportFrom]]:
         tree = ast.parse(source)
+        imports_nodes = []
         for node in ast.walk(tree):
             if isinstance(node, ast.Import) or isinstance(node, ast.ImportFrom):
-                return node
-    return _create_ast_import_node
+                imports_nodes.append(node)
+        return imports_nodes
+    return _create_ast_imports_nodes
