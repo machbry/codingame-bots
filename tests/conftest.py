@@ -39,3 +39,15 @@ def create_ast_imports_nodes():
                 imports_nodes.append(node)
         return imports_nodes
     return _create_ast_imports_nodes
+
+
+@pytest.fixture
+def create_ast_imports_nodes_from_sources(create_ast_imports_nodes):
+    def _create_ast_imports_nodes_from_sources(sources: List[str]) -> List[Union[ast.Import, ast.ImportFrom]]:
+        concat_source = ""
+        for source in sources:
+            concat_source += source + "\n"
+        nodes = create_ast_imports_nodes(concat_source)
+        return nodes
+    return _create_ast_imports_nodes_from_sources
+
