@@ -17,6 +17,24 @@ class ImportNodesRemover(ast.NodeTransformer):
         self._removed_nodes.append(node)
 
 
+class TypeHintRemover(ast.NodeTransformer):
+
+    def visit_FunctionDef(self, node):
+        # remove the return type definition
+        node.returns = None
+        # remove all argument annotations
+        if node.args.args:
+            for arg in node.args.args:
+                arg.annotation = None
+        self.generic_visit(node)
+        return node
+
+    def visit_AnnAssign(self, node):
+        if node.value is None:
+            return node
+        return ast.Assign([node.target], node.value)
+
+
 def add_nodes_at_the_beginning(tree: ast.AST, nodes: List[ast.AST]) -> ast.AST:
     for node in nodes:
         tree.body.insert(0, node)
