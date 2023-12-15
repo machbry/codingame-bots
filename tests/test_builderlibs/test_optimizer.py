@@ -42,8 +42,3 @@ def test_optimize_imports_nodes(create_ast_imports_nodes_from_sources):
     assert len(expected_nodes) == len(optimized_nodes)
 
     # TODO : assert  optimized_nodes and expected_nodes are the same
-
-
-def test_type_hint_remover():
-    # TODO : test TypeHintRemover
-    pass
