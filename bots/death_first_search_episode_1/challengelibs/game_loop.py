@@ -40,10 +40,16 @@ class GameLoop:
             self.turns_inputs.append(f"{si}")
             print(self.turns_inputs, file=sys.stderr, flush=True)
 
+            played = False
             bobnet_neighbours = self.network.get_node_neighbours(si)
             if len(bobnet_neighbours) == 1:
-                self.network.cut(Link(si, bobnet_neighbours.pop()))
+                self.network.cut(Link(si, bobnet_neighbours[0]))
+                played = True
             else:
-                gateway = random.choice(self.network.gateways)
-                gateway_neighbours = self.network.get_node_neighbours(gateway)
-                self.network.cut(Link(gateway, gateway_neighbours.pop()))
+                for gateway in self.network.gateways:
+                    if gateway in bobnet_neighbours:
+                        self.network.cut(Link(si, gateway))
+                        played = True
+                        break
+            if not played:
+                self.network.cut(random.choice(list(self.network.links)))

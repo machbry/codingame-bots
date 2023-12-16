@@ -1,9 +1,9 @@
+import numpy as np
 import sys
 import random
-import numpy as np
 from scipy.sparse import csr_matrix
 from dataclasses import dataclass
-from typing import Dict, Union, List, Iterable, Set
+from typing import Set, List, Iterable, Union, Dict
 
 @dataclass(frozen=True)
 class Edge:
@@ -55,14 +55,20 @@ class AdjacencyList:
 
     def add_edge(self, edge: Edge):
         (i, j) = (edge.from_node, edge.to_node)
-        for (node, neighbor) in ((i, j), (j, i)):
+        pairs_to_add = [(i, j)]
+        if not edge.directed:
+            pairs_to_add.append((j, i))
+        for (node, neighbor) in pairs_to_add:
             if not self[node]:
                 self[node] = set()
             self[node].add(neighbor)
 
     def remove_edge(self, edge: Edge):
         (i, j) = (edge.from_node, edge.to_node)
-        for (node, neighbor) in ((i, j), (j, i)):
+        pairs_to_remove = [(i, j)]
+        if not edge.directed:
+            pairs_to_remove.append((j, i))
+        for (node, neighbor) in pairs_to_remove:
             if self[node]:
                 try:
                     self[node].remove(neighbor)
@@ -100,10 +106,14 @@ class Network:
 
     def cut(self, link: Link):
         self.adjacency_list.remove_edge(link)
+        try:
+            self.links.remove(link)
+        except KeyError:
+            self.links.remove(Link(link.to_node, link.from_node))
         link.cut()
 
     def get_node_neighbours(self, node):
-        return self.adjacency_list[node]
+        return list(self.adjacency_list[node])
 
 class GameLoop:
     RUNNING = True
@@ -130,11 +140,17 @@ class GameLoop:
             si = int(input())
             self.turns_inputs.append(f'{si}')
             print(self.turns_inputs, file=sys.stderr, flush=True)
+            played = False
             bobnet_neighbours = self.network.get_node_neighbours(si)
             if len(bobnet_neighbours) == 1:
-                self.network.cut(Link(si, bobnet_neighbours.pop()))
+                self.network.cut(Link(si, bobnet_neighbours[0]))
+                played = True
             else:
-                gateway = random.choice(self.network.gateways)
-                gateway_neighbours = self.network.get_node_neighbours(gateway)
-                self.network.cut(Link(gateway, gateway_neighbours.pop()))
+                for gateway in self.network.gateways:
+                    if gateway in bobnet_neighbours:
+                        self.network.cut(Link(si, gateway))
+                        played = True
+                        break
+            if not played:
+                self.network.cut(random.choice(list(self.network.links)))
 GameLoop().start()

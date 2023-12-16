@@ -24,7 +24,11 @@ class Network:
 
     def cut(self, link: Link):
         self.adjacency_list.remove_edge(link)
+        try:
+            self.links.remove(link)
+        except KeyError:
+            self.links.remove(Link(link.to_node, link.from_node))
         link.cut()
 
     def get_node_neighbours(self, node):
-        return self.adjacency_list[node]
+        return list(self.adjacency_list[node])
