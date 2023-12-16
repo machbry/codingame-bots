@@ -9,6 +9,7 @@ CHALLENGELIBS_PACKAGE = "bots.death_first_search_episode_1.challengelibs"
 
 
 @pytest.mark.parametrize("init_inputs, turns_inputs", [
+    (['3 2 1', '1 2', '1 0', '2'], ['1']),
     (['4 4 1', '1 3', '2 3', '0 1', '0 2', '3'], ['0', '1'])
 ])
 def test_replay_turns(init_inputs: List[str], turns_inputs: List[str]):

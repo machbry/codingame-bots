@@ -1,17 +1,16 @@
 from typing import Set, List
 from dataclasses import dataclass
 
+from botlibs.graph.classes import Edge
+from botlibs.graph.create import create_adjacency_list_from_edges
 
-@dataclass(frozen=True)
-class Link:
-    n1: int
-    n2: int
 
-    def has_node(self, node: int) -> bool:
-        return node in (self.n1, self.n2)
+class Link(Edge):
+    def __init__(self, from_node: int, to_node: int):
+        super().__init__(from_node, to_node, False, 1)
 
-    def cut_link(self):
-        print(f"{self.n1} {self.n2}")
+    def cut(self):
+        print(f"{self.from_node} {self.to_node}")
 
 
 @dataclass
@@ -20,10 +19,12 @@ class Network:
     links: Set[Link]
     gateways: List[int]
 
-    def get_links_from_node(self, node: int) -> Set[Link]:
-        links_from_node = set()
-        for link in self.links:
-            if link.has_node(node):
-                links_from_node.add(link)
-        return links_from_node
+    def __post_init__(self):
+        self.adjacency_list = create_adjacency_list_from_edges(self.links)
 
+    def cut(self, link: Link):
+        self.adjacency_list.remove_edge(link)
+        link.cut()
+
+    def get_node_neighbours(self, node):
+        return self.adjacency_list[node]
