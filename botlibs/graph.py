@@ -7,7 +7,7 @@
 # https://en.wikipedia.org/wiki/Shortest_path_problem
 
 
-from typing import Iterable
+from typing import Iterable, Dict, Set
 from dataclasses import dataclass
 
 import numpy as np
@@ -36,11 +36,3 @@ class AdjacencyMatrix:
     def __setitem__(self, key, value):
         self.array.__setitem__(key, value)
 
-
-def create_adjacency_matrix_from_edges(edges: Iterable[Edge], nodes_number: int) -> AdjacencyMatrix:
-    nodes_edges = np.zeros((nodes_number, nodes_number), dtype=int)
-    for edge in edges:
-        nodes_edges[edge.from_node, edge.to_node] = 1
-        if not edge.directed:
-            nodes_edges[edge.to_node, edge.from_node] = 1
-    return AdjacencyMatrix(nodes_edges)

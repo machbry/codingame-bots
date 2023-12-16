@@ -1,6 +1,7 @@
 import pytest
 
-from botlibs.graph import Edge, create_adjacency_matrix_from_edges, AdjacencyMatrix
+from botlibs.graph import Edge, AdjacencyMatrix
+from botlibs.utils.graph import create_adjacency_matrix_from_edges
 
 
 @pytest.mark.parametrize("edges_tuples, nodes_number", [
