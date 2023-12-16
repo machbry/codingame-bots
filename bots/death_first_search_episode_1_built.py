@@ -1,6 +1,6 @@
 import random
 import sys
-from dataclasses import field, dataclass
+from dataclasses import dataclass, field
 from typing import List, Set
 
 @dataclass(frozen=True)
@@ -47,12 +47,12 @@ class GameLoop:
         links = set()
         for i in range(l):
             (n1, n2) = [int(j) for j in input().split()]
-            self.init_inputs.append(f'/{n1} {n2}')
+            self.init_inputs.append(f'{n1} {n2}')
             links.add(Link(n1=Node(index=n1), n2=Node(index=n2)))
         gateways = []
         for i in range(e):
             ei = int(input())
-            self.init_inputs.append(f'/{ei}')
+            self.init_inputs.append(f'{ei}')
             gateways.append(Node(ei))
         self.network = Network(nb_nodes=n, links=links, gateways=gateways)
 
@@ -60,7 +60,7 @@ class GameLoop:
         while GameLoop.RUNNING:
             si = int(input())
             inputs = self.init_inputs.copy()
-            inputs.append(f'/{si}')
+            inputs.append(f'{si}')
             print(inputs, file=sys.stderr, flush=True)
             bobnet_node = self.network.get_node(si)
             links_from_bobnet = self.network.get_links_from_node(bobnet_node)

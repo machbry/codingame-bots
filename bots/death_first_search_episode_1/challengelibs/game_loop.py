@@ -2,7 +2,7 @@ import random
 import sys
 from typing import List
 
-from network import Node, Link, Network
+from .network import Node, Link, Network
 
 
 class GameLoop:
@@ -35,7 +35,7 @@ class GameLoop:
         while GameLoop.RUNNING:
             si = int(input())  # The index of the node on which the Bobnet agent is positioned this turn
             inputs = self.init_inputs.copy()
-            inputs.append(f"/{si}")
+            inputs.append(f"{si}")
             print(inputs, file=sys.stderr, flush=True)
 
             bobnet_node = self.network.get_node(si)

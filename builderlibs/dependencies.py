@@ -17,19 +17,20 @@ class Module:
         self._is_local = False
         self._target = None
 
-        base_path = self.imported_from
-        for _ in range(self.level + 1):
-            base_path = base_path.parent
+        possible_base_paths = [self.imported_from]
+        for i in range(self.level + 1):
+            possible_base_paths.append(possible_base_paths[i].parent)
 
-        relative_path = (self.name.replace(".", "/"))
-        dir_target = (base_path / relative_path).resolve()
-        py_target = (base_path / (relative_path + ".py")).resolve()
-        possible_targets = [dir_target, py_target]
+        for base_path in possible_base_paths:
+            relative_path = (self.name.replace(".", "/"))
+            dir_target = (base_path / relative_path).resolve()
+            py_target = (base_path / (relative_path + ".py")).resolve()
+            possible_targets = [dir_target, py_target]
 
-        for possible_target in possible_targets:
-            if possible_target.exists():
-                self._target = possible_target
-                self._is_local = True
+            for possible_target in possible_targets:
+                if possible_target.exists():
+                    self._target = possible_target
+                    self._is_local = True
 
     @property
     def target(self) -> Path:

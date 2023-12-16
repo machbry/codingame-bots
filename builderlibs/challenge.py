@@ -35,6 +35,10 @@ class ChallengeStructure:
         return PythonFile(self.root.path / self._main_file_name)
 
     @property
+    def init_file(self) -> PythonFile:
+        return PythonFile(self.root.path / "__init__.py")
+
+    @property
     def libs(self) -> Directory:
         return Directory(self.root.path / self._libs_name)
 
@@ -44,7 +48,7 @@ class ChallengeStructure:
 
     @property
     def nodes(self) -> List[Node]:
-        return [self.root, self.main_file, self.libs, self.libs_init_file]
+        return [self.root, self.main_file, self.init_file, self.libs, self.libs_init_file]
 
 
 class ChallengeFolder:

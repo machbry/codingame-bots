@@ -22,6 +22,7 @@ def imported_from_paths(test_challenge) -> Dict[str, Path]:
     ("os.path", "main_file", 0, None, False),
     ("challengelibs.module", "main_file", 0, "../challengelibs/module.py", True),
     ("other_module", "libs_init_file", 0, "../other_module.py", True),
+    ("another_module", "libs_init_file", 1, "../another_module.py", True),
     ("pandas", "libs_init_file", 0, None, False),
     ("sharedlibs.module", "main_file", 2, "../../../sharedlibs/module.py", True),
     ("challengelibs.module", "main_file", 0, "../challengelibs/module.py", True),
