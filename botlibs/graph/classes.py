@@ -64,14 +64,24 @@ class AdjacencyList:
 
     def add_edge(self, edge: Edge):
         i, j = edge.from_node, edge.to_node
-        for node, neighbor in ((i, j), (j, i)):
+
+        pairs_to_add = [(i, j)]
+        if not edge.directed:
+            pairs_to_add.append((j, i))
+
+        for node, neighbor in pairs_to_add:
             if not self[node]:
                 self[node] = set()
             self[node].add(neighbor)
 
     def remove_edge(self, edge: Edge):
         i, j = edge.from_node, edge.to_node
-        for node, neighbor in ((i, j), (j, i)):
+
+        pairs_to_remove = [(i, j)]
+        if not edge.directed:
+            pairs_to_remove.append((j, i))
+
+        for node, neighbor in pairs_to_remove:
             if self[node]:
                 try:
                     self[node].remove(neighbor)
