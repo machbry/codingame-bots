@@ -1,7 +1,7 @@
-import sys
 import random
-from dataclasses import dataclass, field
-from typing import Set, List
+import sys
+from dataclasses import field, dataclass
+from typing import List, Set
 
 @dataclass(frozen=True)
 class Node:
@@ -37,29 +37,30 @@ class Network:
             if link.has_node(node):
                 links_from_node.add(link)
         return links_from_node
-(n, l, e) = [int(i) for i in input().split()]
-start_inputs = f'{n} {l} {e}'
-links = set()
-for i in range(l):
-    (n1, n2) = [int(j) for j in input().split()]
-    start_inputs += f'/{n1} {n2}'
-    links.add(Link(n1=Node(index=n1), n2=Node(index=n2)))
-gateways = []
-for i in range(e):
-    ei = int(input())
-    start_inputs += f'/{ei}'
-    gateways.append(Node(ei))
 
 class GameLoop:
     RUNNING = True
 
-    def __init__(self, network):
-        self.network = network
+    def __init__(self):
+        (n, l, e) = [int(i) for i in input().split()]
+        self.init_inputs: List = [f'{n} {l} {e}']
+        links = set()
+        for i in range(l):
+            (n1, n2) = [int(j) for j in input().split()]
+            self.init_inputs.append(f'/{n1} {n2}')
+            links.add(Link(n1=Node(index=n1), n2=Node(index=n2)))
+        gateways = []
+        for i in range(e):
+            ei = int(input())
+            self.init_inputs.append(f'/{ei}')
+            gateways.append(Node(ei))
+        self.network = Network(nb_nodes=n, links=links, gateways=gateways)
 
     def start(self):
         while GameLoop.RUNNING:
             si = int(input())
-            inputs = start_inputs + f'/{si}'
+            inputs = self.init_inputs.copy()
+            inputs.append(f'/{si}')
             print(inputs, file=sys.stderr, flush=True)
             bobnet_node = self.network.get_node(si)
             links_from_bobnet = self.network.get_links_from_node(bobnet_node)
@@ -69,4 +70,4 @@ class GameLoop:
                 gateway = random.choice(self.network.gateways)
                 links_from_gateway = self.network.get_links_from_node(gateway)
                 links_from_gateway.pop().cut_link()
-GameLoop(Network(nb_nodes=n, links=links, gateways=gateways)).start()
+GameLoop().start()
