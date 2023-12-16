@@ -1,5 +1,5 @@
-import random
 import sys
+import random
 from dataclasses import dataclass, field
 from typing import List, Set
 
@@ -55,13 +55,14 @@ class GameLoop:
             self.init_inputs.append(f'{ei}')
             gateways.append(Node(ei))
         self.network = Network(nb_nodes=n, links=links, gateways=gateways)
+        self.turns_inputs = []
+        print(self.init_inputs, file=sys.stderr, flush=True)
 
     def start(self):
         while GameLoop.RUNNING:
             si = int(input())
-            inputs = self.init_inputs.copy()
-            inputs.append(f'{si}')
-            print(inputs, file=sys.stderr, flush=True)
+            self.turns_inputs.append(f'{si}')
+            print(self.turns_inputs, file=sys.stderr, flush=True)
             bobnet_node = self.network.get_node(si)
             links_from_bobnet = self.network.get_links_from_node(bobnet_node)
             if len(links_from_bobnet) == 1:

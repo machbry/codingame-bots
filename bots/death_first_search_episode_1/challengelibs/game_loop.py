@@ -13,7 +13,7 @@ class GameLoop:
         # l: the number of links
         # e: the number of exit gateways
         n, l, e = [int(i) for i in input().split()]
-        self.init_inputs: List = [f"{n} {l} {e}"]
+        self.init_inputs: List[str] = [f"{n} {l} {e}"]
 
         links = set()
         for i in range(l):
@@ -30,13 +30,15 @@ class GameLoop:
 
         self.network = Network(nb_nodes=n, links=links, gateways=gateways)
 
+        self.turns_inputs: List[str] = []
+        print(self.init_inputs, file=sys.stderr, flush=True)
+
     def start(self):
         # game loop
         while GameLoop.RUNNING:
             si = int(input())  # The index of the node on which the Bobnet agent is positioned this turn
-            inputs = self.init_inputs.copy()
-            inputs.append(f"{si}")
-            print(inputs, file=sys.stderr, flush=True)
+            self.turns_inputs.append(f"{si}")
+            print(self.turns_inputs, file=sys.stderr, flush=True)
 
             bobnet_node = self.network.get_node(si)
             links_from_bobnet = self.network.get_links_from_node(bobnet_node)
