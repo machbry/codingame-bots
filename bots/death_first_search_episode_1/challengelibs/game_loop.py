@@ -2,7 +2,7 @@ import random
 import sys
 from typing import List
 
-from .network import Node, Link, Network
+from .network import Link, Network
 
 
 class GameLoop:
@@ -20,13 +20,13 @@ class GameLoop:
             # n1: N1 and N2 defines a link between these nodes
             n1, n2 = [int(j) for j in input().split()]
             self.init_inputs.append(f"{n1} {n2}")
-            links.add(Link(n1=Node(index=n1), n2=Node(index=n2)))
+            links.add(Link(n1=n1, n2=n2))
 
         gateways = []
         for i in range(e):
             ei = int(input())  # the index of a gateway node
             self.init_inputs.append(f"{ei}")
-            gateways.append(Node(ei))
+            gateways.append(ei)
 
         self.network = Network(nb_nodes=n, links=links, gateways=gateways)
 
@@ -40,8 +40,7 @@ class GameLoop:
             self.turns_inputs.append(f"{si}")
             print(self.turns_inputs, file=sys.stderr, flush=True)
 
-            bobnet_node = self.network.get_node(si)
-            links_from_bobnet = self.network.get_links_from_node(bobnet_node)
+            links_from_bobnet = self.network.get_links_from_node(si)
             if len(links_from_bobnet) == 1:
                 links_from_bobnet.pop().cut_link()
             else:
