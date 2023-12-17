@@ -5,7 +5,7 @@ import ast
 from .logger import Logger
 from builderlibs.fileutils import PythonFile
 from builderlibs.dependencies import LocalModule, Import, ImportFrom, Module
-from .optimizer import ImportNodesRemover, add_nodes_at_the_beginning, optimize_imports_nodes
+from .optimizer import ImportNodesRemover, add_nodes_at_the_beginning, optimize_imports_nodes, UsedVisitor, UnusedRemover
 
 logger = Logger().get()
 
@@ -58,14 +58,24 @@ class ModuleAggregater:
     def __init__(self, main_module: LocalModule, local_packages_paths: List[Path] = []):
         self._main_module = main_module
         self._replacer = LocalModuleReplacer(main_module, local_packages_paths)
-        self._imports_nodes_remover = ImportNodesRemover()
 
     def aggregate(self) -> ast.AST:
         aggregated_tree_raw = self._replacer.visit(self._main_module.tree)
-        aggregated_tree = self._imports_nodes_remover.visit(aggregated_tree_raw)
-        imports_nodes_optimized = optimize_imports_nodes(imports_nodes=self._imports_nodes_remover.removed_nodes)
-        return ast.fix_missing_locations(add_nodes_at_the_beginning(tree=aggregated_tree,
-                                                                    nodes=imports_nodes_optimized))
+
+        imports_nodes_remover = ImportNodesRemover()
+        aggregated_tree_no_imports = imports_nodes_remover.visit(aggregated_tree_raw)
+        imports_nodes_optimized = optimize_imports_nodes(imports_nodes=imports_nodes_remover.removed_nodes)
+        aggregated_tree_imports_optimized = add_nodes_at_the_beginning(tree=aggregated_tree_no_imports,
+                                                                       nodes=imports_nodes_optimized)
+
+        aggregated_tree_cleaned = aggregated_tree_imports_optimized
+        for _ in range(2):
+            unused_visitor = UsedVisitor()
+            unused_visitor.visit(aggregated_tree_cleaned)
+            unused_remover = UnusedRemover(unused_visitor.used_functions_and_classes)
+            aggregated_tree_cleaned = unused_remover.visit(ast.fix_missing_locations(aggregated_tree_cleaned))
+
+        return ast.fix_missing_locations(aggregated_tree_cleaned)
 
     def aggregate_to_source(self) -> str:
         return ast.unparse(self.aggregate())

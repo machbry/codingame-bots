@@ -1,9 +1,9 @@
-import numpy as np
-import sys
 import random
+import sys
+import numpy as np
 from scipy.sparse import csr_matrix
 from dataclasses import dataclass
-from typing import Set, List, Iterable, Union, Dict
+from typing import Iterable, List, Union, Set, Dict
 
 @dataclass(frozen=True)
 class Edge:
@@ -11,32 +11,6 @@ class Edge:
     to_node: int
     directed: bool = False
     weight: float = 1
-
-class AdjacencyMatrix:
-
-    def __init__(self, nodes_edges: np.ndarray):
-        self.array: np.ndarray = nodes_edges
-
-    @property
-    def sparce_matrix(self) -> csr_matrix:
-        return csr_matrix(self.array)
-
-    def __getitem__(self, key):
-        return self.array.__getitem__(key)
-
-    def __setitem__(self, key, value: int):
-        self.array.__setitem__(key, value)
-
-    def update_edge(self, edge: Edge, value: int):
-        self[edge.from_node, edge.to_node] = value
-        if not edge.directed:
-            self[edge.to_node, edge.from_node] = value
-
-    def add_edge(self, edge: Edge):
-        self.update_edge(edge, 1)
-
-    def remove_edge(self, edge: Edge):
-        self.update_edge(edge, 0)
 
 class AdjacencyList:
 
@@ -74,12 +48,6 @@ class AdjacencyList:
                     self[node].remove(neighbor)
                 except KeyError:
                     pass
-
-def create_adjacency_matrix_from_edges(edges: Iterable[Edge], nodes_number: int) -> AdjacencyMatrix:
-    adjacency_matrix = AdjacencyMatrix(np.zeros((nodes_number, nodes_number), dtype=int))
-    for edge in edges:
-        adjacency_matrix.add_edge(edge)
-    return adjacency_matrix
 
 def create_adjacency_list_from_edges(edges: Iterable[Edge]) -> AdjacencyList:
     adjacency_list = AdjacencyList({})

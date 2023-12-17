@@ -57,3 +57,41 @@ def optimize_imports_nodes(imports_nodes: List[Union[ast.Import, ast.ImportFrom]
 
     return optimized_nodes
 
+
+class UsedVisitor(ast.NodeVisitor):
+    def __init__(self):
+        self.used_functions_and_classes = set()
+        for builtin_method in dir(object):
+            self.used_functions_and_classes.add(builtin_method)
+        
+    def visit(self, node):
+        super().visit(node)
+        for child in ast.iter_child_nodes(node):
+            self.visit(child)
+
+    def visit_Call(self, node):
+        if isinstance(node.func, ast.Name):
+            self.used_functions_and_classes.add(node.func.id)
+
+    def visit_ClassDef(self, node):
+        for base in node.bases:
+            if isinstance(base, ast.Name):
+                self.used_functions_and_classes.add(base.id)
+        for ast_node in node.body:
+            if isinstance(ast_node, ast.FunctionDef):
+                self.used_functions_and_classes.add(ast_node.name)
+
+
+class UnusedRemover(ast.NodeTransformer):
+    def __init__(self, used_functions_and_classes):
+        self.used_functions_and_classes = used_functions_and_classes
+
+    def visit_FunctionDef(self, node):
+        if node.name not in self.used_functions_and_classes:
+            return None
+        return node
+
+    def visit_ClassDef(self, node):
+        if node.name not in self.used_functions_and_classes:
+            return None
+        return node

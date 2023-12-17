@@ -1,6 +1,7 @@
 import os, datetime
 
 import numpy as np
+from scipy.sparse import csr_matrix
 
 from other_module import usefull_function
 
@@ -22,3 +23,7 @@ class AnotherClass:
 
     def my_function(self):
         return usefull_function(self)
+
+
+def unused_fonction():
+    return "I am useless"
