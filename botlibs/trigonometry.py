@@ -10,17 +10,13 @@ class Point:
         return (self.x == other.x) and (self.y == other.y)
 
     def __add__(self, other):
-        type_self = type(self)
-        type_other = type(other)
-        if type_self == type_other:
+        if isinstance(other, Point):
             return Vector(self.x + other.x, self.y + other.y)
         else:
             return Point(self.x + other.x, self.y + other.y)
 
     def __sub__(self, other):
-        type_self = type(self)
-        type_other = type(other)
-        if type_self == type_other:
+        if isinstance(other, Point):
             return Vector(self.x - other.x, self.y - other.y)
         else:
             return Point(self.x - other.x, self.y - other.y)
