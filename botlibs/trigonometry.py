@@ -1,4 +1,5 @@
 import math
+from typing import Dict
 
 
 class Point:
@@ -26,6 +27,9 @@ class Point:
 
     def __rmul__(self, nombre):
         return self * nombre
+
+    def __hash__(self):
+        return (self.x, self.y).__hash__()
 
     def dist(self, point):
         return math.dist([self.x, self.y], [point.x, point.y])
@@ -61,3 +65,20 @@ class Circle:
 
     def __eq__(self, circle):
         return (self.center == circle.center) and (self.r == circle.r)
+
+
+class HashMapNorms:
+    def __init__(self):
+        self.hasp_map: Dict[int, float] = {}
+
+    def _norm_of_vector(self, vector: Vector):
+        vector_hash = hash(vector)
+        try:
+            return self.hasp_map[vector_hash]
+        except KeyError:
+            norm = vector.norm
+            self.hasp_map[vector_hash] = norm
+            return norm
+
+    def __getitem__(self, vector: Vector):
+        return self._norm_of_vector(vector)
