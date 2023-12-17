@@ -26,13 +26,14 @@ def test_replacer_visit_import(import_statement, exception_expected, local_modul
         assert import_node == local_module_replacer.visit_Import(import_node)
 
 
+@pytest.mark.skip("Test is not implemented")
 @pytest.mark.parametrize("import_statement, node_expected", [
     ("from challengelibs import module", None)
 ])
 def test_replacer_visit_import_from(import_statement, node_expected, local_module_replacer,
                                     create_ast_imports_nodes):
     import_from_node = create_ast_imports_nodes(import_statement)[0]
-    # TODO
+    # TODO : test LocalModuleReplacer.visit_ImportFrom()
 
 
 def test_challenge_build(test_challenge):

@@ -60,6 +60,7 @@ class ModuleAggregater:
         self._replacer = LocalModuleReplacer(main_module, local_packages_paths)
 
     def aggregate(self) -> ast.AST:
+        # TODO : separate aggregation steps
         aggregated_tree_raw = self._replacer.visit(self._main_module.tree)
 
         imports_nodes_remover = ImportNodesRemover()
