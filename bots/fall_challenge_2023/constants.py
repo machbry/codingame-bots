@@ -1,0 +1,4 @@
+X_MIN = 0
+Y_MIN = 0
+X_MAX = 10000
+Y_MAX = 10000

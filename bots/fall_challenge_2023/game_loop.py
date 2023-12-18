@@ -17,7 +17,7 @@ class GameLoop:
 
         creature_count = int(self.get_init_input())
         for i in range(creature_count):
-            creature_id, color, _type = [int(j) for j in self.get_init_input().split()]
+            creature_id, color, kind = [int(j) for j in self.get_init_input().split()]
 
         if GameLoop.LOG:
             print(self.init_inputs, file=sys.stderr, flush=True)
