@@ -1,4 +1,4 @@
-from challengelibs.game_loop import GameLoop
+from .game_loop import GameLoop
 
 
 GameLoop().start()

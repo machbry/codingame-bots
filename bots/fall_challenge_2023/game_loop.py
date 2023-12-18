@@ -5,7 +5,6 @@ from typing import List
 # Score points by scanning valuable fish faster than your opponent.
 
 
-
 class GameLoop:
     RUNNING = True
     LOG = True
