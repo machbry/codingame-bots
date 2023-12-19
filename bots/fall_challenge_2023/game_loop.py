@@ -1,7 +1,8 @@
 import sys
 from typing import List
 
-from .game_data import units_data
+from bots.fall_challenge_2023.challengelibs.data import GameData
+from bots.fall_challenge_2023.challengelibs.units import Creature, MyDrone, FoeDrone
 
 
 # Score points by scanning valuable fish faster than your opponent.
@@ -17,9 +18,12 @@ class GameLoop:
         self.nb_turns: int = 0
         self.turns_inputs: List[str] = []
 
+        self.game_data = GameData()
+
         creature_count = int(self.get_init_input())
         for i in range(creature_count):
             creature_id, color, kind = [int(j) for j in self.get_init_input().split()]
+            self.game_data.add(Creature(_id=creature_id, color=color, kind=kind))
 
         if GameLoop.LOG:
             print(self.init_inputs, file=sys.stderr, flush=True)
@@ -40,18 +44,25 @@ class GameLoop:
 
             my_score = int(self.get_turn_input())
             foe_score = int(self.get_turn_input())
+
             my_scan_count = int(self.get_turn_input())
             for i in range(my_scan_count):
                 creature_id = int(self.get_turn_input())
+
             foe_scan_count = int(self.get_turn_input())
             for i in range(foe_scan_count):
                 creature_id = int(self.get_turn_input())
+
             my_drone_count = int(self.get_turn_input())
             for i in range(my_drone_count):
                 drone_id, drone_x, drone_y, emergency, battery = [int(j) for j in self.get_turn_input().split()]
+                self.game_data.update(MyDrone(_id=drone_id, x=drone_x, y=drone_y, emergency=emergency, battery=battery))
+
             foe_drone_count = int(self.get_turn_input())
             for i in range(foe_drone_count):
                 drone_id, drone_x, drone_y, emergency, battery = [int(j) for j in self.get_turn_input().split()]
+                self.game_data.update(FoeDrone(_id=drone_id, x=drone_x, y=drone_y, emergency=emergency, battery=battery))
+
             drone_scan_count = int(self.get_turn_input())
             for i in range(drone_scan_count):
                 drone_id, creature_id = [int(j) for j in self.get_turn_input().split()]
