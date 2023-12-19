@@ -1,6 +1,8 @@
 import sys
 from typing import List
 
+from .game_data import units_data
+
 
 # Score points by scanning valuable fish faster than your opponent.
 
