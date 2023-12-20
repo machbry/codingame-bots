@@ -1,8 +1,8 @@
-import sys
 import math
-from dataclasses import dataclass, field
+import sys
+from dataclasses import field, dataclass
 from enum import Enum
-from typing import Any, Set, Dict, List, Literal
+from typing import Dict, Literal, Set, List, Any
 
 class Point:
 
@@ -86,6 +86,7 @@ Y_MIN = 0
 X_MAX = 10000
 Y_MAX = 10000
 D_MAX = HASH_MAP_NORMS[Vector(X_MAX, Y_MAX)]
+CORNERS = {'TL': Point(X_MIN, Y_MIN), 'TR': Point(X_MAX, Y_MIN), 'BR': Point(X_MAX, Y_MAX), 'BL': Point(X_MIN, Y_MAX)}
 
 @dataclass
 class Asset:
@@ -172,6 +173,21 @@ class GameAssets(Singleton):
 
     def get_all(self, asset_type: AssetType):
         return self.assets[asset_type.name]
+
+def get_closest_unit_from(unit: Unit, other_units: Dict[int, Unit]):
+    d_min = D_MAX
+    closest_unit = None
+    for (other_unit_idt, other_unit) in other_units.items():
+        if unit.idt != other_unit.idt:
+            try:
+                unit_to_other_unit_vector = other_unit.position - unit.position
+            except (AttributeError, TypeError):
+                continue
+            unit_to_other_unit_distance = HASH_MAP_NORMS[unit_to_other_unit_vector]
+            if unit_to_other_unit_distance < d_min:
+                d_min = unit_to_other_unit_distance
+                closest_unit = other_unit
+    return closest_unit
 GAME_ASSETS = GameAssets()
 
 class GameLoop:
@@ -238,11 +254,14 @@ class GameLoop:
                 (drone_id, drone_x, drone_y, emergency, battery) = [int(j) for j in self.get_turn_input().split()]
                 self.game_assets.update(asset_type=AssetType.FOEDRONE, idt=drone_id, attr_kwargs={'x': drone_x, 'y': drone_y, 'emergency': emergency, 'battery': battery})
             drone_scan_count = int(self.get_turn_input())
+            my_drone_scan_count = 0
             for i in range(drone_scan_count):
                 (drone_id, creature_id) = [int(j) for j in self.get_turn_input().split()]
                 drone = self.game_assets.get(asset_type=AssetType.MYDRONE, idt=drone_id)
                 if drone is None:
                     drone = self.game_assets.get(asset_type=AssetType.FOEDRONE, idt=drone_id)
+                else:
+                    my_drone_scan_count += 1
                 scan_idt = hash((drone.owner, creature_id))
                 self.game_assets.update(asset_type=AssetType.SCAN, idt=scan_idt, attr_kwargs={'owner': drone.owner, 'creature_idt': creature_id, 'drone_idt': drone_id})
                 creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_id)
@@ -255,32 +274,41 @@ class GameLoop:
                 self.game_assets.update(asset_type=AssetType.CREATURE, idt=creature_id, attr_kwargs={'x': creature_x, 'y': creature_y, 'vx': creature_vx, 'vy': creature_vy, 'visible': True})
             for creature_id in unvisible_creatures:
                 self.game_assets.update(asset_type=AssetType.CREATURE, idt=creature_id, attr_kwargs={'visible': False})
+            my_drones = self.game_assets.get_all(AssetType.MYDRONE)
             radar_blip_count = int(self.get_turn_input())
+            my_drones_radar_count = {drone_idt: {radar: 0 for radar in CORNERS.keys()} for drone_idt in my_drones.keys()}
             for i in range(radar_blip_count):
                 inputs = self.get_turn_input().split()
                 drone_id = int(inputs[0])
                 creature_id = int(inputs[1])
                 radar = inputs[2]
+                creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_id)
+                creature_scanned_by = [self.game_assets.get(AssetType.SCAN, scan_idt).owner for scan_idt in creature.scans_idt]
+                if MY_OWNER not in creature_scanned_by:
+                    my_drones_radar_count[drone_id][radar] += 1
             if GameLoop.LOG:
                 self.print_turn_logs()
-            my_drones = self.game_assets.get_all(AssetType.MYDRONE)
             creatures = self.game_assets.get_all(AssetType.CREATURE)
             drones_targets = {}
             for (drone_id, drone) in my_drones.items():
-                (drone_target, d_min) = (None, D_MAX)
+                (eligible_targets, drone_target, d_min) = ({}, None, D_MAX)
                 for (creature_id, creature) in creatures.items():
                     creature_scanned_by = [self.game_assets.get(AssetType.SCAN, scan_idt).owner for scan_idt in creature.scans_idt]
-                    if creature.visible and MY_OWNER not in creature_scanned_by:
-                        drone_to_creature_vector = creature.position - drone.position
-                        drone_to_creature_distance = self.hash_map_norms[drone_to_creature_vector]
-                        if drone_to_creature_distance <= d_min:
-                            d_min = drone_to_creature_distance
-                            drone_target = creature
-                drones_targets[drone_id] = drone_target
+                    if MY_OWNER not in creature_scanned_by:
+                        eligible_targets[creature_id] = creature
+                drones_targets[drone_id] = get_closest_unit_from(drone, eligible_targets)
             for (drone_id, drone) in my_drones.items():
                 drone_target = drones_targets[drone_id]
                 if drone_target is None:
-                    print(f'WAIT 1')
-                else:
-                    print(f'MOVE {drone_target.x} {drone_target.y} 0 {drone_target.idt}')
+                    if my_drone_scan_count >= 4:
+                        print(f'MOVE {drone.x} {495} 0')
+                    else:
+                        max_radar_count = 0
+                        radar_chosen = None
+                        for (radar, radar_count) in my_drones_radar_count[drone_id].items():
+                            if radar_count >= max_radar_count:
+                                radar_chosen = radar
+                                max_radar_count = radar_count
+                        drone_target = CORNERS[radar_chosen]
+                print(f'MOVE {drone_target.x} {drone_target.y} 1')
 GameLoop().start()

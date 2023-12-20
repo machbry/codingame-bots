@@ -2,7 +2,8 @@ import sys
 from typing import List
 
 from bots.fall_challenge_2023.challengelibs.game_assets import AssetType, GameAssets
-from bots.fall_challenge_2023.singletons import MY_OWNER, FOE_OWNER, HASH_MAP_NORMS, D_MAX
+from bots.fall_challenge_2023.challengelibs.map import get_closest_unit_from
+from bots.fall_challenge_2023.singletons import MY_OWNER, FOE_OWNER, HASH_MAP_NORMS, D_MAX, CORNERS
 
 
 GAME_ASSETS = GameAssets()
@@ -88,13 +89,16 @@ class GameLoop:
                                                      "battery": battery})
 
             drone_scan_count = int(self.get_turn_input())
+            my_drone_scan_count = 0
             for i in range(drone_scan_count):
                 drone_id, creature_id = [int(j) for j in self.get_turn_input().split()]
                 drone = self.game_assets.get(asset_type=AssetType.MYDRONE, idt=drone_id)
                 if drone is None:
                     drone = self.game_assets.get(asset_type=AssetType.FOEDRONE, idt=drone_id)
-                scan_idt = hash((drone.owner, creature_id))
+                else:
+                    my_drone_scan_count += 1
 
+                scan_idt = hash((drone.owner, creature_id))
                 self.game_assets.update(asset_type=AssetType.SCAN, idt=scan_idt,
                                         attr_kwargs={"owner": drone.owner, "creature_idt": creature_id,
                                                      "drone_idt": drone_id})
@@ -116,37 +120,50 @@ class GameLoop:
                 self.game_assets.update(asset_type=AssetType.CREATURE, idt=creature_id,
                                         attr_kwargs={"visible": False})
 
+            my_drones = self.game_assets.get_all(AssetType.MYDRONE)
+
             radar_blip_count = int(self.get_turn_input())
+            my_drones_radar_count = {drone_idt: {radar: 0 for radar in CORNERS.keys()} for drone_idt in my_drones.keys()}
             for i in range(radar_blip_count):
                 inputs = self.get_turn_input().split()
                 drone_id = int(inputs[0])
                 creature_id = int(inputs[1])
                 radar = inputs[2]
 
+                creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_id)
+                creature_scanned_by = [self.game_assets.get(AssetType.SCAN, scan_idt).owner for scan_idt in
+                                       creature.scans_idt]  # TODO : improve
+                if MY_OWNER not in creature_scanned_by:
+                    my_drones_radar_count[drone_id][radar] += 1
+
             if GameLoop.LOG:
                 self.print_turn_logs()
 
             # LOOK FOR TARGET
-            my_drones = self.game_assets.get_all(AssetType.MYDRONE)
             creatures = self.game_assets.get_all(AssetType.CREATURE)
 
             drones_targets = {}
             for drone_id, drone in my_drones.items():
-                drone_target, d_min = None, D_MAX
+                eligible_targets, drone_target, d_min = {}, None, D_MAX
                 for creature_id, creature in creatures.items():
-                    creature_scanned_by = [self.game_assets.get(AssetType.SCAN, scan_idt).owner for scan_idt in creature.scans_idt]
-                    if creature.visible and (MY_OWNER not in creature_scanned_by):
-                        drone_to_creature_vector = creature.position - drone.position
-                        drone_to_creature_distance = self.hash_map_norms[drone_to_creature_vector]
-                        if drone_to_creature_distance <= d_min:
-                            d_min = drone_to_creature_distance
-                            drone_target = creature
-                drones_targets[drone_id] = drone_target
+                    creature_scanned_by = [self.game_assets.get(AssetType.SCAN, scan_idt).owner for scan_idt in
+                                           creature.scans_idt]  # TODO : improve
+                    if MY_OWNER not in creature_scanned_by:
+                        eligible_targets[creature_id] = creature
+                drones_targets[drone_id] = get_closest_unit_from(drone, eligible_targets)
 
             for drone_id, drone in my_drones.items():
                 # MOVE <x> <y> <light (1|0)> | WAIT <light (1|0)>
                 drone_target = drones_targets[drone_id]
                 if drone_target is None:
-                    print(f"WAIT 1")
-                else:
-                    print(f"MOVE {drone_target.x} {drone_target.y} 0 {drone_target.idt}")
+                    if my_drone_scan_count >= 4:
+                        print(f"MOVE {drone.x} {495} 0")
+                    else:
+                        max_radar_count = 0
+                        radar_chosen = None
+                        for radar, radar_count in my_drones_radar_count[drone_id].items():
+                            if radar_count >= max_radar_count:
+                                radar_chosen = radar
+                                max_radar_count = radar_count
+                        drone_target = CORNERS[radar_chosen]
+                print(f"MOVE {drone_target.x} {drone_target.y} 1")
