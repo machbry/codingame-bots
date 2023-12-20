@@ -1,8 +1,11 @@
 import sys
 from typing import List
 
-from bots.fall_challenge_2023.challengelibs.game_assets import GameAssets, AssetType
+from bots.fall_challenge_2023.challengelibs.game_assets import AssetType, GameAssets
 from bots.fall_challenge_2023.singletons import MY_OWNER, FOE_OWNER, HASH_MAP_NORMS, D_MAX
+
+
+GAME_ASSETS = GameAssets()
 
 
 class GameLoop:
@@ -15,14 +18,16 @@ class GameLoop:
         self.nb_turns: int = 0
         self.turns_inputs: List[str] = []
 
-        self.game_assets = GameAssets()
+        self.game_assets = GAME_ASSETS
         self.hash_map_norms = HASH_MAP_NORMS
 
+        self.creatures_idt = set()
         creature_count = int(self.get_init_input())
         for i in range(creature_count):
             creature_id, color, kind = [int(j) for j in self.get_init_input().split()]
             self.game_assets.create(asset_type=AssetType.CREATURE, idt=creature_id,
                                     attr_kwargs={"color": color, "kind": kind, "visible": False})
+            self.creatures_idt.add(creature_id)
 
         if GameLoop.LOG:
             print(self.init_inputs, file=sys.stderr, flush=True)
@@ -36,6 +41,14 @@ class GameLoop:
         result = input()
         self.turns_inputs.append(result)
         return result
+
+    def update_saved_scans(self, owner: int, creature_idt: int):
+        scan_idt = hash((owner, creature_idt))
+        self.game_assets.update(asset_type=AssetType.SCAN, idt=scan_idt,
+                                attr_kwargs={"owner": owner, "creature_idt": creature_idt, "saved": True})
+
+        creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
+        creature.scans_idt.add(scan_idt)
 
     def print_turn_logs(self):
         print(self.nb_turns, file=sys.stderr, flush=True)
@@ -53,21 +66,12 @@ class GameLoop:
             my_scan_count = int(self.get_turn_input())
             for i in range(my_scan_count):
                 creature_id = int(self.get_turn_input())
-                scan_idt = hash((MY_OWNER, creature_id))
-                self.game_assets.update(asset_type=AssetType.SCAN, idt=scan_idt,
-                                        attr_kwargs={"owner": MY_OWNER, "creature_idt": creature_id})
-
-                creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_id)
-                creature.scanned_by.add(MY_OWNER)
+                self.update_saved_scans(owner=MY_OWNER, creature_idt=creature_id)
 
             foe_scan_count = int(self.get_turn_input())
             for i in range(foe_scan_count):
                 creature_id = int(self.get_turn_input())
-                self.game_assets.update(asset_type=AssetType.SCAN, idt=hash((FOE_OWNER, creature_id)),
-                                        attr_kwargs={"owner": FOE_OWNER, "creature_idt": creature_id})
-
-                creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_id)
-                creature.scanned_by.add(FOE_OWNER)
+                self.update_saved_scans(owner=FOE_OWNER, creature_idt=creature_id)
 
             my_drone_count = int(self.get_turn_input())
             for i in range(my_drone_count):
@@ -86,14 +90,31 @@ class GameLoop:
             drone_scan_count = int(self.get_turn_input())
             for i in range(drone_scan_count):
                 drone_id, creature_id = [int(j) for j in self.get_turn_input().split()]
+                drone = self.game_assets.get(asset_type=AssetType.MYDRONE, idt=drone_id)
+                if drone is None:
+                    drone = self.game_assets.get(asset_type=AssetType.FOEDRONE, idt=drone_id)
+                scan_idt = hash((drone.owner, creature_id))
+
+                self.game_assets.update(asset_type=AssetType.SCAN, idt=scan_idt,
+                                        attr_kwargs={"owner": drone.owner, "creature_idt": creature_id,
+                                                     "drone_idt": drone_id})
+
+                creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_id)
+                creature.scans_idt.add(scan_idt)
 
             visible_creature_count = int(self.get_turn_input())
+            unvisible_creatures = self.creatures_idt.copy()
             for i in range(visible_creature_count):
                 creature_id, creature_x, creature_y, creature_vx, creature_vy = [int(j) for j in
                                                                                  self.get_turn_input().split()]
+                unvisible_creatures.remove(creature_id)
                 self.game_assets.update(asset_type=AssetType.CREATURE, idt=creature_id,
                                         attr_kwargs={"x": creature_x, "y": creature_y, "vx": creature_vx,
                                                      "vy": creature_vy, "visible": True})
+
+            for creature_id in unvisible_creatures:
+                self.game_assets.update(asset_type=AssetType.CREATURE, idt=creature_id,
+                                        attr_kwargs={"visible": False})
 
             radar_blip_count = int(self.get_turn_input())
             for i in range(radar_blip_count):
@@ -113,7 +134,8 @@ class GameLoop:
             for drone_id, drone in my_drones.items():
                 drone_target, d_min = None, D_MAX
                 for creature_id, creature in creatures.items():
-                    if MY_OWNER not in creature.scanned_by:
+                    creature_scanned_by = [self.game_assets.get(AssetType.SCAN, scan_idt).owner for scan_idt in creature.scans_idt]
+                    if creature.visible and (MY_OWNER not in creature_scanned_by):
                         drone_to_creature_vector = creature.position - drone.position
                         drone_to_creature_distance = self.hash_map_norms[drone_to_creature_vector]
                         if drone_to_creature_distance <= d_min:
@@ -125,6 +147,6 @@ class GameLoop:
                 # MOVE <x> <y> <light (1|0)> | WAIT <light (1|0)>
                 drone_target = drones_targets[drone_id]
                 if drone_target is None:
-                    print(f"MOVE {drone.x} 0 0")
+                    print(f"WAIT 1")
                 else:
-                    print(f"MOVE {drone_target.x} {drone_target.y} 0")
+                    print(f"MOVE {drone_target.x} {drone_target.y} 0 {drone_target.idt}")

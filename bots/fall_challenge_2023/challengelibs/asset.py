@@ -14,6 +14,7 @@ class Asset:
 class Scan(Asset):
     owner: int = None
     creature_idt: int = None
+    drone_idt: int = None
     saved: bool = False
 
 
@@ -37,8 +38,8 @@ class Unit(Asset):
 class Creature(Unit):
     color: int = None
     kind: int = None
-    visible: bool = False  # TODO : update to False if not visible for a turn
-    scanned_by: Set[int] = field(default_factory=set)
+    visible: bool = False
+    scans_idt: Set[int] = field(default_factory=set)
 
 
 @dataclass
