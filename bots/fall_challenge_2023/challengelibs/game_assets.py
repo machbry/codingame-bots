@@ -1,13 +1,14 @@
 from typing import Dict, Any
 from enum import Enum
 
-from bots.fall_challenge_2023.challengelibs.assets import Creature, MyDrone, FoeDrone
+from bots.fall_challenge_2023.challengelibs.asset import Creature, MyDrone, FoeDrone, Scan
 
 
 class AssetType(Enum):
     CREATURE = Creature
     MYDRONE = MyDrone
     FOEDRONE = FoeDrone
+    SCAN = Scan
 
 
 class Singleton(object):
@@ -40,3 +41,6 @@ class GameAssets(Singleton):
 
     def delete(self, asset_type: AssetType, idt: int):
         del self.assets[asset_type.name][idt]
+
+    def get_all(self, asset_type: AssetType):
+        return self.assets[asset_type.name]

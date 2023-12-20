@@ -1,7 +1,9 @@
 import sys
 from typing import List
 
-from bots.fall_challenge_2023.challengelibs.singletons import GameAssets, AssetType
+from botlibs.trigonometry import HashMapNorms
+from bots.fall_challenge_2023.challengelibs.game_assets import GameAssets, AssetType
+from bots.fall_challenge_2023.constants import MY_OWNER, FOE_OWNER
 
 
 class GameLoop:
@@ -15,6 +17,7 @@ class GameLoop:
         self.turns_inputs: List[str] = []
 
         self.game_assets = GameAssets()
+        self.hash_map_norms = HashMapNorms(norm_name="norm2")
 
         creature_count = int(self.get_init_input())
         for i in range(creature_count):
@@ -35,6 +38,12 @@ class GameLoop:
         self.turns_inputs.append(result)
         return result
 
+    def print_turn_logs(self):
+        print(self.nb_turns, file=sys.stderr, flush=True)
+        print(self.turns_inputs, file=sys.stderr, flush=True)
+        if GameLoop.RESET_TURNS_INPUTS:
+            self.turns_inputs = []
+
     def start(self):
         while GameLoop.RUNNING:
             self.nb_turns += 1
@@ -45,10 +54,20 @@ class GameLoop:
             my_scan_count = int(self.get_turn_input())
             for i in range(my_scan_count):
                 creature_id = int(self.get_turn_input())
+                scan_idt = hash((MY_OWNER, creature_id))
+                self.game_assets.update(asset_type=AssetType.SCAN, idt=scan_idt,
+                                        attr_kwargs={"owner": MY_OWNER, "creature_idt": creature_id})
+
+                creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_id)
+                creature.scans_idt.add(scan_idt)
+                self.game_assets.update(asset_type=AssetType.CREATURE, idt=creature_id,
+                                        attr_kwargs={"scans_idt": creature.scans_idt})
 
             foe_scan_count = int(self.get_turn_input())
             for i in range(foe_scan_count):
                 creature_id = int(self.get_turn_input())
+                self.game_assets.update(asset_type=AssetType.SCAN, idt=hash((FOE_OWNER, creature_id)),
+                                        attr_kwargs={"owner": FOE_OWNER, "creature_idt": creature_id})
 
             my_drone_count = int(self.get_turn_input())
             for i in range(my_drone_count):
@@ -84,10 +103,7 @@ class GameLoop:
                 radar = inputs[2]
 
             if GameLoop.LOG:
-                print(self.nb_turns, file=sys.stderr, flush=True)
-                print(self.turns_inputs, file=sys.stderr, flush=True)
-            if GameLoop.RESET_TURNS_INPUTS:
-                self.turns_inputs = []
+                self.print_turn_logs()
 
             for i in range(my_drone_count):
                 # MOVE <x> <y> <light (1|0)> | WAIT <light (1|0)>

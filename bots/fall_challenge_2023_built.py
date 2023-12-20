@@ -1,8 +1,8 @@
 import sys
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Literal
+from typing import Set, Any, List, Literal, Dict
 
 class Point:
 
@@ -45,16 +45,16 @@ class Vector(Point):
     def __mul__(self, nombre):
         return Vector(nombre * self.x, nombre * self.y)
 
+    def dot(self, vector):
+        return self.x * vector.x + self.y * vector.y
+
     @property
     def norm2(self):
-        return self.x ** 2 + self.y ** 2
+        return self.dot(self)
 
     @property
     def norm(self):
         return self.norm2 ** (1 / 2)
-
-    def dot(self, vector):
-        return self.x * vector.x + self.y * vector.y
 
 class HashMapNorms(object):
 
@@ -78,10 +78,25 @@ class HashMapNorms(object):
 
     def __getitem__(self, vector: Vector):
         return self._norm_of_vector(vector)
+MY_OWNER = 1
+FOE_OWNER = 2
+X_MIN = 0
+Y_MIN = 0
+X_MAX = 10000
+Y_MAX = 10000
 
 @dataclass
-class Unit:
+class Asset:
     idt: int
+
+@dataclass
+class Scan(Asset):
+    owner: int = None
+    creature_idt: int = None
+    saved: bool = False
+
+@dataclass
+class Unit(Asset):
     x: int = None
     y: int = None
     vx: int = None
@@ -93,32 +108,31 @@ class Unit:
     def speed(self):
         return Vector(self.vx, self.vy)
 
-    def __hash__(self):
-        return hash(self.idt)
-
 @dataclass
 class Creature(Unit):
-    color: int = (None,)
-    kind: int = (None,)
-    visible: bool = None
+    color: int = None
+    kind: int = None
+    visible: bool = False
+    scans_idt: Set[int] = field(default_factory=set)
 
 @dataclass
 class Drone(Unit):
-    emergency: int = (None,)
-    battery: int = (None,)
+    emergency: int = None
+    battery: int = None
 
 @dataclass
 class MyDrone(Drone):
-    owner: int = 1
+    owner: int = MY_OWNER
 
 @dataclass
 class FoeDrone(Drone):
-    owner: int = 2
+    owner: int = FOE_OWNER
 
 class AssetType(Enum):
     CREATURE = Creature
     MYDRONE = MyDrone
     FOEDRONE = FoeDrone
+    SCAN = Scan
 
 class Singleton(object):
 
@@ -151,6 +165,9 @@ class GameAssets(Singleton):
     def delete(self, asset_type: AssetType, idt: int):
         del self.assets[asset_type.name][idt]
 
+    def get_all(self, asset_type: AssetType):
+        return self.assets[asset_type.name]
+
 class GameLoop:
     RUNNING = True
     LOG = True
@@ -161,6 +178,7 @@ class GameLoop:
         self.nb_turns: int = 0
         self.turns_inputs: List[str] = []
         self.game_assets = GameAssets()
+        self.hash_map_norms = HashMapNorms(norm_name='norm2')
         creature_count = int(self.get_init_input())
         for i in range(creature_count):
             (creature_id, color, kind) = [int(j) for j in self.get_init_input().split()]
@@ -178,6 +196,12 @@ class GameLoop:
         self.turns_inputs.append(result)
         return result
 
+    def print_turn_logs(self):
+        print(self.nb_turns, file=sys.stderr, flush=True)
+        print(self.turns_inputs, file=sys.stderr, flush=True)
+        if GameLoop.RESET_TURNS_INPUTS:
+            self.turns_inputs = []
+
     def start(self):
         while GameLoop.RUNNING:
             self.nb_turns += 1
@@ -186,9 +210,15 @@ class GameLoop:
             my_scan_count = int(self.get_turn_input())
             for i in range(my_scan_count):
                 creature_id = int(self.get_turn_input())
+                scan_idt = hash((MY_OWNER, creature_id))
+                self.game_assets.update(asset_type=AssetType.SCAN, idt=scan_idt, attr_kwargs={'owner': MY_OWNER, 'creature_idt': creature_id})
+                creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_id)
+                creature.scans_idt.add(scan_idt)
+                self.game_assets.update(asset_type=AssetType.CREATURE, idt=creature_id, attr_kwargs={'scans_idt': creature.scans_idt})
             foe_scan_count = int(self.get_turn_input())
             for i in range(foe_scan_count):
                 creature_id = int(self.get_turn_input())
+                self.game_assets.update(asset_type=AssetType.SCAN, idt=hash((FOE_OWNER, creature_id)), attr_kwargs={'owner': FOE_OWNER, 'creature_idt': creature_id})
             my_drone_count = int(self.get_turn_input())
             for i in range(my_drone_count):
                 (drone_id, drone_x, drone_y, emergency, battery) = [int(j) for j in self.get_turn_input().split()]
@@ -211,10 +241,7 @@ class GameLoop:
                 creature_id = int(inputs[1])
                 radar = inputs[2]
             if GameLoop.LOG:
-                print(self.nb_turns, file=sys.stderr, flush=True)
-                print(self.turns_inputs, file=sys.stderr, flush=True)
-            if GameLoop.RESET_TURNS_INPUTS:
-                self.turns_inputs = []
+                self.print_turn_logs()
             for i in range(my_drone_count):
                 print('WAIT 1')
 GameLoop().start()
