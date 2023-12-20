@@ -1,5 +1,5 @@
 import math
-from typing import Dict
+from typing import Dict, Literal
 
 
 class Point:
@@ -42,12 +42,16 @@ class Vector(Point):
     def __mul__(self, nombre):
         return Vector(nombre * self.x, nombre * self.y)
 
-    @property
-    def norm(self):
-        return (self.x ** 2 + self.y ** 2) ** (1/2)
-
     def dot(self, vector):
         return self.x * vector.x + self.y * vector.y
+
+    @property
+    def norm2(self):
+        return self.dot(self)
+
+    @property
+    def norm(self):
+        return self.norm2 ** (1 / 2)
 
 
 class Circle:
@@ -67,16 +71,22 @@ class Circle:
         return (self.center == circle.center) and (self.r == circle.r)
 
 
-class HashMapNorms:
-    def __init__(self):
+class HashMapNorms(object):
+    def __new__(cls, norm_name: Literal["norm", "norm2"]):
+        if not hasattr(cls, 'instance'):
+            cls.instance = super(HashMapNorms, cls).__new__(cls)
+        return cls.instance
+
+    def __init__(self, norm_name: Literal["norm", "norm2"]):
         self.hasp_map: Dict[int, float] = {}
+        self.norm_name = norm_name
 
     def _norm_of_vector(self, vector: Vector):
         vector_hash = hash(vector)
         try:
             return self.hasp_map[vector_hash]
         except KeyError:
-            norm = vector.norm
+            norm = getattr(vector, self.norm_name)
             self.hasp_map[vector_hash] = norm
             return norm
 
