@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from typing import Set
 
 from botlibs.trigonometry import Point, Vector
-from bots.fall_challenge_2023.constants import MY_OWNER, FOE_OWNER
+from bots.fall_challenge_2023.singletons import MY_OWNER, FOE_OWNER
 
 
 @dataclass
@@ -24,9 +24,11 @@ class Unit(Asset):
     vx: int = None
     vy: int = None
 
+    @property
     def position(self):
         return Point(self.x, self.y)
 
+    @property
     def speed(self):
         return Vector(self.vx, self.vy)
 
@@ -36,7 +38,7 @@ class Creature(Unit):
     color: int = None
     kind: int = None
     visible: bool = False  # TODO : update to False if not visible for a turn
-    scans_idt: Set[int] = field(default_factory=set)
+    scanned_by: Set[int] = field(default_factory=set)
 
 
 @dataclass

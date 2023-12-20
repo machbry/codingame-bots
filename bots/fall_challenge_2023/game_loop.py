@@ -1,9 +1,8 @@
 import sys
 from typing import List
 
-from botlibs.trigonometry import HashMapNorms
 from bots.fall_challenge_2023.challengelibs.game_assets import GameAssets, AssetType
-from bots.fall_challenge_2023.constants import MY_OWNER, FOE_OWNER
+from bots.fall_challenge_2023.singletons import MY_OWNER, FOE_OWNER, HASH_MAP_NORMS, D_MAX
 
 
 class GameLoop:
@@ -17,7 +16,7 @@ class GameLoop:
         self.turns_inputs: List[str] = []
 
         self.game_assets = GameAssets()
-        self.hash_map_norms = HashMapNorms(norm_name="norm2")
+        self.hash_map_norms = HASH_MAP_NORMS
 
         creature_count = int(self.get_init_input())
         for i in range(creature_count):
@@ -59,15 +58,16 @@ class GameLoop:
                                         attr_kwargs={"owner": MY_OWNER, "creature_idt": creature_id})
 
                 creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_id)
-                creature.scans_idt.add(scan_idt)
-                self.game_assets.update(asset_type=AssetType.CREATURE, idt=creature_id,
-                                        attr_kwargs={"scans_idt": creature.scans_idt})
+                creature.scanned_by.add(MY_OWNER)
 
             foe_scan_count = int(self.get_turn_input())
             for i in range(foe_scan_count):
                 creature_id = int(self.get_turn_input())
                 self.game_assets.update(asset_type=AssetType.SCAN, idt=hash((FOE_OWNER, creature_id)),
                                         attr_kwargs={"owner": FOE_OWNER, "creature_idt": creature_id})
+
+                creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_id)
+                creature.scanned_by.add(FOE_OWNER)
 
             my_drone_count = int(self.get_turn_input())
             for i in range(my_drone_count):
@@ -105,6 +105,26 @@ class GameLoop:
             if GameLoop.LOG:
                 self.print_turn_logs()
 
-            for i in range(my_drone_count):
+            # LOOK FOR TARGET
+            my_drones = self.game_assets.get_all(AssetType.MYDRONE)
+            creatures = self.game_assets.get_all(AssetType.CREATURE)
+
+            drones_targets = {}
+            for drone_id, drone in my_drones.items():
+                drone_target, d_min = None, D_MAX
+                for creature_id, creature in creatures.items():
+                    if MY_OWNER not in creature.scanned_by:
+                        drone_to_creature_vector = creature.position - drone.position
+                        drone_to_creature_distance = self.hash_map_norms[drone_to_creature_vector]
+                        if drone_to_creature_distance <= d_min:
+                            d_min = drone_to_creature_distance
+                            drone_target = creature
+                drones_targets[drone_id] = drone_target
+
+            for drone_id, drone in my_drones.items():
                 # MOVE <x> <y> <light (1|0)> | WAIT <light (1|0)>
-                print("WAIT 1")
+                drone_target = drones_targets[drone_id]
+                if drone_target is None:
+                    print(f"MOVE {drone.x} 0 0")
+                else:
+                    print(f"MOVE {drone_target.x} {drone_target.y} 0")
