@@ -1,6 +1,8 @@
 import math
 import sys
-from typing import List, Dict, Union, Any
+from dataclasses import dataclass
+from enum import Enum
+from typing import Any, List, Dict
 
 class Point:
 
@@ -50,41 +52,46 @@ class Vector(Point):
     def dot(self, vector):
         return self.x * vector.x + self.y * vector.y
 
+@dataclass
 class Unit:
+    idt: int
+    x: int = None
+    y: int = None
+    vx: int = None
+    vy: int = None
 
-    def __init__(self, _id: int, x: int=None, y: int=None, vx: int=None, vy: int=None):
-        self._id = _id
-        self.position = Point(x, y)
-        self.speed = Vector(vx, vy)
+    def position(self):
+        return Point(self.x, self.y)
+
+    def speed(self):
+        return Vector(self.vx, self.vy)
 
     def __hash__(self):
-        return hash(self._id)
+        return hash(self.idt)
 
+@dataclass
 class Creature(Unit):
+    color: int = (None,)
+    kind: int = (None,)
+    visible: bool = None
 
-    def __init__(self, _id, x=None, y=None, vx=None, vy=None, color=None, kind: int=None, visible: bool=None):
-        super().__init__(_id, x, y, vx, vy)
-        self.color = color
-        self.kind = kind
-        self.visible = visible
-
+@dataclass
 class Drone(Unit):
+    emergency: int = (None,)
+    battery: int = (None,)
 
-    def __init__(self, _id, x=None, y=None, vx=None, vy=None, emergency: int=None, battery: int=None, owner: int=None):
-        super().__init__(_id, x, y, vx, vy)
-        self.emergency = emergency
-        self.battery = battery
-        self.owner = owner
-
+@dataclass
 class MyDrone(Drone):
+    owner: int = 1
 
-    def __init__(self, _id, x=None, y=None, vx=None, vy=None, emergency=None, battery=None):
-        super().__init__(_id, x, y, vx, vy, emergency, battery, owner=1)
-
+@dataclass
 class FoeDrone(Drone):
+    owner: int = 2
 
-    def __init__(self, _id, x=None, y=None, vx=None, vy=None, emergency=None, battery=None):
-        super().__init__(_id, x, y, vx, vy, emergency, battery, owner=2)
+class DataType(Enum):
+    CREATURE = Creature
+    MYDRONE = MyDrone
+    FOEDRONE = FoeDrone
 
 class Singleton(object):
 
@@ -94,23 +101,28 @@ class Singleton(object):
         return cls.instance
 
 class GameData(Singleton):
-    DATA_TYPES = [Creature, MyDrone, FoeDrone]
 
     def __init__(self):
-        self._data_sources: Dict[str, Dict[int, Any]] = {data_type.__name__: {} for data_type in self.DATA_TYPES}
+        self.data_sources: Dict[str, Dict[int, Any]] = {data_type.name: {} for data_type in DataType.__iter__()}
 
-    def add(self, data: Union[Creature, MyDrone, FoeDrone]):
-        source = type(data).__name__
-        self._data_sources[source][data._id] = data
+    def create(self, data_type: DataType, idt: int, attr_kwargs: Dict[str, Any]):
+        attr_kwargs['idt'] = idt
+        instance = data_type.value(**attr_kwargs)
+        self.data_sources[data_type.name][idt] = instance
 
-    def update(self, data: Union[Creature, MyDrone, FoeDrone]):
-        source = type(data).__name__
+    def update(self, data_type: DataType, idt: int, attr_kwargs: Dict[str, Any]):
+        instance = self.data_sources[data_type.name].get(idt)
+        if instance is None:
+            self.create(data_type, idt, attr_kwargs)
+        else:
+            for (name, value) in attr_kwargs.items():
+                setattr(instance, name, value)
 
-    def get(self):
-        pass
+    def get(self, data_type: DataType, idt: int):
+        return self.data_sources[data_type.name].get(idt)
 
-    def delete(self):
-        pass
+    def delete(self, data_type: DataType, idt: int):
+        del self.data_sources[data_type.name][idt]
 
 class GameLoop:
     RUNNING = True
@@ -125,7 +137,7 @@ class GameLoop:
         creature_count = int(self.get_init_input())
         for i in range(creature_count):
             (creature_id, color, kind) = [int(j) for j in self.get_init_input().split()]
-            self.game_data.add(Creature(_id=creature_id, color=color, kind=kind))
+            self.game_data.create(data_type=DataType.CREATURE, idt=creature_id, attr_kwargs={'color': color, 'kind': kind, 'visible': False})
         if GameLoop.LOG:
             print(self.init_inputs, file=sys.stderr, flush=True)
 
@@ -153,17 +165,18 @@ class GameLoop:
             my_drone_count = int(self.get_turn_input())
             for i in range(my_drone_count):
                 (drone_id, drone_x, drone_y, emergency, battery) = [int(j) for j in self.get_turn_input().split()]
-                self.game_data.update(MyDrone(_id=drone_id, x=drone_x, y=drone_y, emergency=emergency, battery=battery))
+                self.game_data.update(data_type=DataType.MYDRONE, idt=drone_id, attr_kwargs={'x': drone_x, 'y': drone_y, 'emergency': emergency, 'battery': battery})
             foe_drone_count = int(self.get_turn_input())
             for i in range(foe_drone_count):
                 (drone_id, drone_x, drone_y, emergency, battery) = [int(j) for j in self.get_turn_input().split()]
-                self.game_data.update(FoeDrone(_id=drone_id, x=drone_x, y=drone_y, emergency=emergency, battery=battery))
+                self.game_data.update(data_type=DataType.FOEDRONE, idt=drone_id, attr_kwargs={'x': drone_x, 'y': drone_y, 'emergency': emergency, 'battery': battery})
             drone_scan_count = int(self.get_turn_input())
             for i in range(drone_scan_count):
                 (drone_id, creature_id) = [int(j) for j in self.get_turn_input().split()]
             visible_creature_count = int(self.get_turn_input())
             for i in range(visible_creature_count):
                 (creature_id, creature_x, creature_y, creature_vx, creature_vy) = [int(j) for j in self.get_turn_input().split()]
+                self.game_data.update(data_type=DataType.CREATURE, idt=creature_id, attr_kwargs={'x': creature_x, 'y': creature_y, 'vx': creature_vx, 'vy': creature_vy, 'visible': True})
             radar_blip_count = int(self.get_turn_input())
             for i in range(radar_blip_count):
                 inputs = self.get_turn_input().split()
