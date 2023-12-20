@@ -1,8 +1,8 @@
-import math
 import sys
+import math
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, List, Dict
+from typing import Any, Dict, List, Literal
 
 class Point:
 
@@ -46,11 +46,38 @@ class Vector(Point):
         return Vector(nombre * self.x, nombre * self.y)
 
     @property
+    def norm2(self):
+        return self.x ** 2 + self.y ** 2
+
+    @property
     def norm(self):
-        return (self.x ** 2 + self.y ** 2) ** (1 / 2)
+        return self.norm2 ** (1 / 2)
 
     def dot(self, vector):
         return self.x * vector.x + self.y * vector.y
+
+class HashMapNorms(object):
+
+    def __new__(cls, norm_name: Literal['norm', 'norm2']):
+        if not hasattr(cls, 'instance'):
+            cls.instance = super(HashMapNorms, cls).__new__(cls)
+        return cls.instance
+
+    def __init__(self, norm_name: Literal['norm', 'norm2']):
+        self.hasp_map: Dict[int, float] = {}
+        self.norm_name = norm_name
+
+    def _norm_of_vector(self, vector: Vector):
+        vector_hash = hash(vector)
+        try:
+            return self.hasp_map[vector_hash]
+        except KeyError:
+            norm = getattr(vector, self.norm_name)
+            self.hasp_map[vector_hash] = norm
+            return norm
+
+    def __getitem__(self, vector: Vector):
+        return self._norm_of_vector(vector)
 
 @dataclass
 class Unit:
@@ -88,7 +115,7 @@ class MyDrone(Drone):
 class FoeDrone(Drone):
     owner: int = 2
 
-class DataType(Enum):
+class AssetType(Enum):
     CREATURE = Creature
     MYDRONE = MyDrone
     FOEDRONE = FoeDrone
@@ -100,29 +127,29 @@ class Singleton(object):
             cls.instance = super(Singleton, cls).__new__(cls)
         return cls.instance
 
-class GameData(Singleton):
+class GameAssets(Singleton):
 
     def __init__(self):
-        self.data_sources: Dict[str, Dict[int, Any]] = {data_type.name: {} for data_type in DataType.__iter__()}
+        self.assets: Dict[str, Dict[int, Any]] = {asset_type.name: {} for asset_type in AssetType.__iter__()}
 
-    def create(self, data_type: DataType, idt: int, attr_kwargs: Dict[str, Any]):
+    def create(self, asset_type: AssetType, idt: int, attr_kwargs: Dict[str, Any]):
         attr_kwargs['idt'] = idt
-        instance = data_type.value(**attr_kwargs)
-        self.data_sources[data_type.name][idt] = instance
+        asset = asset_type.value(**attr_kwargs)
+        self.assets[asset_type.name][idt] = asset
 
-    def update(self, data_type: DataType, idt: int, attr_kwargs: Dict[str, Any]):
-        instance = self.data_sources[data_type.name].get(idt)
-        if instance is None:
-            self.create(data_type, idt, attr_kwargs)
+    def update(self, asset_type: AssetType, idt: int, attr_kwargs: Dict[str, Any]):
+        asset = self.assets[asset_type.name].get(idt)
+        if asset is None:
+            self.create(asset_type, idt, attr_kwargs)
         else:
             for (name, value) in attr_kwargs.items():
-                setattr(instance, name, value)
+                setattr(asset, name, value)
 
-    def get(self, data_type: DataType, idt: int):
-        return self.data_sources[data_type.name].get(idt)
+    def get(self, asset_type: AssetType, idt: int):
+        return self.assets[asset_type.name].get(idt)
 
-    def delete(self, data_type: DataType, idt: int):
-        del self.data_sources[data_type.name][idt]
+    def delete(self, asset_type: AssetType, idt: int):
+        del self.assets[asset_type.name][idt]
 
 class GameLoop:
     RUNNING = True
@@ -133,11 +160,11 @@ class GameLoop:
         self.init_inputs: List[str] = []
         self.nb_turns: int = 0
         self.turns_inputs: List[str] = []
-        self.game_data = GameData()
+        self.game_assets = GameAssets()
         creature_count = int(self.get_init_input())
         for i in range(creature_count):
             (creature_id, color, kind) = [int(j) for j in self.get_init_input().split()]
-            self.game_data.create(data_type=DataType.CREATURE, idt=creature_id, attr_kwargs={'color': color, 'kind': kind, 'visible': False})
+            self.game_assets.create(asset_type=AssetType.CREATURE, idt=creature_id, attr_kwargs={'color': color, 'kind': kind, 'visible': False})
         if GameLoop.LOG:
             print(self.init_inputs, file=sys.stderr, flush=True)
 
@@ -165,18 +192,18 @@ class GameLoop:
             my_drone_count = int(self.get_turn_input())
             for i in range(my_drone_count):
                 (drone_id, drone_x, drone_y, emergency, battery) = [int(j) for j in self.get_turn_input().split()]
-                self.game_data.update(data_type=DataType.MYDRONE, idt=drone_id, attr_kwargs={'x': drone_x, 'y': drone_y, 'emergency': emergency, 'battery': battery})
+                self.game_assets.update(asset_type=AssetType.MYDRONE, idt=drone_id, attr_kwargs={'x': drone_x, 'y': drone_y, 'emergency': emergency, 'battery': battery})
             foe_drone_count = int(self.get_turn_input())
             for i in range(foe_drone_count):
                 (drone_id, drone_x, drone_y, emergency, battery) = [int(j) for j in self.get_turn_input().split()]
-                self.game_data.update(data_type=DataType.FOEDRONE, idt=drone_id, attr_kwargs={'x': drone_x, 'y': drone_y, 'emergency': emergency, 'battery': battery})
+                self.game_assets.update(asset_type=AssetType.FOEDRONE, idt=drone_id, attr_kwargs={'x': drone_x, 'y': drone_y, 'emergency': emergency, 'battery': battery})
             drone_scan_count = int(self.get_turn_input())
             for i in range(drone_scan_count):
                 (drone_id, creature_id) = [int(j) for j in self.get_turn_input().split()]
             visible_creature_count = int(self.get_turn_input())
             for i in range(visible_creature_count):
                 (creature_id, creature_x, creature_y, creature_vx, creature_vy) = [int(j) for j in self.get_turn_input().split()]
-                self.game_data.update(data_type=DataType.CREATURE, idt=creature_id, attr_kwargs={'x': creature_x, 'y': creature_y, 'vx': creature_vx, 'vy': creature_vy, 'visible': True})
+                self.game_assets.update(asset_type=AssetType.CREATURE, idt=creature_id, attr_kwargs={'x': creature_x, 'y': creature_y, 'vx': creature_vx, 'vy': creature_vy, 'visible': True})
             radar_blip_count = int(self.get_turn_input())
             for i in range(radar_blip_count):
                 inputs = self.get_turn_input().split()
