@@ -9,6 +9,9 @@ from bots.fall_challenge_2023.singletons import MY_OWNER, FOE_OWNER
 class Asset:
     idt: int
 
+# surcharge Asset().__setattr__() -> to keep historic values ?
+# surcharge Asset().__getattribute__() ?
+
 
 @dataclass
 class Scan(Asset):
@@ -56,3 +59,10 @@ class MyDrone(Drone):
 @dataclass
 class FoeDrone(Drone):
     owner: int = FOE_OWNER
+
+
+@dataclass
+class RadarBlip(Asset):
+    drone_idt: int = None
+    creature_idt: int = None
+    radar: str = None

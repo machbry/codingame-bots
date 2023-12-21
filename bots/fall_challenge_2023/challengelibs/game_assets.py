@@ -1,7 +1,7 @@
 from typing import Dict, Any
 from enum import Enum
 
-from bots.fall_challenge_2023.challengelibs.asset import Creature, MyDrone, FoeDrone, Scan
+from bots.fall_challenge_2023.challengelibs.asset import Creature, MyDrone, FoeDrone, Scan, RadarBlip
 
 
 class AssetType(Enum):
@@ -9,6 +9,7 @@ class AssetType(Enum):
     MYDRONE = MyDrone
     FOEDRONE = FoeDrone
     SCAN = Scan
+    RADARBLIP = RadarBlip
 
 
 class Singleton(object):

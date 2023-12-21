@@ -137,6 +137,10 @@ class GameLoop:
                 creature_id = int(inputs[1])
                 radar = inputs[2]
 
+                self.game_assets.update(asset_type=AssetType.RADARBLIP, idt=hash((drone_id, creature_id)),
+                                        attr_kwargs={"drone_idt": drone_id, "creature_idt": creature_id,
+                                                     "radar": radar})
+
                 creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_id)
                 creature_scanned_by = [self.game_assets.get(AssetType.SCAN, scan_idt).owner for scan_idt in
                                        creature.scans_idt]  # TODO : improve

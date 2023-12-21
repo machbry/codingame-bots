@@ -1,8 +1,8 @@
-import sys
 import math
+import sys
 from dataclasses import field, dataclass
 from enum import Enum
-from typing import List, Set, Dict, Any, Literal
+from typing import Set, Dict, Any, List, Literal
 
 class Point:
 
@@ -134,11 +134,18 @@ class MyDrone(Drone):
 class FoeDrone(Drone):
     owner: int = FOE_OWNER
 
+@dataclass
+class RadarBlip(Asset):
+    drone_idt: int = None
+    creature_idt: int = None
+    radar: str = None
+
 class AssetType(Enum):
     CREATURE = Creature
     MYDRONE = MyDrone
     FOEDRONE = FoeDrone
     SCAN = Scan
+    RADARBLIP = RadarBlip
 
 class Singleton(object):
 
@@ -286,6 +293,7 @@ class GameLoop:
                 drone_id = int(inputs[0])
                 creature_id = int(inputs[1])
                 radar = inputs[2]
+                self.game_assets.update(asset_type=AssetType.RADARBLIP, idt=hash((drone_id, creature_id)), attr_kwargs={'drone_idt': drone_id, 'creature_idt': creature_id, 'radar': radar})
                 creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_id)
                 creature_scanned_by = [self.game_assets.get(AssetType.SCAN, scan_idt).owner for scan_idt in creature.scans_idt]
                 if MY_OWNER not in creature_scanned_by:
