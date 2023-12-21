@@ -1,8 +1,8 @@
-import math
 import sys
+import math
 from dataclasses import field, dataclass
 from enum import Enum
-from typing import Set, Dict, Any, List, Literal
+from typing import Dict, Any, List, Literal, Set
 
 class Point:
 
@@ -86,7 +86,7 @@ Y_MIN = 0
 X_MAX = 10000
 Y_MAX = 10000
 D_MAX = HASH_MAP_NORMS[Vector(X_MAX, Y_MAX)]
-CORNERS = {'TL': Point(X_MIN, Y_MIN), 'TR': Point(X_MAX, Y_MIN), 'BR': Point(X_MAX, Y_MAX), 'BL': Point(X_MIN, Y_MAX)}
+CORNERS = {'TL': Point(X_MIN, Y_MIN + 2500), 'TR': Point(X_MAX, Y_MIN + 2500), 'BR': Point(X_MAX, Y_MAX), 'BL': Point(X_MIN, Y_MAX)}
 
 @dataclass
 class Asset:
