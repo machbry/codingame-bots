@@ -2,7 +2,7 @@ import math
 import sys
 from dataclasses import field, dataclass
 from enum import Enum
-from typing import Dict, Literal, Set, List, Any
+from typing import List, Any, Dict, Literal, Set
 
 class Point:
 
@@ -298,11 +298,11 @@ class GameLoop:
                         eligible_targets[creature_id] = creature
                 drones_targets[drone_id] = get_closest_unit_from(drone, eligible_targets)
             for (drone_id, drone) in my_drones.items():
-                drone_target = drones_targets[drone_id]
-                if drone_target is None:
-                    if my_drone_scan_count >= 4:
-                        print(f'MOVE {drone.x} {495} 0')
-                    else:
+                if my_drone_scan_count >= 4 or my_scan_count + my_drone_scan_count >= 12:
+                    print(f'MOVE {drone.x} {495} 0')
+                else:
+                    drone_target = drones_targets[drone_id]
+                    if drone_target is None:
                         max_radar_count = 0
                         radar_chosen = None
                         for (radar, radar_count) in my_drones_radar_count[drone_id].items():
@@ -310,5 +310,5 @@ class GameLoop:
                                 radar_chosen = radar
                                 max_radar_count = radar_count
                         drone_target = CORNERS[radar_chosen]
-                print(f'MOVE {drone_target.x} {drone_target.y} 1')
+                    print(f'MOVE {drone_target.x} {drone_target.y} 1')
 GameLoop().start()

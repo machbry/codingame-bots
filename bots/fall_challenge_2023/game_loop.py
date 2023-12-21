@@ -44,6 +44,7 @@ class GameLoop:
         return result
 
     def update_saved_scans(self, owner: int, creature_idt: int):
+        # TODO : IMPROVE UPDATE OF RELATION BETWEEN SCAN AND CREATURE
         scan_idt = hash((owner, creature_idt))
         self.game_assets.update(asset_type=AssetType.SCAN, idt=scan_idt,
                                 attr_kwargs={"owner": owner, "creature_idt": creature_idt, "saved": True})
@@ -98,6 +99,7 @@ class GameLoop:
                 else:
                     my_drone_scan_count += 1
 
+                # TODO : IMPROVE UPDATE OF RELATION BETWEEN SCAN AND CREATURE
                 scan_idt = hash((drone.owner, creature_id))
                 self.game_assets.update(asset_type=AssetType.SCAN, idt=scan_idt,
                                         attr_kwargs={"owner": drone.owner, "creature_idt": creature_id,
@@ -154,11 +156,11 @@ class GameLoop:
 
             for drone_id, drone in my_drones.items():
                 # MOVE <x> <y> <light (1|0)> | WAIT <light (1|0)>
-                drone_target = drones_targets[drone_id]
-                if drone_target is None:
-                    if my_drone_scan_count >= 4:
-                        print(f"MOVE {drone.x} {495} 0")
-                    else:
+                if my_drone_scan_count >= 4 or (my_scan_count + my_drone_scan_count >= 12):
+                    print(f"MOVE {drone.x} {495} 0")
+                else:
+                    drone_target = drones_targets[drone_id]
+                    if drone_target is None:
                         max_radar_count = 0
                         radar_chosen = None
                         for radar, radar_count in my_drones_radar_count[drone_id].items():
@@ -166,4 +168,4 @@ class GameLoop:
                                 radar_chosen = radar
                                 max_radar_count = radar_count
                         drone_target = CORNERS[radar_chosen]
-                print(f"MOVE {drone_target.x} {drone_target.y} 1")
+                    print(f"MOVE {drone_target.x} {drone_target.y} 1")
