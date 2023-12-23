@@ -14,7 +14,14 @@ class Asset:
 
 
 @dataclass(slots=True)
+class Scores:
+    me: int = 0
+    foe: int = 0
+
+
+@dataclass(slots=True)
 class Scan(Asset):
+    # idt = hash((drone.owner, creature_idt))
     owner: int = None
     creature_idt: int = None
     drone_idt: int = None
@@ -42,14 +49,19 @@ class Creature(Unit):
     color: int = None
     kind: int = None
     visible: bool = False
+    escaped: bool = False
     scans_idt: Set[int] = field(default_factory=set)
     scanned_by: Set[int] = field(default_factory=set)
+    my_extra_score: int = 0
+    foe_extra_score: int = 0
 
 
 @dataclass(slots=True)
 class Drone(Unit):
     emergency: int = None
     battery: int = None
+    my_extra_score: int = 0
+    foe_extra_score: int = 0
 
 
 @dataclass(slots=True)
@@ -64,6 +76,7 @@ class FoeDrone(Drone):
 
 @dataclass(slots=True)
 class RadarBlip(Asset):
+    # idt = hash((drone_idt, creature_idt))
     drone_idt: int = None
     creature_idt: int = None
     radar: str = None

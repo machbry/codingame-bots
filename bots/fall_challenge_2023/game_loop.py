@@ -3,8 +3,10 @@ from typing import List
 
 from botlibs.trigonometry import Point
 from bots.fall_challenge_2023.challengelibs.act import Action
+from bots.fall_challenge_2023.challengelibs.asset import Scores
 from bots.fall_challenge_2023.challengelibs.game_assets import AssetType, GameAssets
 from bots.fall_challenge_2023.challengelibs.map import get_closest_unit_from
+from bots.fall_challenge_2023.challengelibs.score import evaluate_extra_scores_for_creature
 from bots.fall_challenge_2023.singletons import MY_OWNER, FOE_OWNER, HASH_MAP_NORMS, D_MAX, CORNERS
 
 
@@ -20,11 +22,11 @@ class GameLoop:
         self.init_inputs: List[str] = []
         self.nb_turns: int = 0
         self.turns_inputs: List[str] = []
+        self.current_scores = Scores()
 
         self.game_assets = GAME_ASSETS
         self.hash_map_norms = HASH_MAP_NORMS
 
-        self.creatures_idt = set()
         creature_count = int(self.get_init_input())
         for i in range(creature_count):
             creature_idt, color, kind = [int(j) for j in self.get_init_input().split()]
@@ -33,8 +35,6 @@ class GameLoop:
             creature.color = color
             creature.kind = kind
             creature.visible = False
-
-            self.creatures_idt.add(creature_idt)
 
         if GameLoop.LOG:
             print(self.init_inputs, file=sys.stderr, flush=True)
@@ -59,6 +59,7 @@ class GameLoop:
         scan.creature_idt = creature_idt
         scan.saved = True
 
+        # TO FIX : SCAN STILL EXISTS IF CREATURES ESCAPED
         creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
         creature.scans_idt.add(scan_idt)
 
@@ -74,6 +75,7 @@ class GameLoop:
 
             my_score = int(self.get_turn_input())
             foe_score = int(self.get_turn_input())
+            self.current_scores = Scores(me=my_score, foe=foe_score)
 
             my_scan_count = int(self.get_turn_input())
             for i in range(my_scan_count):
@@ -136,12 +138,12 @@ class GameLoop:
                 creature.scans_idt.add(scan_idt)
                 creature.scanned_by.add(scan.owner)
 
+            unvisible_creatures = list(self.game_assets.get_all(AssetType.CREATURE).keys()).copy()
+
             visible_creature_count = int(self.get_turn_input())
-            unvisible_creatures = self.creatures_idt.copy()
             for i in range(visible_creature_count):
                 creature_idt, creature_x, creature_y, creature_vx, creature_vy = [int(j) for j in
                                                                                  self.get_turn_input().split()]
-                unvisible_creatures.remove(creature_idt)
                 creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
                 creature.x = creature_x
                 creature.y = creature_y
@@ -149,14 +151,17 @@ class GameLoop:
                 creature.vy = creature_vy
                 creature.visible = True
 
+                unvisible_creatures.remove(creature_idt)
+
             for creature_idt in unvisible_creatures:
                 creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
                 creature.visible = False
 
-            my_drones = self.game_assets.get_all(AssetType.MYDRONE)
+            escaped_creatures = unvisible_creatures.copy()
 
             radar_blip_count = int(self.get_turn_input())
-            my_drones_radar_count = {drone_idt: {radar: 0 for radar in CORNERS.keys()} for drone_idt in my_drones.keys()}
+            my_drones_radar_count = {drone_idt: {radar: 0 for radar in CORNERS.keys()} for drone_idt in
+                                     self.game_assets.get_all(AssetType.MYDRONE).keys()}
             for i in range(radar_blip_count):
                 inputs = self.get_turn_input().split()
                 drone_idt = int(inputs[0])
@@ -171,21 +176,36 @@ class GameLoop:
                 radar_blip.creature_idt = creature_idt
                 radar_blip.radar = radar
 
+                if creature_idt in escaped_creatures:
+                    escaped_creatures.remove(creature_idt)
+
                 creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
                 if creature is not None:
                     if MY_OWNER not in creature.scanned_by:
                         my_drones_radar_count[drone_idt][radar] += 1
 
+            for creature_idt in escaped_creatures:
+                creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
+                creature.escaped = True
+
             if GameLoop.LOG:
                 self.print_turn_logs()
 
+            # TODO : MOVE ALGORITHM TO CHOSE ACTION
             # FIRST ALGORITHM (VERY BAD)
+            my_drones = self.game_assets.get_all(AssetType.MYDRONE)
             creatures = self.game_assets.get_all(AssetType.CREATURE)
+
+            for creature_idt, creature in creatures.items():
+                extra_scores = evaluate_extra_scores_for_creature(creature, self.current_scores, self.game_assets)
+                creature.my_extra_score = extra_scores.me
+                creature.foe_extra_score = extra_scores.foe
+
             drones_targets = {}
             for drone_idt, drone in my_drones.items():
                 eligible_targets, drone_target, d_min = {}, None, D_MAX
                 for creature_idt, creature in creatures.items():
-                    if MY_OWNER not in creature.scanned_by and creature.kind != -1:
+                    if MY_OWNER not in creature.scanned_by and creature.kind != -1 and not creature.escaped:
                         eligible_targets[creature_idt] = creature
                 drones_targets[drone_idt] = get_closest_unit_from(drone, eligible_targets)
 

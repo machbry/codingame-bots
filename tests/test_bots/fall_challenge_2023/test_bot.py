@@ -48,7 +48,8 @@ def init_game_loop(init_inputs: List[str]) -> GameLoop:
         return GameLoop()
 
 
-def start_game_loop(game_loop: GameLoop, turns_inputs: List[str], running_side_effect: List[bool]):
+def start_game_loop(init_inputs: List[str], turns_inputs: List[str], running_side_effect: List[bool]):
+    game_loop = init_game_loop(init_inputs)
     GameLoop.RUNNING = PropertyMock(side_effect=running_side_effect)
     with patch(f"{BOT_PACKAGE}.game_loop.input", side_effect=turns_inputs):
         game_loop.start()
@@ -62,9 +63,8 @@ def test_perfs():
         init_inputs, nb_turns, turns_inputs = test_inputs
         with patch(f"{BOT_PACKAGE}.game_loop.print"):
             init_perf = min(repeat(partial(init_game_loop, init_inputs), number=N))
-            game_loop = init_game_loop(init_inputs)
             running_side_effect = [*[True] * nb_turns, False]
-            loop_perf = min(repeat(partial(start_game_loop, game_loop, turns_inputs, running_side_effect), number=N))
-        print(f"init, start: {round(1000*init_perf)}ms, {round(1000*loop_perf)}ms")
+            loop_perf = min(repeat(partial(start_game_loop, init_inputs, turns_inputs, running_side_effect), number=N))
+        print(f"init, start: {round(1000*init_perf)}ms, {round(1000*(loop_perf-init_perf))}ms")
 
-        # last results : 294ms, 780ms
+        # last results : 291ms, 801ms

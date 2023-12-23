@@ -1,14 +1,15 @@
-from typing import Dict, Any, Union
+from typing import Dict, Any, Union, Set
 from enum import Enum
 
-from bots.fall_challenge_2023.challengelibs.asset import Creature, MyDrone, FoeDrone, Scan, RadarBlip
+from bots.fall_challenge_2023.challengelibs.asset import Creature, MyDrone, FoeDrone, Scan, RadarBlip, Scores
 
 
 class AssetType(Enum):
+    SCORES = Scores
+    SCAN = Scan
     CREATURE = Creature
     MYDRONE = MyDrone
     FOEDRONE = FoeDrone
-    SCAN = Scan
     RADARBLIP = RadarBlip
 
 
