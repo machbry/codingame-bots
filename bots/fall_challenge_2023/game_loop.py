@@ -1,6 +1,8 @@
 import sys
 from typing import List
 
+from botlibs.trigonometry import Point
+from bots.fall_challenge_2023.challengelibs.act import Action
 from bots.fall_challenge_2023.challengelibs.game_assets import AssetType, GameAssets
 from bots.fall_challenge_2023.challengelibs.map import get_closest_unit_from
 from bots.fall_challenge_2023.singletons import MY_OWNER, FOE_OWNER, HASH_MAP_NORMS, D_MAX, CORNERS
@@ -192,7 +194,7 @@ class GameLoop:
             for drone_idt, drone in my_drones.items():
                 # MOVE <x> <y> <light (1|0)> | WAIT <light (1|0)>
                 if drones_scan_count[drone_idt] >= 4 or (my_scan_count + my_drones_scan_count >= 12):
-                    print(f"MOVE {drone.x} {495} 0 {drone_idt}")
+                    action = Action(target=Point(drone.x, 499))
                 else:
                     drone_target = drones_targets[drone_idt]
                     if drone_target is None:
@@ -203,4 +205,5 @@ class GameLoop:
                                 radar_chosen = radar
                                 max_radar_count = radar_count
                         drone_target = CORNERS[radar_chosen]
-                    print(f"MOVE {drone_target.x} {drone_target.y} 1 {drone_idt}")
+                    action = Action(target=drone_target, light=True)
+                print(action)

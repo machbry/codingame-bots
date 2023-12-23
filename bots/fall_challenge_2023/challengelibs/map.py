@@ -4,8 +4,6 @@ from bots.fall_challenge_2023.singletons import D_MAX, HASH_MAP_NORMS
 from bots.fall_challenge_2023.challengelibs.asset import Unit
 
 
-# graph with closest entites connected
-
 def get_closest_unit_from(unit: Unit, other_units: Dict[int, Unit]):
     d_min = D_MAX
     closest_unit = None

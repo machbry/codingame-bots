@@ -1,8 +1,8 @@
 import sys
 import math
-from dataclasses import field, dataclass
 from enum import Enum
-from typing import Dict, Any, Literal, List, Union, Set
+from dataclasses import field, dataclass
+from typing import Union, List, Set, Dict, Literal, Any
 
 class Point:
 
@@ -86,6 +86,7 @@ Y_MIN = 0
 X_MAX = 10000
 Y_MAX = 10000
 D_MAX = HASH_MAP_NORMS[Vector(X_MAX, Y_MAX)]
+MAP_CENTER = Point(X_MAX / 2, Y_MAX / 2)
 CORNERS = {'TL': Point(X_MIN, Y_MIN + 2500), 'TR': Point(X_MAX, Y_MIN + 2500), 'BR': Point(X_MAX, Y_MAX), 'BL': Point(X_MIN, Y_MAX)}
 
 @dataclass(slots=True)
@@ -139,6 +140,20 @@ class RadarBlip(Asset):
     drone_idt: int = None
     creature_idt: int = None
     radar: str = None
+
+@dataclass
+class Action:
+    move: bool = True
+    target: Union[Point, Unit] = MAP_CENTER
+    light: bool = False
+    comment: str = None
+
+    def __repr__(self):
+        instruction = f'MOVE {self.target.x} {self.target.y}' if self.move else 'WAIT'
+        instruction = f'{instruction} {(1 if self.light else 0)}'
+        if self.comment:
+            instruction = f'{instruction} {self.comment}'
+        return instruction
 
 class AssetType(Enum):
     CREATURE = Creature
@@ -340,7 +355,7 @@ class GameLoop:
                 drones_targets[drone_idt] = get_closest_unit_from(drone, eligible_targets)
             for drone_idt, drone in my_drones.items():
                 if drones_scan_count[drone_idt] >= 4 or my_scan_count + my_drones_scan_count >= 12:
-                    print(f'MOVE {drone.x} {495} 0 {drone_idt}')
+                    action = Action(target=Point(drone.x, 499))
                 else:
                     drone_target = drones_targets[drone_idt]
                     if drone_target is None:
@@ -351,5 +366,6 @@ class GameLoop:
                                 radar_chosen = radar
                                 max_radar_count = radar_count
                         drone_target = CORNERS[radar_chosen]
-                    print(f'MOVE {drone_target.x} {drone_target.y} 1 {drone_idt}')
+                    action = Action(target=drone_target, light=True)
+                print(action)
 GameLoop().start()
