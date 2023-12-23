@@ -5,7 +5,7 @@ from botlibs.trigonometry import Point, Vector
 from bots.fall_challenge_2023.singletons import MY_OWNER, FOE_OWNER
 
 
-@dataclass
+@dataclass(slots=True)
 class Asset:
     idt: int
 
@@ -13,7 +13,7 @@ class Asset:
 # surcharge Asset().__getattribute__() ?
 
 
-@dataclass
+@dataclass(slots=True)
 class Scan(Asset):
     owner: int = None
     creature_idt: int = None
@@ -21,7 +21,7 @@ class Scan(Asset):
     saved: bool = False
 
 
-@dataclass
+@dataclass(slots=True)
 class Unit(Asset):
     x: int = None
     y: int = None
@@ -37,7 +37,7 @@ class Unit(Asset):
         return Vector(self.vx, self.vy)
 
 
-@dataclass
+@dataclass(slots=True)
 class Creature(Unit):
     color: int = None
     kind: int = None
@@ -45,23 +45,23 @@ class Creature(Unit):
     scans_idt: Set[int] = field(default_factory=set)
 
 
-@dataclass
+@dataclass(slots=True)
 class Drone(Unit):
     emergency: int = None
     battery: int = None
 
 
-@dataclass
+@dataclass(slots=True)
 class MyDrone(Drone):
     owner: int = MY_OWNER
 
 
-@dataclass
+@dataclass(slots=True)
 class FoeDrone(Drone):
     owner: int = FOE_OWNER
 
 
-@dataclass
+@dataclass(slots=True)
 class RadarBlip(Asset):
     drone_idt: int = None
     creature_idt: int = None
