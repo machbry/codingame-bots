@@ -134,6 +134,7 @@ class GameLoop:
 
                 creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
                 creature.scans_idt.add(scan_idt)
+                creature.scanned_by.add(scan.owner)
 
             visible_creature_count = int(self.get_turn_input())
             unvisible_creatures = self.creatures_idt.copy()
@@ -171,28 +172,24 @@ class GameLoop:
                 radar_blip.radar = radar
 
                 creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
-                creature_scanned_by = [self.game_assets.get(AssetType.SCAN, scan_idt).owner for scan_idt in
-                                       creature.scans_idt]  # TODO : improve
-                if MY_OWNER not in creature_scanned_by:
-                    my_drones_radar_count[drone_idt][radar] += 1
+                if creature is not None:
+                    if MY_OWNER not in creature.scanned_by:
+                        my_drones_radar_count[drone_idt][radar] += 1
 
             if GameLoop.LOG:
                 self.print_turn_logs()
 
+            # FIRST ALGORITHM (VERY BAD)
             creatures = self.game_assets.get_all(AssetType.CREATURE)
-
             drones_targets = {}
             for drone_idt, drone in my_drones.items():
                 eligible_targets, drone_target, d_min = {}, None, D_MAX
                 for creature_idt, creature in creatures.items():
-                    creature_scanned_by = [self.game_assets.get(AssetType.SCAN, scan_idt).owner for scan_idt in
-                                           creature.scans_idt]  # TODO : improve
-                    if MY_OWNER not in creature_scanned_by:
+                    if MY_OWNER not in creature.scanned_by and creature.kind != -1:
                         eligible_targets[creature_idt] = creature
                 drones_targets[drone_idt] = get_closest_unit_from(drone, eligible_targets)
 
             for drone_idt, drone in my_drones.items():
-                # MOVE <x> <y> <light (1|0)> | WAIT <light (1|0)>
                 if drones_scan_count[drone_idt] >= 4 or (my_scan_count + my_drones_scan_count >= 12):
                     action = Action(target=Point(drone.x, 499))
                 else:

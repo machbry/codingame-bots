@@ -11,7 +11,7 @@ class Action:
     move: bool = True
     target: Union[Point, Unit] = MAP_CENTER
     light: bool = False
-    comment: str = None
+    comment: Union[int, str] = None
 
     def __repr__(self):
         instruction = f"MOVE {self.target.x} {self.target.y}" if self.move else "WAIT"

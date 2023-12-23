@@ -43,6 +43,7 @@ class Creature(Unit):
     kind: int = None
     visible: bool = False
     scans_idt: Set[int] = field(default_factory=set)
+    scanned_by: Set[int] = field(default_factory=set)
 
 
 @dataclass(slots=True)

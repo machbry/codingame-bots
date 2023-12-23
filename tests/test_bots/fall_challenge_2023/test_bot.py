@@ -67,4 +67,4 @@ def test_perfs():
             loop_perf = min(repeat(partial(start_game_loop, game_loop, turns_inputs, running_side_effect), number=N))
         print(f"init, start: {round(1000*init_perf)}ms, {round(1000*loop_perf)}ms")
 
-        # last results : 283ms, 798ms
+        # last results : 294ms, 780ms
