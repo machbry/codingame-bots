@@ -24,8 +24,9 @@ class Scan(Asset):
     # idt = hash((drone.owner, creature_idt))
     owner: int = None
     creature_idt: int = None
-    drone_idt: int = None
+    owned_by_drones: Set[int] = field(default_factory=set)  # reset à chaque tour
     saved: bool = False
+    first_saved_by: int = None
 
 
 @dataclass(slots=True)
@@ -50,8 +51,8 @@ class Creature(Unit):
     kind: int = None
     visible: bool = False
     escaped: bool = False
-    scans_idt: Set[int] = field(default_factory=set)
-    scanned_by: Set[int] = field(default_factory=set)
+    saved_by_owners: Set[int] = field(default_factory=set)
+    scanned_by_drones: Set[int] = field(default_factory=set)  # reset à chaque tour
     my_extra_score: int = 0
     foe_extra_score: int = 0
 
@@ -60,6 +61,7 @@ class Creature(Unit):
 class Drone(Unit):
     emergency: int = None
     battery: int = None
+    unsaved_scans_idt: Set[int] = field(default_factory=set)  # reset if drone.emergency == 1
     my_extra_score: int = 0
     foe_extra_score: int = 0
 
