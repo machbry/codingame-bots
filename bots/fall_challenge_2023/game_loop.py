@@ -6,7 +6,7 @@ from bots.fall_challenge_2023.challengelibs.act import Action
 from bots.fall_challenge_2023.challengelibs.asset import Scores
 from bots.fall_challenge_2023.challengelibs.game_assets import AssetType, GameAssets
 from bots.fall_challenge_2023.challengelibs.map import get_closest_unit_from
-from bots.fall_challenge_2023.challengelibs.score import evaluate_extra_scores_for_creature, order_assets
+from bots.fall_challenge_2023.challengelibs.score import evaluate_extra_score_for_owner_creature, order_assets
 from bots.fall_challenge_2023.singletons import MY_OWNER, FOE_OWNER, HASH_MAP_NORMS, D_MAX, CORNERS
 
 GAME_ASSETS = GameAssets()
@@ -199,16 +199,35 @@ class GameLoop:
             my_drones = self.game_assets.get_all(AssetType.MYDRONE)
             foe_drones = self.game_assets.get_all(AssetType.FOEDRONE)
             creatures = self.game_assets.get_all(AssetType.CREATURE)
-            scans = self.game_assets.get_all(AssetType.SCAN)
 
             all_drones = [*my_drones.values(), *foe_drones.values()]
             ordered_drones_from_top_to_bottom = order_assets(all_drones, 'y')
-            # TODO : POUR CHAQUE DRONE ORDONNE SAUVEGARDE SES SCANS ET MAJ DES SCORES
 
-            for creature_idt, creature in creatures.items():
-                extra_scores = evaluate_extra_scores_for_creature(creature=creature, scans=scans)
-                creature.my_extra_score = extra_scores.me
-                creature.foe_extra_score = extra_scores.foe
+            for creature in creatures.values():
+                creature.eval_saved_by_owners = creature.saved_by_owners.copy()
+
+            for drone in ordered_drones_from_top_to_bottom:
+                for scan_idt in drone.unsaved_scans_idt:
+                    scan = self.game_assets.get(AssetType.SCAN, scan_idt)
+                    unsaved_creature = self.game_assets.get(AssetType.CREATURE, scan.creature_idt)
+
+                    unsaved_creature_saved_by_owners = unsaved_creature.eval_saved_by_owners
+
+                    creature_saved_by_owner = drone.owner in unsaved_creature_saved_by_owners
+                    creature_saved_by_other_owner = drone.owner in unsaved_creature_saved_by_owners
+
+                    extra_score = evaluate_extra_score_for_owner_creature(creature_kind=unsaved_creature.kind,
+                                                                          creature_escaped=unsaved_creature.escaped,
+                                                                          creature_saved_by_owner=creature_saved_by_owner,
+                                                                          creature_saved_by_other_owner=creature_saved_by_other_owner)
+                    # TODO : WIP
+
+            # POUR CHAQUE DRONE ORDONNE :
+            #   RECUPERE LES CREATURES ASSOCIEES A SES SCANS NON SAUVEGARDES
+            #   POUR CHAQUE CREATURE :
+                #   CALCULE LE SCORE SUPPLEMENTAIRE
+                #   MET A JOUR LE SET DEVAL
+
 
             """ COMPUTE EXTRA METRICS FOR ASSETS - END """
 

@@ -1,40 +1,26 @@
 from typing import List
 
-from bots.fall_challenge_2023.challengelibs.asset import Creature, Scores, Drone, Scan
+from bots.fall_challenge_2023.challengelibs.asset import Scores, Asset
 from bots.fall_challenge_2023.singletons import SCORE_BY_TYPE, SCORE_FOR_FULL_COLOR, SCORE_FOR_FULL_TYPE, \
-    SCORE_MULTIPLIER_FIRST, MY_OWNER, FOE_OWNER
-from bots.fall_challenge_2023.challengelibs.game_assets import GameAssets, AssetType
+    SCORE_MULTIPLIER_FIRST
 
 
-def order_assets(drones: List[Drone], on_attr: str, ascending: bool = True) -> List[Drone]:
+def order_assets(drones: List[Asset], on_attr: str, ascending: bool = True):
     return sorted(drones, key=lambda drone: getattr(drone, on_attr), reverse=not ascending)
 
 
-def evaluate_extra_scores_for_creature(creature: Creature, scans: List[Scan]) -> Scores:
-    creature_kind = creature.kind
-    if creature.kind == -1:
-        return Scores(0, 0)
+def evaluate_extra_score_for_owner_creature(creature_kind: int, creature_escaped: bool, creature_saved_by_owner: bool,
+                                            creature_saved_by_other_owner: bool):
+    if creature_kind == -1:
+        return 0
 
-    if creature.escaped:
-        return Scores(0, 0)
+    if creature_escaped:
+        return 0
 
-    creature_scanned_by = creature.saved_by_owners
+    if creature_saved_by_owner:
+        return 0
 
-    scanned_by_me = MY_OWNER in creature_scanned_by
-    scanned_by_foe = FOE_OWNER in creature_scanned_by
-
-    if scanned_by_me:
-        if scanned_by_foe:
-            return Scores(0, 0)
-        my_extra_score = 0
-
-        foe_extra_score = SCORE_BY_TYPE[creature_kind]  # TODO : WIP
-    elif scanned_by_foe:
-        foe_extra_score = 0
-
-        my_extra_score = SCORE_BY_TYPE[creature_kind]   # TODO : WIP
+    if creature_saved_by_other_owner:
+        return SCORE_BY_TYPE[creature_kind]
     else:
-        # EVALUATION DU SCORE SUPP SI SAUVEGARDE PAR MOI OU FOE DU SCAN DE LA CREATURE
-        my_extra_score = foe_extra_score = SCORE_BY_TYPE[creature_kind]  # TODO : WIP
-
-    return Scores(my_extra_score, foe_extra_score)
+        return SCORE_MULTIPLIER_FIRST * SCORE_BY_TYPE[creature_kind]

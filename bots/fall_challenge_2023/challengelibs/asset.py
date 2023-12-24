@@ -25,8 +25,8 @@ class Scan(Asset):
     owner: int = None
     creature_idt: int = None
     owned_by_drones: Set[int] = field(default_factory=set)  # reset à chaque tour
-    saved: bool = False
     first_saved_by: int = None
+    saved: bool = False
 
 
 @dataclass(slots=True)
@@ -55,6 +55,7 @@ class Creature(Unit):
     scanned_by_drones: Set[int] = field(default_factory=set)  # reset à chaque tour
     my_extra_score: int = 0
     foe_extra_score: int = 0
+    eval_saved_by_owners: Set[int] = field(default_factory=set)
 
 
 @dataclass(slots=True)
