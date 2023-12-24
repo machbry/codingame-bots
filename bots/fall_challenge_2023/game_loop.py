@@ -22,19 +22,17 @@ class GameLoop:
         self.init_inputs: List[str] = []
         self.nb_turns: int = 0
         self.turns_inputs: List[str] = []
-        self.current_scores = Scores()
 
         self.game_assets = GAME_ASSETS
         self.hash_map_norms = HASH_MAP_NORMS
+        self.current_scores = Scores()
 
         creature_count = int(self.get_init_input())
         for i in range(creature_count):
             creature_idt, color, kind = [int(j) for j in self.get_init_input().split()]
-
             creature = self.game_assets.new_asset(asset_type=AssetType.CREATURE, idt=creature_idt)
             creature.color = color
             creature.kind = kind
-            creature.visible = False
 
         if GameLoop.LOG:
             print(self.init_inputs, file=sys.stderr, flush=True)
@@ -138,7 +136,9 @@ class GameLoop:
                 creature.scans_idt.add(scan_idt)
                 creature.scanned_by.add(scan.owner)
 
-            unvisible_creatures = list(self.game_assets.get_all(AssetType.CREATURE).keys()).copy()
+            for creature in self.game_assets.get_all(asset_type=AssetType.CREATURE).values():
+                creature.visible = False
+                creature.escaped = True
 
             visible_creature_count = int(self.get_turn_input())
             for i in range(visible_creature_count):
@@ -150,14 +150,6 @@ class GameLoop:
                 creature.vx = creature_vx
                 creature.vy = creature_vy
                 creature.visible = True
-
-                unvisible_creatures.remove(creature_idt)
-
-            for creature_idt in unvisible_creatures:
-                creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
-                creature.visible = False
-
-            escaped_creatures = unvisible_creatures.copy()
 
             radar_blip_count = int(self.get_turn_input())
             my_drones_radar_count = {drone_idt: {radar: 0 for radar in CORNERS.keys()} for drone_idt in
@@ -176,17 +168,11 @@ class GameLoop:
                 radar_blip.creature_idt = creature_idt
                 radar_blip.radar = radar
 
-                if creature_idt in escaped_creatures:
-                    escaped_creatures.remove(creature_idt)
-
                 creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
                 if creature is not None:
+                    creature.escaped = False
                     if MY_OWNER not in creature.scanned_by:
                         my_drones_radar_count[drone_idt][radar] += 1
-
-            for creature_idt in escaped_creatures:
-                creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
-                creature.escaped = True
 
             if GameLoop.LOG:
                 self.print_turn_logs()
