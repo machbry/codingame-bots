@@ -8,8 +8,8 @@ from bots.fall_challenge_2023.challengelibs.act import Action
 from bots.fall_challenge_2023.challengelibs.game_assets import AssetType, GameAssets
 from bots.fall_challenge_2023.challengelibs.map import get_closest_unit_from
 from bots.fall_challenge_2023.challengelibs.score import evaluate_extra_score_for_owner_creature, order_assets
-from bots.fall_challenge_2023.singletons import MY_OWNER, FOE_OWNER, OWNERS, HASH_MAP_NORMS, D_MAX, CORNERS
-
+from bots.fall_challenge_2023.singletons import MY_OWNER, FOE_OWNER, OWNERS, HASH_MAP_NORMS, D_MAX, CORNERS, \
+    CREATURE_HABITATS_PER_KIND
 
 GAME_ASSETS = GameAssets()
 
@@ -34,6 +34,7 @@ class GameLoop:
             creature = self.game_assets.new_asset(asset_type=AssetType.CREATURE, idt=creature_idt)
             creature.color = color
             creature.kind = kind
+            creature.habitat = CREATURE_HABITATS_PER_KIND[kind]
 
             for owner in OWNERS:
                 scan = self.game_assets.new_asset(asset_type=AssetType.SCANS, idt=owner)
@@ -88,7 +89,7 @@ class GameLoop:
 
     def start(self):
         while GameLoop.RUNNING:
-            """ RESET ASSETS - BEGIN """
+            # RESET ASSETS - BEGIN
 
             for creature in self.game_assets.get_all(asset_type=AssetType.CREATURE).values():
                 creature.scanned_by_drones = set()
@@ -97,9 +98,9 @@ class GameLoop:
 
             self.drones_scan_count = {}  # TODO : REMOVE
 
-            """ RESET ASSETS - END """
+            # RESET ASSETS - END
 
-            """ UPDATE ASSETS - BEGIN """
+            # UPDATE ASSETS - BEGIN
 
             self.nb_turns += 1
 
@@ -154,6 +155,12 @@ class GameLoop:
                 creature.vx = creature_vx
                 creature.vy = creature_vy
                 creature.visible = True
+                creature.last_turn_visible = self.nb_turns
+
+                # EVALUATE NEXT POSITION
+                creature_next_position = creature.position + creature.speed
+                creature.next_x = creature_next_position.x
+                creature.next_y = creature_next_position.y
 
             radar_blip_count = int(self.get_turn_input())
             my_drones_radar_count = {drone_idt: {radar: 0 for radar in CORNERS.keys()} for drone_idt in
@@ -168,9 +175,21 @@ class GameLoop:
                 radar_blip = self.game_assets.get(asset_type=AssetType.RADARBLIP, idt=radar_idt)
                 if radar_blip is None:
                     radar_blip = self.game_assets.new_asset(asset_type=AssetType.RADARBLIP, idt=radar_idt)
-                radar_blip.drone_idt = drone_idt
-                radar_blip.creature_idt = creature_idt
-                radar_blip.radar = radar
+                    radar_blip.drone_idt = drone_idt
+                    radar_blip.creature_idt = creature_idt
+
+                drone = self.game_assets.get(asset_type=AssetType.MYDRONE, idt=drone_idt)
+                if drone is None:
+                    drone = self.game_assets.get(asset_type=AssetType.FOEDRONE, idt=drone_idt)
+
+                zone_corner = CORNERS[radar]
+                drone_x, drone_y = drone.x, drone.y
+                zone_corner_x, zone_corner_y = zone_corner.x, zone_corner.y
+                zone_x_min = min(drone_x, zone_corner_x)
+                zone_y_min = min(drone_y, zone_corner_y)
+                zone_x_max = max(drone_x, zone_corner_x)
+                zone_y_max = max(drone_y, zone_corner_y)
+                radar_blip.zones.append([zone_x_min, zone_y_min, zone_x_max, zone_y_max])
 
                 creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
                 creature.escaped = False
@@ -182,15 +201,17 @@ class GameLoop:
             if GameLoop.LOG:
                 self.print_turn_logs()
 
-            """ UPDATE ASSETS - END """
+            # UPDATE ASSETS - END
 
-            """ COMPUTE EXTRA METRICS FOR ASSETS - BEGIN """
+            # COMPUTE EXTRA METRICS FOR ASSETS - BEGIN
 
             my_drones = self.game_assets.get_all(AssetType.MYDRONE)
             foe_drones = self.game_assets.get_all(AssetType.FOEDRONE)
             creatures = self.game_assets.get_all(AssetType.CREATURE)
-
             all_drones = [*my_drones.values(), *foe_drones.values()]
+
+            # EVALUATE EXTRA SCORES - BEGIN
+            # TODO : matrix representations & calculus for scores, combinaisons for colors & kinds
             ordered_drones_from_top_to_bottom = order_assets(all_drones, 'y')
 
             for creature in creatures.values():
@@ -217,9 +238,26 @@ class GameLoop:
                                                                           owner=owner)
                     creature.extra_scores[owner] += extra_score
 
-            """ COMPUTE EXTRA METRICS FOR ASSETS - END """
+            # EVALUATE EXTRA SCORES - END
 
-            """ COMPUTE ALGORITHMS FOR DRONE TO ACT - BEGIN """
+            # EVALUATE POSITIONS OF UNVISIBLE CREATURES - BEGIN
+
+            for creature_idt, creature in creatures.items():
+                if not creature.visible:
+                    possible_zones = [creature.habitat]
+                    for drone_idt, drone in my_drones.items():
+                        radar_idt = hash((drone_idt, creature_idt))
+                        radar_blip = self.game_assets.get(asset_type=AssetType.RADARBLIP, idt=radar_idt)
+                        possible_zones.append(radar_blip.zones[-1])
+                    intersection = np.array(possible_zones)
+                    creature.next_x = (np.max(intersection[:, 0]) + np.min(intersection[:, 2])) / 2
+                    creature.next_y = (np.max(intersection[:, 1]) + np.min(intersection[:, 3])) / 2
+
+            # EVALUATE POSITIONS OF UNVISIBLE CREATURES - END
+
+            # COMPUTE EXTRA METRICS FOR ASSETS - END
+
+            # COMPUTE ALGORITHMS FOR DRONE TO ACT - BEGIN
             # TODO : MOVE ALGORITHM TO CHOSE ACTION
             drones_targets = {}
             for drone_idt, drone in my_drones.items():
@@ -246,4 +284,4 @@ class GameLoop:
 
                 print(action)
 
-            """ COMPUTE ALGORITHMS FOR DRONE TO ACT - END """
+            # COMPUTE ALGORITHMS FOR DRONE TO ACT - END

@@ -1,7 +1,7 @@
 from typing import List
 
 from bots.fall_challenge_2023.challengelibs.asset import Asset
-from bots.fall_challenge_2023.singletons import SCORE_BY_TYPE, SCORE_FOR_FULL_COLOR, SCORE_FOR_FULL_TYPE, \
+from bots.fall_challenge_2023.singletons import SCORE_BY_KIND, SCORE_FOR_FULL_COLOR, SCORE_FOR_FULL_KIND, \
     SCORE_MULTIPLIER_FIRST
 
 
@@ -21,6 +21,6 @@ def evaluate_extra_score_for_owner_creature(creature_kind: int, creature_escaped
         return 0
 
     if len(creature_saved_by_owners) > 0:
-        return SCORE_BY_TYPE[creature_kind]
+        return SCORE_BY_KIND[creature_kind]
     else:
-        return SCORE_MULTIPLIER_FIRST * SCORE_BY_TYPE[creature_kind]
+        return SCORE_MULTIPLIER_FIRST * SCORE_BY_KIND[creature_kind]

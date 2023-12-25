@@ -21,6 +21,8 @@ class Unit(Asset):
     y: int = None
     vx: int = None
     vy: int = None
+    next_x: int = None
+    next_y: int = None
 
     @property
     def position(self):
@@ -30,17 +32,23 @@ class Unit(Asset):
     def speed(self):
         return Vector(self.vx, self.vy)
 
+    @property
+    def next_position(self):
+        return Point(self.next_x, self.next_y)
+
 
 @dataclass(slots=True)
 class Creature(Unit):
     color: int = None
     kind: int = None
+    habitat: List[int] = None
     visible: bool = False
     escaped: bool = False
     scanned_by_drones: Set[int] = field(default_factory=set)  # reset à chaque tour
     saved_by_owners: List[int] = field(default_factory=list)
     eval_saved_by_owners: List[int] = field(default_factory=list)
     extra_scores: Dict[int, int] = field(default_factory=dict)
+    last_turn_visible: int = None
 
 
 @dataclass(slots=True)
@@ -66,7 +74,7 @@ class RadarBlip(Asset):
     # idt = hash((drone_idt, creature_idt))
     drone_idt: int = None
     creature_idt: int = None
-    radar: str = None
+    zones: List[List[int]] = field(default_factory=list)
 
 
 @dataclass(slots=True)

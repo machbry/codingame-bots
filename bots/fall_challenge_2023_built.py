@@ -1,9 +1,9 @@
 import math
-import sys
 import numpy as np
+import sys
 from enum import Enum
-from dataclasses import field, dataclass
-from typing import Set, Union, Literal, List, Any, Dict
+from dataclasses import dataclass, field
+from typing import Set, Union, List, Dict, Any, Literal
 
 class Point:
 
@@ -89,11 +89,18 @@ X_MAX = 10000
 Y_MAX = 10000
 D_MAX = HASH_MAP_NORMS[Vector(X_MAX, Y_MAX)]
 MAP_CENTER = Point(X_MAX / 2, Y_MAX / 2)
-CORNERS = {'TL': Point(X_MIN, Y_MIN + 2500), 'TR': Point(X_MAX, Y_MIN + 2500), 'BR': Point(X_MAX, Y_MAX), 'BL': Point(X_MIN, Y_MAX)}
-SCORE_BY_TYPE = {0: 1, 1: 2, 2: 3}
+CORNERS = {'TL': Point(X_MIN, Y_MIN), 'TR': Point(X_MAX, Y_MIN), 'BR': Point(X_MAX, Y_MAX), 'BL': Point(X_MIN, Y_MAX)}
+
+class Kind(Enum):
+    MONSTER = -1
+    ZERO = 0
+    ONE = 1
+    TWO = 2
+SCORE_BY_KIND = {Kind.MONSTER.value: 0, Kind.ZERO.value: 1, Kind.ONE.value: 2, Kind.TWO.value: 3}
 SCORE_FOR_FULL_COLOR = 3
-SCORE_FOR_FULL_TYPE = 4
+SCORE_FOR_FULL_KIND = 4
 SCORE_MULTIPLIER_FIRST = 2
+CREATURE_HABITATS_PER_KIND = {Kind.MONSTER.value: [X_MIN, 2500, X_MAX, 10000], Kind.ZERO.value: [X_MIN, 2500, X_MAX, 5000], Kind.ONE.value: [X_MIN, 5000, X_MAX, 7500], Kind.TWO.value: [X_MIN, 2500, X_MAX, 5000]}
 
 @dataclass(slots=True)
 class Asset:
@@ -105,6 +112,8 @@ class Unit(Asset):
     y: int = None
     vx: int = None
     vy: int = None
+    next_x: int = None
+    next_y: int = None
 
     @property
     def position(self):
@@ -114,16 +123,22 @@ class Unit(Asset):
     def speed(self):
         return Vector(self.vx, self.vy)
 
+    @property
+    def next_position(self):
+        return Point(self.next_x, self.next_y)
+
 @dataclass(slots=True)
 class Creature(Unit):
     color: int = None
     kind: int = None
+    habitat: List[int] = None
     visible: bool = False
     escaped: bool = False
     scanned_by_drones: Set[int] = field(default_factory=set)
     saved_by_owners: List[int] = field(default_factory=list)
     eval_saved_by_owners: List[int] = field(default_factory=list)
     extra_scores: Dict[int, int] = field(default_factory=dict)
+    last_turn_visible: int = None
 
 @dataclass(slots=True)
 class Drone(Unit):
@@ -144,7 +159,7 @@ class FoeDrone(Drone):
 class RadarBlip(Asset):
     drone_idt: int = None
     creature_idt: int = None
-    radar: str = None
+    zones: List[List[int]] = field(default_factory=list)
 
 @dataclass(slots=True)
 class Scans(Asset):
@@ -224,9 +239,9 @@ def evaluate_extra_score_for_owner_creature(creature_kind: int, creature_escaped
     if owner in creature_saved_by_owners:
         return 0
     if len(creature_saved_by_owners) > 0:
-        return SCORE_BY_TYPE[creature_kind]
+        return SCORE_BY_KIND[creature_kind]
     else:
-        return SCORE_MULTIPLIER_FIRST * SCORE_BY_TYPE[creature_kind]
+        return SCORE_MULTIPLIER_FIRST * SCORE_BY_KIND[creature_kind]
 GAME_ASSETS = GameAssets()
 
 class GameLoop:
@@ -247,6 +262,7 @@ class GameLoop:
             creature = self.game_assets.new_asset(asset_type=AssetType.CREATURE, idt=creature_idt)
             creature.color = color
             creature.kind = kind
+            creature.habitat = CREATURE_HABITATS_PER_KIND[kind]
             for owner in OWNERS:
                 scan = self.game_assets.new_asset(asset_type=AssetType.SCANS, idt=owner)
                 scan.owner = owner
@@ -293,14 +309,11 @@ class GameLoop:
 
     def start(self):
         while GameLoop.RUNNING:
-            ' RESET ASSETS - BEGIN '
             for creature in self.game_assets.get_all(asset_type=AssetType.CREATURE).values():
                 creature.scanned_by_drones = set()
                 creature.visible = False
                 creature.escaped = True
             self.drones_scan_count = {}
-            ' RESET ASSETS - END '
-            ' UPDATE ASSETS - BEGIN '
             self.nb_turns += 1
             my_score = int(self.get_turn_input())
             foe_score = int(self.get_turn_input())
@@ -342,6 +355,10 @@ class GameLoop:
                 creature.vx = creature_vx
                 creature.vy = creature_vy
                 creature.visible = True
+                creature.last_turn_visible = self.nb_turns
+                creature_next_position = creature.position + creature.speed
+                creature.next_x = creature_next_position.x
+                creature.next_y = creature_next_position.y
             radar_blip_count = int(self.get_turn_input())
             my_drones_radar_count = {drone_idt: {radar: 0 for radar in CORNERS.keys()} for drone_idt in self.game_assets.get_all(AssetType.MYDRONE).keys()}
             for i in range(radar_blip_count):
@@ -353,17 +370,25 @@ class GameLoop:
                 radar_blip = self.game_assets.get(asset_type=AssetType.RADARBLIP, idt=radar_idt)
                 if radar_blip is None:
                     radar_blip = self.game_assets.new_asset(asset_type=AssetType.RADARBLIP, idt=radar_idt)
-                radar_blip.drone_idt = drone_idt
-                radar_blip.creature_idt = creature_idt
-                radar_blip.radar = radar
+                    radar_blip.drone_idt = drone_idt
+                    radar_blip.creature_idt = creature_idt
+                drone = self.game_assets.get(asset_type=AssetType.MYDRONE, idt=drone_idt)
+                if drone is None:
+                    drone = self.game_assets.get(asset_type=AssetType.FOEDRONE, idt=drone_idt)
+                zone_corner = CORNERS[radar]
+                drone_x, drone_y = (drone.x, drone.y)
+                zone_corner_x, zone_corner_y = (zone_corner.x, zone_corner.y)
+                zone_x_min = min(drone_x, zone_corner_x)
+                zone_y_min = min(drone_y, zone_corner_y)
+                zone_x_max = max(drone_x, zone_corner_x)
+                zone_y_max = max(drone_y, zone_corner_y)
+                radar_blip.zones.append([zone_x_min, zone_y_min, zone_x_max, zone_y_max])
                 creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
                 creature.escaped = False
                 if drone_idt not in creature.scanned_by_drones:
                     my_drones_radar_count[drone_idt][radar] += 1
             if GameLoop.LOG:
                 self.print_turn_logs()
-            ' UPDATE ASSETS - END '
-            ' COMPUTE EXTRA METRICS FOR ASSETS - BEGIN '
             my_drones = self.game_assets.get_all(AssetType.MYDRONE)
             foe_drones = self.game_assets.get_all(AssetType.FOEDRONE)
             creatures = self.game_assets.get_all(AssetType.CREATURE)
@@ -384,8 +409,16 @@ class GameLoop:
                 for owner in OWNERS:
                     extra_score = evaluate_extra_score_for_owner_creature(creature_kind=creature.kind, creature_escaped=creature.escaped, creature_saved_by_owners=creature.eval_saved_by_owners, owner=owner)
                     creature.extra_scores[owner] += extra_score
-            ' COMPUTE EXTRA METRICS FOR ASSETS - END '
-            ' COMPUTE ALGORITHMS FOR DRONE TO ACT - BEGIN '
+            for creature_idt, creature in creatures.items():
+                if not creature.visible:
+                    possible_zones = [creature.habitat]
+                    for drone_idt, drone in my_drones.items():
+                        radar_idt = hash((drone_idt, creature_idt))
+                        radar_blip = self.game_assets.get(asset_type=AssetType.RADARBLIP, idt=radar_idt)
+                        possible_zones.append(radar_blip.zones[-1])
+                    intersection = np.array(possible_zones)
+                    creature.next_x = (np.max(intersection[:, 0]) + np.min(intersection[:, 2])) / 2
+                    creature.next_y = (np.max(intersection[:, 1]) + np.min(intersection[:, 3])) / 2
             drones_targets = {}
             for drone_idt, drone in my_drones.items():
                 eligible_targets, drone_target, d_min = ({}, None, D_MAX)
@@ -408,5 +441,4 @@ class GameLoop:
                         drone_target = CORNERS[radar_chosen]
                     action = Action(target=drone_target, light=True)
                 print(action)
-            ' COMPUTE ALGORITHMS FOR DRONE TO ACT - END '
 GameLoop().start()
