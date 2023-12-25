@@ -1,9 +1,9 @@
-import math
 import numpy as np
+import math
 import sys
 from enum import Enum
 from dataclasses import dataclass, field
-from typing import Set, Union, List, Dict, Any, Literal
+from typing import Set, List, Any, Union, Literal, Dict
 
 class Point:
 
@@ -101,6 +101,13 @@ SCORE_FOR_FULL_COLOR = 3
 SCORE_FOR_FULL_KIND = 4
 SCORE_MULTIPLIER_FIRST = 2
 CREATURE_HABITATS_PER_KIND = {Kind.MONSTER.value: [X_MIN, 2500, X_MAX, 10000], Kind.ZERO.value: [X_MIN, 2500, X_MAX, 5000], Kind.ONE.value: [X_MIN, 5000, X_MAX, 7500], Kind.TWO.value: [X_MIN, 2500, X_MAX, 5000]}
+LIGHT_RADIUS = HASH_MAP_NORMS[Vector(0, 800)]
+AUGMENTED_LIGHT_RADIUS = HASH_MAP_NORMS[Vector(0, 2000)]
+EMERGENCY_RADIUS = HASH_MAP_NORMS[Vector(0, 500)]
+DRONE_SPEED = HASH_MAP_NORMS[Vector(0, 600)]
+AGGRESSIVE_MONSTER_SPEED = HASH_MAP_NORMS[Vector(0, 540)]
+NON_AGGRESSIVE_MONSTER_SPEED = HASH_MAP_NORMS[Vector(0, 270)]
+SAFE_RADIUS_FROM_MONSTERS = HASH_MAP_NORMS[Vector(0, 500 + 2 * 540)]
 
 @dataclass(slots=True)
 class Asset:
@@ -146,6 +153,7 @@ class Drone(Unit):
     battery: int = None
     unsaved_creatures_idt: Set[int] = field(default_factory=set)
     extra_score_with_unsaved_creatures: int = 0
+    has_to_flee_from: List[Creature] = field(default_factory=list)
 
 @dataclass(slots=True)
 class MyDrone(Drone):
@@ -174,7 +182,7 @@ class Action:
     comment: Union[int, str] = None
 
     def __repr__(self):
-        instruction = f'MOVE {self.target.x} {self.target.y}' if self.move else 'WAIT'
+        instruction = f'MOVE {int(self.target.x)} {int(self.target.y)}' if self.move else 'WAIT'
         instruction = f'{instruction} {(1 if self.light else 0)}'
         if self.comment:
             instruction = f'{instruction} {self.comment}'
@@ -255,6 +263,7 @@ class GameLoop:
         self.turns_inputs: List[str] = []
         self.game_assets = GAME_ASSETS
         self.hash_map_norms = HASH_MAP_NORMS
+        self.visible_monsters = []
         self.drones_scan_count = {}
         creature_count = int(self.get_init_input())
         for i in range(creature_count):
@@ -347,6 +356,7 @@ class GameLoop:
                 creature.scanned_by_drones.add(drone_idt)
                 self.drones_scan_count[drone_idt] += 1
             visible_creature_count = int(self.get_turn_input())
+            self.visible_monsters = []
             for i in range(visible_creature_count):
                 creature_idt, creature_x, creature_y, creature_vx, creature_vy = [int(j) for j in self.get_turn_input().split()]
                 creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
@@ -359,6 +369,8 @@ class GameLoop:
                 creature_next_position = creature.position + creature.speed
                 creature.next_x = creature_next_position.x
                 creature.next_y = creature_next_position.y
+                if creature.kind == -1:
+                    self.visible_monsters.append(creature)
             radar_blip_count = int(self.get_turn_input())
             my_drones_radar_count = {drone_idt: {radar: 0 for radar in CORNERS.keys()} for drone_idt in self.game_assets.get_all(AssetType.MYDRONE).keys()}
             for i in range(radar_blip_count):
@@ -419,6 +431,12 @@ class GameLoop:
                     intersection = np.array(possible_zones)
                     creature.next_x = (np.max(intersection[:, 0]) + np.min(intersection[:, 2])) / 2
                     creature.next_y = (np.max(intersection[:, 1]) + np.min(intersection[:, 3])) / 2
+            my_drones_to_flee_from_monsters = {}
+            for my_drone in my_drones.values():
+                my_drone.has_to_flee_from = []
+                for monster in self.visible_monsters:
+                    if HASH_MAP_NORMS[monster.position - my_drone.position] <= SAFE_RADIUS_FROM_MONSTERS:
+                        my_drone.has_to_flee_from.append(monster)
             drones_targets = {}
             for drone_idt, drone in my_drones.items():
                 eligible_targets, drone_target, d_min = ({}, None, D_MAX)
@@ -427,8 +445,14 @@ class GameLoop:
                         eligible_targets[creature_idt] = creature
                 drones_targets[drone_idt] = get_closest_unit_from(drone, eligible_targets)
             for drone_idt, drone in my_drones.items():
-                if self.drones_scan_count[drone_idt] >= 4 or my_scan_count + my_drones_scan_count >= 12:
-                    action = Action(target=Point(drone.x, 499))
+                drone_has_to_flee_from = drone.has_to_flee_from
+                if len(drone_has_to_flee_from) > 0:
+                    flee_direction = Vector(0, 0)
+                    for creature in drone_has_to_flee_from:
+                        flee_direction += drone.position - creature.position
+                    action = Action(target=drone.position + DRONE_SPEED ** (1 / 2) / flee_direction.norm * flee_direction, comment='FLEE')
+                elif self.drones_scan_count[drone_idt] >= 4 or my_scan_count + my_drones_scan_count >= 12:
+                    action = Action(target=Point(drone.x, 499), comment='SAVE')
                 else:
                     drone_target = drones_targets[drone_idt]
                     if drone_target is None:
@@ -439,6 +463,6 @@ class GameLoop:
                                 radar_chosen = radar
                                 max_radar_count = radar_count
                         drone_target = CORNERS[radar_chosen]
-                    action = Action(target=drone_target, light=True)
+                    action = Action(target=drone_target, light=True, comment='EXPLORE')
                 print(action)
 GameLoop().start()

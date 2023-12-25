@@ -3,13 +3,13 @@ from typing import List, Union
 
 import numpy as np
 
-from botlibs.trigonometry import Point
+from botlibs.trigonometry import Point, Vector
 from bots.fall_challenge_2023.challengelibs.act import Action
 from bots.fall_challenge_2023.challengelibs.game_assets import AssetType, GameAssets
 from bots.fall_challenge_2023.challengelibs.map import get_closest_unit_from
 from bots.fall_challenge_2023.challengelibs.score import evaluate_extra_score_for_owner_creature, order_assets
 from bots.fall_challenge_2023.singletons import MY_OWNER, FOE_OWNER, OWNERS, HASH_MAP_NORMS, D_MAX, CORNERS, \
-    CREATURE_HABITATS_PER_KIND
+    CREATURE_HABITATS_PER_KIND, LIGHT_RADIUS, DRONE_SPEED, SAFE_RADIUS_FROM_MONSTERS
 
 GAME_ASSETS = GameAssets()
 
@@ -26,6 +26,8 @@ class GameLoop:
 
         self.game_assets = GAME_ASSETS
         self.hash_map_norms = HASH_MAP_NORMS
+
+        self.visible_monsters = []
         self.drones_scan_count = {}  # TODO : REMOVE
 
         creature_count = int(self.get_init_input())
@@ -146,6 +148,7 @@ class GameLoop:
                 self.drones_scan_count[drone_idt] += 1  # TODO : REMOVE
 
             visible_creature_count = int(self.get_turn_input())
+            self.visible_monsters = []
             for i in range(visible_creature_count):
                 creature_idt, creature_x, creature_y, creature_vx, creature_vy = [int(j) for j in
                                                                                   self.get_turn_input().split()]
@@ -161,6 +164,10 @@ class GameLoop:
                 creature_next_position = creature.position + creature.speed
                 creature.next_x = creature_next_position.x
                 creature.next_y = creature_next_position.y
+
+                # VISIBLE MONSTERS
+                if creature.kind == -1:
+                    self.visible_monsters.append(creature)
 
             radar_blip_count = int(self.get_turn_input())
             my_drones_radar_count = {drone_idt: {radar: 0 for radar in CORNERS.keys()} for drone_idt in
@@ -255,10 +262,20 @@ class GameLoop:
 
             # EVALUATE POSITIONS OF UNVISIBLE CREATURES - END
 
+            # CHECK IF MONSTERS ARE TOO CLOSE TO MY_DRONES - BEGIN
+
+            my_drones_to_flee_from_monsters = {}
+            for my_drone in my_drones.values():
+                my_drone.has_to_flee_from = []
+                for monster in self.visible_monsters:
+                    if HASH_MAP_NORMS[monster.position - my_drone.position] <= SAFE_RADIUS_FROM_MONSTERS:
+                        my_drone.has_to_flee_from.append(monster)
+
+            # CHECK IF MONSTERS ARE TOO CLOSE TO MY_DRONES - END
+
             # COMPUTE EXTRA METRICS FOR ASSETS - END
 
             # COMPUTE ALGORITHMS FOR DRONE TO ACT - BEGIN
-            # TODO : MOVE ALGORITHM TO CHOSE ACTION
             drones_targets = {}
             for drone_idt, drone in my_drones.items():
                 eligible_targets, drone_target, d_min = {}, None, D_MAX
@@ -268,8 +285,14 @@ class GameLoop:
                 drones_targets[drone_idt] = get_closest_unit_from(drone, eligible_targets)
 
             for drone_idt, drone in my_drones.items():
-                if self.drones_scan_count[drone_idt] >= 4 or (my_scan_count + my_drones_scan_count >= 12):
-                    action = Action(target=Point(drone.x, 499))
+                drone_has_to_flee_from = drone.has_to_flee_from
+                if len(drone_has_to_flee_from) > 0:
+                    flee_direction = Vector(0, 0)
+                    for creature in drone_has_to_flee_from:
+                        flee_direction += drone.position - creature.position
+                    action = Action(target=drone.position + ((DRONE_SPEED ** (1/2)) / flee_direction.norm) * flee_direction, comment="FLEE")
+                elif self.drones_scan_count[drone_idt] >= 4 or (my_scan_count + my_drones_scan_count >= 12):
+                    action = Action(target=Point(drone.x, 499), comment="SAVE")
                 else:
                     drone_target = drones_targets[drone_idt]
                     if drone_target is None:
@@ -280,7 +303,7 @@ class GameLoop:
                                 radar_chosen = radar
                                 max_radar_count = radar_count
                         drone_target = CORNERS[radar_chosen]
-                    action = Action(target=drone_target, light=True)
+                    action = Action(target=drone_target, light=True, comment="EXPLORE")
 
                 print(action)
 

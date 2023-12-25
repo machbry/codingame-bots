@@ -7,6 +7,9 @@ from botlibs.trigonometry import Point, Vector
 from bots.fall_challenge_2023.singletons import MY_OWNER, FOE_OWNER
 
 
+# TODO : REPLACE SET OF ASSET IDTs BY LIST WITH ACTUAL ASSETS
+
+
 @dataclass(slots=True)
 class Asset:
     idt: int
@@ -57,6 +60,7 @@ class Drone(Unit):
     battery: int = None
     unsaved_creatures_idt: Set[int] = field(default_factory=set)  # reset if drone.emergency == 1
     extra_score_with_unsaved_creatures: int = 0
+    has_to_flee_from: List[Creature] = field(default_factory=list)
 
 
 @dataclass(slots=True)

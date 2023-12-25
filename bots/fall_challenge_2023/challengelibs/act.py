@@ -14,7 +14,7 @@ class Action:
     comment: Union[int, str] = None
 
     def __repr__(self):
-        instruction = f"MOVE {self.target.x} {self.target.y}" if self.move else "WAIT"
+        instruction = f"MOVE {int(self.target.x)} {int(self.target.y)}" if self.move else "WAIT"
         instruction = f"{instruction} {1 if self.light else 0}"
         if self.comment:
             instruction = f"{instruction} {self.comment}"
