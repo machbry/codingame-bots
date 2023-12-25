@@ -1,9 +1,9 @@
 import math
-import numpy as np
 import sys
+import numpy as np
 from enum import Enum
-from dataclasses import dataclass, field
-from typing import Dict, Union, Any, Set, List, Literal
+from dataclasses import field, dataclass
+from typing import Set, Union, Literal, List, Any, Dict
 
 class Point:
 
@@ -82,6 +82,7 @@ class HashMapNorms(object):
 HASH_MAP_NORMS = HashMapNorms(norm_name='norm2')
 MY_OWNER = 1
 FOE_OWNER = 2
+OWNERS = [MY_OWNER, FOE_OWNER]
 X_MIN = 0
 Y_MIN = 0
 X_MAX = 10000
@@ -120,18 +121,16 @@ class Creature(Unit):
     visible: bool = False
     escaped: bool = False
     scanned_by_drones: Set[int] = field(default_factory=set)
-    saved_by_owners: Set[int] = field(default_factory=set)
-    first_saved_by_owner: int = None
-    my_extra_score: int = 0
-    foe_extra_score: int = 0
-    eval_saved_by_owners: Set[int] = field(default_factory=set)
+    saved_by_owners: List[int] = field(default_factory=list)
+    eval_saved_by_owners: List[int] = field(default_factory=list)
+    extra_scores: Dict[int, int] = field(default_factory=dict)
 
 @dataclass(slots=True)
 class Drone(Unit):
     emergency: int = None
     battery: int = None
     unsaved_creatures_idt: Set[int] = field(default_factory=set)
-    extra_score_with_unsaved_scans: int = 0
+    extra_score_with_unsaved_creatures: int = 0
 
 @dataclass(slots=True)
 class MyDrone(Drone):
@@ -216,6 +215,18 @@ def get_closest_unit_from(unit: Unit, other_units: Dict[int, Unit]):
 
 def order_assets(drones: List[Asset], on_attr: str, ascending: bool=True):
     return sorted(drones, key=lambda drone: getattr(drone, on_attr), reverse=not ascending)
+
+def evaluate_extra_score_for_owner_creature(creature_kind: int, creature_escaped: bool, creature_saved_by_owners: List[int], owner: int):
+    if creature_kind == -1:
+        return 0
+    if creature_escaped:
+        return 0
+    if owner in creature_saved_by_owners:
+        return 0
+    if len(creature_saved_by_owners) > 0:
+        return SCORE_BY_TYPE[creature_kind]
+    else:
+        return SCORE_MULTIPLIER_FIRST * SCORE_BY_TYPE[creature_kind]
 GAME_ASSETS = GameAssets()
 
 class GameLoop:
@@ -236,7 +247,7 @@ class GameLoop:
             creature = self.game_assets.new_asset(asset_type=AssetType.CREATURE, idt=creature_idt)
             creature.color = color
             creature.kind = kind
-            for owner in [MY_OWNER, FOE_OWNER]:
+            for owner in OWNERS:
                 scan = self.game_assets.new_asset(asset_type=AssetType.SCANS, idt=owner)
                 scan.owner = owner
                 scan.saved_creatures = np.zeros(shape=(4, 3))
@@ -260,9 +271,7 @@ class GameLoop:
         if creature_saved == 1:
             return
         scans.saved_creatures[creature.color, creature.kind] = 1
-        creature.saved_by_owners.add(owner)
-        if creature.first_saved_by_owner is None:
-            creature.first_saved_by_owner = owner
+        creature.saved_by_owners.append(owner)
 
     def update_drone(self, drone_idt, drone_x, drone_y, emergency, battery, asset_type: Union[AssetType.MYDRONE, AssetType.FOEDRONE]):
         drone = self.game_assets.get(asset_type=asset_type, idt=drone_idt)
@@ -362,10 +371,19 @@ class GameLoop:
             ordered_drones_from_top_to_bottom = order_assets(all_drones, 'y')
             for creature in creatures.values():
                 creature.eval_saved_by_owners = creature.saved_by_owners.copy()
+                creature.extra_scores = {owner: 0 for owner in OWNERS}
             for drone in ordered_drones_from_top_to_bottom:
-                drone.extra_score_with_unsaved_scans = 0
+                drone.extra_score_with_unsaved_creatures = 0
+                owner = drone.owner
                 for creature_idt in drone.unsaved_creatures_idt:
-                    unsaved_creature = self.game_assets.get(AssetType.CREATURE, creature_idt)
+                    creature = self.game_assets.get(AssetType.CREATURE, creature_idt)
+                    extra_score = evaluate_extra_score_for_owner_creature(creature_kind=creature.kind, creature_escaped=creature.escaped, creature_saved_by_owners=creature.eval_saved_by_owners, owner=owner)
+                    drone.extra_score_with_unsaved_creatures += extra_score
+                    creature.eval_saved_by_owners.append(owner)
+            for creature in creatures.values():
+                for owner in OWNERS:
+                    extra_score = evaluate_extra_score_for_owner_creature(creature_kind=creature.kind, creature_escaped=creature.escaped, creature_saved_by_owners=creature.eval_saved_by_owners, owner=owner)
+                    creature.extra_scores[owner] += extra_score
             ' COMPUTE EXTRA METRICS FOR ASSETS - END '
             ' COMPUTE ALGORITHMS FOR DRONE TO ACT - BEGIN '
             drones_targets = {}

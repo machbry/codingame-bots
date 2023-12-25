@@ -1,4 +1,4 @@
-from typing import Dict, Any, Union, Set
+from typing import Dict, Any, Union
 from enum import Enum
 
 from bots.fall_challenge_2023.challengelibs.asset import Creature, MyDrone, FoeDrone, RadarBlip, Scans

@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Set
+from typing import Set, List, Dict
 
 import numpy as np
 
@@ -38,11 +38,9 @@ class Creature(Unit):
     visible: bool = False
     escaped: bool = False
     scanned_by_drones: Set[int] = field(default_factory=set)  # reset à chaque tour
-    saved_by_owners: Set[int] = field(default_factory=set)
-    first_saved_by_owner: int = None
-    my_extra_score: int = 0
-    foe_extra_score: int = 0
-    eval_saved_by_owners: Set[int] = field(default_factory=set)
+    saved_by_owners: List[int] = field(default_factory=list)
+    eval_saved_by_owners: List[int] = field(default_factory=list)
+    extra_scores: Dict[int, int] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -50,7 +48,7 @@ class Drone(Unit):
     emergency: int = None
     battery: int = None
     unsaved_creatures_idt: Set[int] = field(default_factory=set)  # reset if drone.emergency == 1
-    extra_score_with_unsaved_scans: int = 0
+    extra_score_with_unsaved_creatures: int = 0
 
 
 @dataclass(slots=True)

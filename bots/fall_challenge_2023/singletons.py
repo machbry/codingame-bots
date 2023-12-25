@@ -4,6 +4,7 @@ HASH_MAP_NORMS = HashMapNorms(norm_name="norm2")
 
 MY_OWNER = 1
 FOE_OWNER = 2
+OWNERS = [MY_OWNER, FOE_OWNER]
 
 X_MIN = 0
 Y_MIN = 0
