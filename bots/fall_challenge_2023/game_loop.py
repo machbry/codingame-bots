@@ -1,9 +1,10 @@
 import sys
 from typing import List, Union
 
+import numpy as np
+
 from botlibs.trigonometry import Point
 from bots.fall_challenge_2023.challengelibs.act import Action
-from bots.fall_challenge_2023.challengelibs.asset import Scores
 from bots.fall_challenge_2023.challengelibs.game_assets import AssetType, GameAssets
 from bots.fall_challenge_2023.challengelibs.map import get_closest_unit_from
 from bots.fall_challenge_2023.challengelibs.score import evaluate_extra_score_for_owner_creature, order_assets
@@ -24,7 +25,6 @@ class GameLoop:
 
         self.game_assets = GAME_ASSETS
         self.hash_map_norms = HASH_MAP_NORMS
-        self.current_scores = Scores()
         self.drones_scan_count = {}  # TODO : REMOVE
 
         creature_count = int(self.get_init_input())
@@ -35,10 +35,9 @@ class GameLoop:
             creature.kind = kind
 
             for owner in [MY_OWNER, FOE_OWNER]:
-                scan_idt = hash((owner, creature_idt))
-                scan = self.game_assets.new_asset(asset_type=AssetType.SCAN, idt=scan_idt)
+                scan = self.game_assets.new_asset(asset_type=AssetType.SCANS, idt=owner)
                 scan.owner = owner
-                scan.creature_idt = creature_idt
+                scan.saved_creatures = np.zeros(shape=(4, 3))
 
         if GameLoop.LOG:
             print(self.init_inputs, file=sys.stderr, flush=True)
@@ -54,19 +53,19 @@ class GameLoop:
         return result
 
     def update_saved_scan(self, owner: int, creature_idt: int):
-        scan_idt = hash((owner, creature_idt))
+        scans = self.game_assets.get(asset_type=AssetType.SCANS, idt=owner)
+        creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
 
-        scan = self.game_assets.get(asset_type=AssetType.SCAN, idt=scan_idt)
+        creature_saved = scans.saved_creatures[creature.color, creature.kind]
 
-        if scan.saved:
+        if creature_saved == 1:
             return
 
-        scan.saved = True
+        scans.saved_creatures[creature.color, creature.kind] = 1
+        creature.saved_by_owners.add(owner)
 
-        if scan.first_saved_by is None:
-            scan.first_saved_by = owner
-            creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
-            creature.saved_by_owners.add(owner)
+        if creature.first_saved_by_owner is None:
+            creature.first_saved_by_owner = owner
 
     def update_drone(self, drone_idt, drone_x, drone_y, emergency, battery,
                      asset_type: Union[AssetType.MYDRONE, AssetType.FOEDRONE]):
@@ -79,7 +78,7 @@ class GameLoop:
         drone.battery = battery
 
         if drone.emergency == 1:
-            drone.unsaved_scans_idt = set()
+            drone.unsaved_creatures_idt = set()
 
         self.drones_scan_count[drone_idt] = 0
 
@@ -98,9 +97,6 @@ class GameLoop:
                 creature.visible = False
                 creature.escaped = True
 
-            for scan in self.game_assets.get_all(asset_type=AssetType.SCAN).values():
-                scan.owned_by_drones = set()
-
             self.drones_scan_count = {}  # TODO : REMOVE
 
             """ RESET ASSETS - END """
@@ -111,7 +107,6 @@ class GameLoop:
 
             my_score = int(self.get_turn_input())
             foe_score = int(self.get_turn_input())
-            self.current_scores = Scores(me=my_score, foe=foe_score)
 
             my_scan_count = int(self.get_turn_input())
             for i in range(my_scan_count):
@@ -137,18 +132,16 @@ class GameLoop:
             my_drones_scan_count = 0
             for i in range(drone_scan_count):
                 drone_idt, creature_idt = [int(j) for j in self.get_turn_input().split()]
+
                 drone = self.game_assets.get(asset_type=AssetType.MYDRONE, idt=drone_idt)
                 if drone is None:
                     drone = self.game_assets.get(asset_type=AssetType.FOEDRONE, idt=drone_idt)
                 else:
                     my_drones_scan_count += 1
 
-                scan_idt = hash((drone.owner, creature_idt))
-                scan = self.game_assets.get(asset_type=AssetType.SCAN, idt=scan_idt)
                 creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
 
-                drone.unsaved_scans_idt.add(scan_idt)
-                scan.owned_by_drones.add(drone_idt)
+                drone.unsaved_creatures_idt.add(creature_idt)
                 creature.scanned_by_drones.add(drone_idt)
 
                 self.drones_scan_count[drone_idt] += 1  # TODO : REMOVE
@@ -182,12 +175,11 @@ class GameLoop:
                 radar_blip.radar = radar
 
                 creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
-                if creature is not None:
-                    creature.escaped = False
+                creature.escaped = False
 
-                    # TODO : REMOVE
-                    if drone_idt not in creature.scanned_by_drones:
-                        my_drones_radar_count[drone_idt][radar] += 1
+                # TODO : REMOVE
+                if drone_idt not in creature.scanned_by_drones:
+                    my_drones_radar_count[drone_idt][radar] += 1
 
             if GameLoop.LOG:
                 self.print_turn_logs()
@@ -207,20 +199,9 @@ class GameLoop:
                 creature.eval_saved_by_owners = creature.saved_by_owners.copy()
 
             for drone in ordered_drones_from_top_to_bottom:
-                for scan_idt in drone.unsaved_scans_idt:
-                    scan = self.game_assets.get(AssetType.SCAN, scan_idt)
-                    unsaved_creature = self.game_assets.get(AssetType.CREATURE, scan.creature_idt)
-
-                    unsaved_creature_saved_by_owners = unsaved_creature.eval_saved_by_owners
-
-                    creature_saved_by_owner = drone.owner in unsaved_creature_saved_by_owners
-                    creature_saved_by_other_owner = drone.owner in unsaved_creature_saved_by_owners
-
-                    extra_score = evaluate_extra_score_for_owner_creature(creature_kind=unsaved_creature.kind,
-                                                                          creature_escaped=unsaved_creature.escaped,
-                                                                          creature_saved_by_owner=creature_saved_by_owner,
-                                                                          creature_saved_by_other_owner=creature_saved_by_other_owner)
-                    # TODO : WIP
+                drone.extra_score_with_unsaved_scans = 0
+                for creature_idt in drone.unsaved_creatures_idt:
+                    unsaved_creature = self.game_assets.get(AssetType.CREATURE, creature_idt)
 
             # POUR CHAQUE DRONE ORDONNE :
             #   RECUPERE LES CREATURES ASSOCIEES A SES SCANS NON SAUVEGARDES

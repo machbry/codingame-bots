@@ -1,6 +1,6 @@
 from typing import List
 
-from bots.fall_challenge_2023.challengelibs.asset import Scores, Asset
+from bots.fall_challenge_2023.challengelibs.asset import Asset
 from bots.fall_challenge_2023.singletons import SCORE_BY_TYPE, SCORE_FOR_FULL_COLOR, SCORE_FOR_FULL_TYPE, \
     SCORE_MULTIPLIER_FIRST
 

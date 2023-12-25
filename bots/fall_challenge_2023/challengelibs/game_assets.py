@@ -1,16 +1,15 @@
 from typing import Dict, Any, Union, Set
 from enum import Enum
 
-from bots.fall_challenge_2023.challengelibs.asset import Creature, MyDrone, FoeDrone, Scan, RadarBlip, Scores
+from bots.fall_challenge_2023.challengelibs.asset import Creature, MyDrone, FoeDrone, RadarBlip, Scans
 
 
 class AssetType(Enum):
-    SCORES = Scores
-    SCAN = Scan
     CREATURE = Creature
     MYDRONE = MyDrone
     FOEDRONE = FoeDrone
     RADARBLIP = RadarBlip
+    SCANS = Scans
 
 
 class Singleton(object):
@@ -30,7 +29,7 @@ class GameAssets(Singleton):
         self.assets[asset_type.name][idt] = asset
         return asset
 
-    def get(self, asset_type: AssetType, idt: int) -> Union[Creature, MyDrone, FoeDrone, Scan, RadarBlip]:
+    def get(self, asset_type: AssetType, idt: int) -> Union[Creature, MyDrone, FoeDrone, RadarBlip, Scans]:
         return self.assets[asset_type.name].get(idt)
 
     def delete(self, asset_type: AssetType, idt: int):
