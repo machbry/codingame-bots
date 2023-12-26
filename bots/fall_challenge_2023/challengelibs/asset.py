@@ -43,7 +43,7 @@ class Creature(Unit):
     escaped: bool = False
     scanned_by_drones: Set[int] = field(default_factory=set)  # reset à chaque tour
     saved_by_owners: List[int] = field(default_factory=list)
-    eval_saved_by_owners: List[int] = field(default_factory=list)  # TODO : USE SCANS & TROPHIES INSTEAD
+    eval_saved_by_owners: List[int] = field(default_factory=list)
     extra_scores: Dict[int, int] = field(default_factory=dict)
     last_turn_visible: int = None
 
@@ -89,14 +89,27 @@ class Scans(Asset):
     owner: int = None
     saved_creatures: np.ndarray = None
 
+    def copy(self):
+        return Scans(idt=self.idt,
+                     owner=self.owner,
+                     saved_creatures=self.saved_creatures.copy())
+
 
 @dataclass(slots=True)
 class ColorsTrophy(Asset):
     # idt = Color.value
     win_by_owners: List[int] = field(default_factory=list)
 
+    def copy(self):
+        return ColorsTrophy(idt=self.idt,
+                            win_by_owners=self.win_by_owners.copy())
+
 
 @dataclass(slots=True)
 class KindsTrophy(Asset):
     # idt = Kind.value
     win_by_owners: List[int] = field(default_factory=list)
+
+    def copy(self):
+        return KindsTrophy(idt=self.idt,
+                           win_by_owners=self.win_by_owners.copy())
