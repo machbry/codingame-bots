@@ -27,6 +27,7 @@ class GameLoop:
         self.game_assets = GAME_ASSETS
         self.hash_map_norms = HASH_MAP_NORMS
 
+        self.my_drones_idt_play_order = []
         self.monsters = []
         self.my_drones_scan_count = 0
         self.my_scan_count = 0
@@ -102,9 +103,11 @@ class GameLoop:
             self.update_saved_scan(owner=FOE_OWNER, creature_idt=creature_idt)
 
         my_drone_count = int(self.get_turn_input())
+        self.my_drones_idt_play_order = []
         for i in range(my_drone_count):
             drone_idt, drone_x, drone_y, emergency, battery = [int(j) for j in self.get_turn_input().split()]
             self.update_drone(drone_idt, drone_x, drone_y, emergency, battery, AssetType.MYDRONE)
+            self.my_drones_idt_play_order.append(drone_idt)
 
         foe_drone_count = int(self.get_turn_input())
         for i in range(foe_drone_count):
@@ -276,7 +279,6 @@ class GameLoop:
 
             # CHECK IF MONSTERS ARE TOO CLOSE TO MY_DRONES - BEGIN
 
-            my_drones_to_flee_from_monsters = {}
             for my_drone in my_drones.values():
                 my_drone.has_to_flee_from = []
                 for monster in self.monsters:
@@ -288,39 +290,56 @@ class GameLoop:
             # COMPUTE EXTRA METRICS FOR ASSETS - END
 
             # COMPUTE ALGORITHMS FOR DRONE TO ACT - BEGIN
-            ordered_creatures_with_most_extra_score = order_assets(creatures.values(), on_attr='my_extra_score', ascending=False)
-            nb_find_actions = 0
+            my_drones_action = {}
+            unassigned_drones = my_drones.copy()
 
+            # FLEE FROM MONSTERS
             for drone_idt, drone in my_drones.items():
                 drone_has_to_flee_from = drone.has_to_flee_from
                 if len(drone_has_to_flee_from) == 1:
+                    del unassigned_drones[drone_idt]
                     vector_to_creature = drone_has_to_flee_from[0].position - drone.position
                     distance_to_creature = HASH_MAP_NORMS[vector_to_creature]
                     if distance_to_creature > SAFE_RADIUS_FROM_MONSTERS:
-                        v = (1 / distance_to_creature ** (1/2)) * vector_to_creature
+                        v = (1 / distance_to_creature ** (1 / 2)) * vector_to_creature
                         flee_vectors = [Vector(v.y, -v.x), Vector(-v.y, v.x)]
                         flee_vector = flee_vectors[0]
                         vector_to_center = MAP_CENTER - drone.position
                         cos_with_center = flee_vector.dot(vector_to_center)
                         if flee_vectors[1].dot(vector_to_center) > cos_with_center:
                             flee_vector = flee_vectors[1]
-                        action = Action(target=drone.position + (DRONE_SPEED ** (1/2)) * flee_vector, comment="FLEE")
+                        my_drones_action[drone_idt] = Action(
+                            target=drone.position + (DRONE_SPEED ** (1 / 2)) * flee_vector, comment="FLEE")
                     else:
                         flee_vector = -1 * vector_to_creature
-                        action = Action(target=drone.position + ((DRONE_SPEED ** (1 / 2)) / (distance_to_creature ** (1/2))) * flee_vector, comment="FLEE")
+                        my_drones_action[drone_idt] = Action(target=drone.position + (
+                                    (DRONE_SPEED ** (1 / 2)) / (distance_to_creature ** (1 / 2))) * flee_vector,
+                                                             comment="FLEE")
                 elif len(drone_has_to_flee_from) > 1:
+                    del unassigned_drones[drone_idt]
                     flee_vector = Vector(0, 0)
                     for creature in drone_has_to_flee_from:
                         flee_vector += drone.position - creature.position
-                    action = Action(
-                        target=drone.position + ((DRONE_SPEED ** (1 / 2)) / flee_vector.norm) * flee_vector, comment="FLEE")
-                elif drone.extra_score_with_unsaved_creatures >= 15:
-                    action = Action(target=Point(drone.x, 499), comment="SAVE")
-                else:
+                    my_drones_action[drone_idt] = Action(
+                        target=drone.position + ((DRONE_SPEED ** (1 / 2)) / flee_vector.norm) * flee_vector,
+                        comment="FLEE")
+
+            if len(unassigned_drones) > 0:
+                ordered_my_drones_with_most_extra_score = order_assets(unassigned_drones.values(), on_attr='extra_score_with_unsaved_creatures', ascending=False)
+                drone = ordered_my_drones_with_most_extra_score[0]
+                if drone.extra_score_with_unsaved_creatures >= 15:
+                    my_drones_action[drone.idt] = Action(target=Point(drone.x, 499), comment="SAVE")
+                    del unassigned_drones[drone.idt]
+
+            if len(unassigned_drones) > 0:
+                nb_find_actions = 0
+                ordered_creatures_with_most_extra_score = order_assets(creatures.values(), on_attr='my_extra_score', ascending=False)
+                for drone_idt, drone in unassigned_drones.items():
                     drone_target = ordered_creatures_with_most_extra_score[nb_find_actions]
                     nb_find_actions += 1
-                    action = Action(target=drone_target, light=True, comment=f"FIND {drone_target.idt}")
-
-                print(action)
+                    my_drones_action[drone_idt] = Action(target=drone_target, light=True, comment=f"FIND {drone_target.idt}")
 
             # COMPUTE ALGORITHMS FOR DRONE TO ACT - END
+
+            for drone_idt in self.my_drones_idt_play_order:
+                print(my_drones_action[drone_idt])

@@ -7,9 +7,6 @@ from botlibs.trigonometry import Point, Vector
 from bots.fall_challenge_2023.singletons import MY_OWNER, FOE_OWNER
 
 
-# TODO : REPLACE SET OF ASSET IDTs BY LIST WITH ACTUAL ASSETS
-
-
 @dataclass(slots=True)
 class Asset:
     idt: int
