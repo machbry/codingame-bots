@@ -11,9 +11,6 @@ from bots.fall_challenge_2023.singletons import MY_OWNER, FOE_OWNER
 class Asset:
     idt: int
 
-# surcharge Asset().__setattr__() -> to keep historic values ?
-# surcharge Asset().__getattribute__() ?
-
 
 @dataclass(slots=True)
 class Unit(Asset):
@@ -46,7 +43,7 @@ class Creature(Unit):
     escaped: bool = False
     scanned_by_drones: Set[int] = field(default_factory=set)  # reset à chaque tour
     saved_by_owners: List[int] = field(default_factory=list)
-    eval_saved_by_owners: List[int] = field(default_factory=list)
+    eval_saved_by_owners: List[int] = field(default_factory=list)  # TODO : USE SCANS & TROPHIES INSTEAD
     extra_scores: Dict[int, int] = field(default_factory=dict)
     last_turn_visible: int = None
 
@@ -91,3 +88,15 @@ class Scans(Asset):
     # idt = owner
     owner: int = None
     saved_creatures: np.ndarray = None
+
+
+@dataclass(slots=True)
+class ColorsTrophy(Asset):
+    # idt = Color.value
+    win_by_owners: List[int] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class KindsTrophy(Asset):
+    # idt = Kind.value
+    win_by_owners: List[int] = field(default_factory=list)

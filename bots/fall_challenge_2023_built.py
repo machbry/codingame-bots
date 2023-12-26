@@ -1,9 +1,9 @@
 import math
-import numpy as np
 import sys
+import numpy as np
 from enum import Enum
-from dataclasses import dataclass, field
-from typing import Union, Dict, Literal, Any, List, Set
+from dataclasses import field, dataclass
+from typing import Any, Dict, Literal, Union, List, Set
 
 class Point:
 
@@ -96,10 +96,20 @@ class Kind(Enum):
     ZERO = 0
     ONE = 1
     TWO = 2
+
+class Color(Enum):
+    ROSE = 0
+    YELLOW = 1
+    GREEN = 2
+    BLUE = 3
+KINDS = np.array([[Kind.ZERO.value, Kind.ONE.value, Kind.TWO.value]])
+COLORS = np.array([[Color.ROSE.value], [Color.YELLOW.value], [Color.GREEN.value], [Color.BLUE.value]])
 SCORE_BY_KIND = {Kind.MONSTER.value: 0, Kind.ZERO.value: 1, Kind.ONE.value: 2, Kind.TWO.value: 3}
 SCORE_FOR_FULL_COLOR = 3
 SCORE_FOR_FULL_KIND = 4
 SCORE_MULTIPLIER_FIRST = 2
+ACTIVATE_COLORS = np.array([[1], [1], [1]])
+ACTIVATE_KINDS = np.array([[1, 1, 1, 1]])
 CREATURE_HABITATS_PER_KIND = {Kind.MONSTER.value: [X_MIN, 2500, X_MAX, 10000], Kind.ZERO.value: [X_MIN, 2500, X_MAX, 5000], Kind.ONE.value: [X_MIN, 5000, X_MAX, 7500], Kind.TWO.value: [X_MIN, 7500, X_MAX, 10000]}
 MAX_SPEED_PER_KIND = {Kind.MONSTER.value: 540, Kind.ZERO.value: 400, Kind.ONE.value: 400, Kind.TWO.value: 400}
 LIGHT_RADIUS = HASH_MAP_NORMS[Vector(0, 800)]
@@ -184,6 +194,14 @@ class Scans(Asset):
     owner: int = None
     saved_creatures: np.ndarray = None
 
+@dataclass(slots=True)
+class ColorsTrophy(Asset):
+    win_by_owners: List[int] = field(default_factory=list)
+
+@dataclass(slots=True)
+class KindsTrophy(Asset):
+    win_by_owners: List[int] = field(default_factory=list)
+
 @dataclass
 class Action:
     move: bool = True
@@ -198,12 +216,17 @@ class Action:
             instruction = f'{instruction} {self.comment}'
         return instruction
 
+def order_assets(assets: List[Asset], on_attr: str, ascending: bool=True):
+    return sorted(assets, key=lambda asset: getattr(asset, on_attr), reverse=not ascending)
+
 class AssetType(Enum):
     CREATURE = Creature
     MYDRONE = MyDrone
     FOEDRONE = FoeDrone
     RADARBLIP = RadarBlip
     SCANS = Scans
+    COLORSTROPHY = ColorsTrophy
+    KINDSTROPHY = KindsTrophy
 
 class Singleton(object):
 
@@ -222,7 +245,7 @@ class GameAssets(Singleton):
         self.assets[asset_type.name][idt] = asset
         return asset
 
-    def get(self, asset_type: AssetType, idt: int) -> Union[Creature, MyDrone, FoeDrone, RadarBlip, Scans]:
+    def get(self, asset_type: AssetType, idt: int) -> Union[Creature, MyDrone, FoeDrone, RadarBlip, Scans, ColorsTrophy, KindsTrophy]:
         return self.assets[asset_type.name].get(idt)
 
     def delete(self, asset_type: AssetType, idt: int):
@@ -230,9 +253,6 @@ class GameAssets(Singleton):
 
     def get_all(self, asset_type: AssetType):
         return self.assets[asset_type.name]
-
-def order_assets(assets: List[Asset], on_attr: str, ascending: bool=True):
-    return sorted(assets, key=lambda asset: getattr(asset, on_attr), reverse=not ascending)
 
 def evaluate_extra_score_for_owner_creature(creature_kind: int, creature_escaped: bool, creature_saved_by_owners: List[int], owner: int):
     if creature_kind == -1:
@@ -260,7 +280,6 @@ class GameLoop:
         self.hash_map_norms = HASH_MAP_NORMS
         self.my_drones_idt_play_order = []
         self.monsters = []
-        self.my_drones_scan_count = 0
         self.my_scan_count = 0
         creature_count = int(self.get_init_input())
         for i in range(creature_count):
@@ -275,6 +294,11 @@ class GameLoop:
                 scan = self.game_assets.new_asset(asset_type=AssetType.SCANS, idt=owner)
                 scan.owner = owner
                 scan.saved_creatures = np.zeros(shape=(4, 3))
+        for color in Color:
+            color_trophy = self.game_assets.new_asset(asset_type=AssetType.COLORSTROPHY, idt=color.value)
+        for kind in Kind:
+            if kind != Kind.MONSTER.value:
+                kind_trophy = self.game_assets.new_asset(asset_type=AssetType.KINDSTROPHY, idt=kind.value)
         if GameLoop.LOG:
             print(self.init_inputs, file=sys.stderr, flush=True)
 
@@ -291,11 +315,25 @@ class GameLoop:
     def update_saved_scan(self, owner: int, creature_idt: int):
         scans = self.game_assets.get(asset_type=AssetType.SCANS, idt=owner)
         creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
-        creature_saved = scans.saved_creatures[creature.color, creature.kind]
+        saved_creatures = scans.saved_creatures
+        creature_saved = saved_creatures[creature.color, creature.kind]
         if creature_saved == 1:
             return
-        scans.saved_creatures[creature.color, creature.kind] = 1
         creature.saved_by_owners.append(owner)
+        creature_color, creature_kind = (creature.color, creature.kind)
+        saved_creatures[creature_color, creature_kind] = 1
+
+    def update_trophies(self, owner: int, saved_creatures: np.ndarray, colors_trophies: Dict[int, ColorsTrophy], kinds_trophies: Dict[int, KindsTrophy]):
+        for color in COLORS[saved_creatures.dot(ACTIVATE_COLORS) == SCORE_FOR_FULL_COLOR]:
+            colors_trophy = colors_trophies[color]
+            color_win_by_owners = colors_trophy.win_by_owners
+            if owner not in color_win_by_owners:
+                color_win_by_owners.append(owner)
+        for kind in KINDS[ACTIVATE_KINDS.dot(saved_creatures) == SCORE_FOR_FULL_KIND]:
+            kinds_trophy = kinds_trophies[kind]
+            kind_win_by_owners = kinds_trophy.win_by_owners
+            if owner not in kind_win_by_owners:
+                kind_win_by_owners.append(owner)
 
     def update_drone(self, drone_idt, drone_x, drone_y, emergency, battery, asset_type: Union[AssetType.MYDRONE, AssetType.FOEDRONE]):
         drone = self.game_assets.get(asset_type=asset_type, idt=drone_idt)
@@ -320,6 +358,11 @@ class GameLoop:
         for i in range(foe_scan_count):
             creature_idt = int(self.get_turn_input())
             self.update_saved_scan(owner=FOE_OWNER, creature_idt=creature_idt)
+        colors_trophies = self.game_assets.get_all(AssetType.COLORSTROPHY)
+        kinds_trophies = self.game_assets.get_all(AssetType.KINDSTROPHY)
+        for owner in OWNERS:
+            saved_creatures = self.game_assets.get(AssetType.SCANS, owner).saved_creatures
+            self.update_trophies(owner, saved_creatures, colors_trophies, kinds_trophies)
         my_drone_count = int(self.get_turn_input())
         self.my_drones_idt_play_order = []
         for i in range(my_drone_count):
@@ -331,14 +374,11 @@ class GameLoop:
             drone_idt, drone_x, drone_y, emergency, battery = [int(j) for j in self.get_turn_input().split()]
             self.update_drone(drone_idt, drone_x, drone_y, emergency, battery, AssetType.FOEDRONE)
         drone_scan_count = int(self.get_turn_input())
-        self.my_drones_scan_count = 0
         for i in range(drone_scan_count):
             drone_idt, creature_idt = [int(j) for j in self.get_turn_input().split()]
             drone = self.game_assets.get(asset_type=AssetType.MYDRONE, idt=drone_idt)
             if drone is None:
                 drone = self.game_assets.get(asset_type=AssetType.FOEDRONE, idt=drone_idt)
-            else:
-                self.my_drones_scan_count += 1
             creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
             drone.unsaved_creatures_idt.add(creature_idt)
             creature.scanned_by_drones.add(drone_idt)
@@ -352,9 +392,6 @@ class GameLoop:
             creature.vy = creature_vy
             creature.visible = True
             creature.last_turn_visible = self.nb_turns
-            creature_next_position = creature.position + creature.speed
-            creature.next_x = creature_next_position.x
-            creature.next_y = creature_next_position.y
         radar_blip_count = int(self.get_turn_input())
         for i in range(radar_blip_count):
             inputs = self.get_turn_input().split()

@@ -1,9 +1,9 @@
 from dataclasses import dataclass
-from typing import Union
+from typing import Union, List
 
 from botlibs.trigonometry import Point
 from bots.fall_challenge_2023.singletons import MAP_CENTER
-from bots.fall_challenge_2023.challengelibs.asset import Unit
+from bots.fall_challenge_2023.challengelibs.asset import Unit, Asset
 
 
 @dataclass
@@ -19,3 +19,7 @@ class Action:
         if self.comment:
             instruction = f"{instruction} {self.comment}"
         return instruction
+
+
+def order_assets(assets: List[Asset], on_attr: str, ascending: bool = True):
+    return sorted(assets, key=lambda asset: getattr(asset, on_attr), reverse=not ascending)
