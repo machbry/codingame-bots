@@ -5,8 +5,8 @@ from bots.fall_challenge_2023.singletons import SCORE_BY_KIND, SCORE_FOR_FULL_CO
     SCORE_MULTIPLIER_FIRST
 
 
-def order_assets(drones: List[Asset], on_attr: str, ascending: bool = True):
-    return sorted(drones, key=lambda drone: getattr(drone, on_attr), reverse=not ascending)
+def order_assets(assets: List[Asset], on_attr: str, ascending: bool = True):
+    return sorted(assets, key=lambda asset: getattr(asset, on_attr), reverse=not ascending)
 
 
 def evaluate_extra_score_for_owner_creature(creature_kind: int, creature_escaped: bool,

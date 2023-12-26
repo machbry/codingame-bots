@@ -45,7 +45,12 @@ SCORE_MULTIPLIER_FIRST = 2
 CREATURE_HABITATS_PER_KIND = {Kind.MONSTER.value: [X_MIN, 2500, X_MAX, 10000],
                               Kind.ZERO.value: [X_MIN, 2500, X_MAX, 5000],
                               Kind.ONE.value: [X_MIN, 5000, X_MAX, 7500],
-                              Kind.TWO.value: [X_MIN, 2500, X_MAX, 5000]}
+                              Kind.TWO.value: [X_MIN, 7500, X_MAX, 10000]}
+
+MAX_SPEED_PER_KIND = {Kind.MONSTER.value: 540,
+                      Kind.ZERO.value: 400,
+                      Kind.ONE.value: 400,
+                      Kind.TWO.value: 400}
 
 LIGHT_RADIUS = HASH_MAP_NORMS[Vector(0, 800)]
 AUGMENTED_LIGHT_RADIUS = HASH_MAP_NORMS[Vector(0, 2000)]

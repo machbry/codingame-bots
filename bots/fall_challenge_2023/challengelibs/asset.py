@@ -53,6 +53,14 @@ class Creature(Unit):
     extra_scores: Dict[int, int] = field(default_factory=dict)
     last_turn_visible: int = None
 
+    @property
+    def my_extra_score(self):
+        return self.extra_scores[MY_OWNER]
+
+    @property
+    def foe_extra_score(self):
+        return self.extra_scores[FOE_OWNER]
+
 
 @dataclass(slots=True)
 class Drone(Unit):

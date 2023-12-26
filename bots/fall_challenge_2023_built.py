@@ -1,9 +1,9 @@
 import sys
-import numpy as np
 import math
+import numpy as np
 from enum import Enum
-from dataclasses import field, dataclass
-from typing import Literal, List, Set, Union, Dict, Any
+from dataclasses import dataclass, field
+from typing import Set, Any, Union, Dict, List, Literal
 
 class Point:
 
@@ -100,7 +100,8 @@ SCORE_BY_KIND = {Kind.MONSTER.value: 0, Kind.ZERO.value: 1, Kind.ONE.value: 2, K
 SCORE_FOR_FULL_COLOR = 3
 SCORE_FOR_FULL_KIND = 4
 SCORE_MULTIPLIER_FIRST = 2
-CREATURE_HABITATS_PER_KIND = {Kind.MONSTER.value: [X_MIN, 2500, X_MAX, 10000], Kind.ZERO.value: [X_MIN, 2500, X_MAX, 5000], Kind.ONE.value: [X_MIN, 5000, X_MAX, 7500], Kind.TWO.value: [X_MIN, 2500, X_MAX, 5000]}
+CREATURE_HABITATS_PER_KIND = {Kind.MONSTER.value: [X_MIN, 2500, X_MAX, 10000], Kind.ZERO.value: [X_MIN, 2500, X_MAX, 5000], Kind.ONE.value: [X_MIN, 5000, X_MAX, 7500], Kind.TWO.value: [X_MIN, 7500, X_MAX, 10000]}
+MAX_SPEED_PER_KIND = {Kind.MONSTER.value: 540, Kind.ZERO.value: 400, Kind.ONE.value: 400, Kind.TWO.value: 400}
 LIGHT_RADIUS = HASH_MAP_NORMS[Vector(0, 800)]
 AUGMENTED_LIGHT_RADIUS = HASH_MAP_NORMS[Vector(0, 2000)]
 EMERGENCY_RADIUS = HASH_MAP_NORMS[Vector(0, 500)]
@@ -147,6 +148,14 @@ class Creature(Unit):
     eval_saved_by_owners: List[int] = field(default_factory=list)
     extra_scores: Dict[int, int] = field(default_factory=dict)
     last_turn_visible: int = None
+
+    @property
+    def my_extra_score(self):
+        return self.extra_scores[MY_OWNER]
+
+    @property
+    def foe_extra_score(self):
+        return self.extra_scores[FOE_OWNER]
 
 @dataclass(slots=True)
 class Drone(Unit):
@@ -222,23 +231,8 @@ class GameAssets(Singleton):
     def get_all(self, asset_type: AssetType):
         return self.assets[asset_type.name]
 
-def get_closest_unit_from(unit: Unit, other_units: Dict[int, Unit]):
-    d_min = D_MAX
-    closest_unit = None
-    for other_unit_idt, other_unit in other_units.items():
-        if unit.idt != other_unit.idt:
-            try:
-                unit_to_other_unit_vector = other_unit.position - unit.position
-            except (AttributeError, TypeError):
-                continue
-            unit_to_other_unit_distance = HASH_MAP_NORMS[unit_to_other_unit_vector]
-            if unit_to_other_unit_distance < d_min:
-                d_min = unit_to_other_unit_distance
-                closest_unit = other_unit
-    return closest_unit
-
-def order_assets(drones: List[Asset], on_attr: str, ascending: bool=True):
-    return sorted(drones, key=lambda drone: getattr(drone, on_attr), reverse=not ascending)
+def order_assets(assets: List[Asset], on_attr: str, ascending: bool=True):
+    return sorted(assets, key=lambda asset: getattr(asset, on_attr), reverse=not ascending)
 
 def evaluate_extra_score_for_owner_creature(creature_kind: int, creature_escaped: bool, creature_saved_by_owners: List[int], owner: int):
     if creature_kind == -1:
@@ -267,7 +261,6 @@ class GameLoop:
         self.monsters = []
         self.my_drones_scan_count = 0
         self.my_scan_count = 0
-        self.drones_scan_count = {}
         creature_count = int(self.get_init_input())
         for i in range(creature_count):
             creature_idt, color, kind = [int(j) for j in self.get_init_input().split()]
@@ -313,7 +306,6 @@ class GameLoop:
         drone.battery = battery
         if drone.emergency == 1:
             drone.unsaved_creatures_idt = set()
-        self.drones_scan_count[drone_idt] = 0
 
     def update(self):
         self.nb_turns += 1
@@ -347,7 +339,6 @@ class GameLoop:
             creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
             drone.unsaved_creatures_idt.add(creature_idt)
             creature.scanned_by_drones.add(drone_idt)
-            self.drones_scan_count[drone_idt] += 1
         visible_creature_count = int(self.get_turn_input())
         for i in range(visible_creature_count):
             creature_idt, creature_x, creature_y, creature_vx, creature_vy = [int(j) for j in self.get_turn_input().split()]
@@ -362,7 +353,6 @@ class GameLoop:
             creature.next_x = creature_next_position.x
             creature.next_y = creature_next_position.y
         radar_blip_count = int(self.get_turn_input())
-        self.my_drones_radar_count = {drone_idt: {radar: 0 for radar in CORNERS.keys()} for drone_idt in self.game_assets.get_all(AssetType.MYDRONE).keys()}
         for i in range(radar_blip_count):
             inputs = self.get_turn_input().split()
             drone_idt = int(inputs[0])
@@ -374,6 +364,12 @@ class GameLoop:
                 radar_blip = self.game_assets.new_asset(asset_type=AssetType.RADARBLIP, idt=radar_idt)
                 radar_blip.drone_idt = drone_idt
                 radar_blip.creature_idt = creature_idt
+            creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
+            creature.escaped = False
+            if len(radar_blip.zones) > 0:
+                previous_zone = radar_blip.zones[-1]
+                creature_max_speed = MAX_SPEED_PER_KIND[creature.kind]
+                radar_blip.zones[-1] = [previous_zone[0] - creature_max_speed, previous_zone[1] - creature_max_speed, previous_zone[2] + creature_max_speed, previous_zone[3] + creature_max_speed]
             drone = self.game_assets.get(asset_type=AssetType.MYDRONE, idt=drone_idt)
             if drone is None:
                 drone = self.game_assets.get(asset_type=AssetType.FOEDRONE, idt=drone_idt)
@@ -385,10 +381,6 @@ class GameLoop:
             zone_x_max = max(drone_x, zone_corner_x)
             zone_y_max = max(drone_y, zone_corner_y)
             radar_blip.zones.append([zone_x_min, zone_y_min, zone_x_max, zone_y_max])
-            creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
-            creature.escaped = False
-            if drone_idt not in creature.scanned_by_drones:
-                self.my_drones_radar_count[drone_idt][radar] += 1
         if GameLoop.LOG:
             self.print_turn_logs()
 
@@ -404,7 +396,6 @@ class GameLoop:
                 creature.scanned_by_drones = set()
                 creature.visible = False
                 creature.escaped = True
-            self.drones_scan_count = {}
             self.update()
             my_drones = self.game_assets.get_all(AssetType.MYDRONE)
             foe_drones = self.game_assets.get_all(AssetType.FOEDRONE)
@@ -419,7 +410,7 @@ class GameLoop:
                 owner = drone.owner
                 for creature_idt in drone.unsaved_creatures_idt:
                     creature = self.game_assets.get(AssetType.CREATURE, creature_idt)
-                    extra_score = evaluate_extra_score_for_owner_creature(creature_kind=creature.kind, creature_escaped=creature.escaped, creature_saved_by_owners=creature.eval_saved_by_owners, owner=owner)
+                    extra_score = evaluate_extra_score_for_owner_creature(creature_kind=creature.kind, creature_escaped=creature.escaped, creature_saved_by_owners=creature.saved_by_owners, owner=owner)
                     drone.extra_score_with_unsaved_creatures += extra_score
                     creature.eval_saved_by_owners.append(owner)
             for creature in creatures.values():
@@ -433,27 +424,33 @@ class GameLoop:
                         radar_idt = hash((drone_idt, creature_idt))
                         radar_blip = self.game_assets.get(asset_type=AssetType.RADARBLIP, idt=radar_idt)
                         if radar_blip is not None:
-                            possible_zones.append(radar_blip.zones[-1])
+                            radar_blip_zones = radar_blip.zones
+                            n = min(len(radar_blip_zones), 2)
+                            for i in range(0, n):
+                                possible_zones.append(radar_blip_zones[-i - 1])
                     intersection = np.array(possible_zones)
-                    creature.next_x = (np.max(intersection[:, 0]) + np.min(intersection[:, 2])) / 2
-                    creature.next_y = (np.max(intersection[:, 1]) + np.min(intersection[:, 3])) / 2
-                else:
-                    creature.next_x = creature.x + creature.vx
-                    creature.next_y = creature.y + creature.vy
+                    x_min = np.max(intersection[:, 0])
+                    y_min = np.max(intersection[:, 1])
+                    x_max = np.min(intersection[:, 2])
+                    y_max = np.min(intersection[:, 3])
+                    if creature.last_turn_visible:
+                        last_seen_turns = self.nb_turns - creature.last_turn_visible
+                        current_x_projection = creature.x + last_seen_turns * creature.vx
+                        current_y_projection = creature.y + last_seen_turns * creature.vy
+                        if x_min <= current_x_projection <= x_max and y_min <= current_y_projection <= y_max:
+                            creature.x = current_x_projection
+                            creature.y = current_y_projection
+                    else:
+                        creature.x = (x_min + x_max) / 2
+                        creature.y = (y_min + y_max) / 2
             my_drones_to_flee_from_monsters = {}
             for my_drone in my_drones.values():
                 my_drone.has_to_flee_from = []
                 for monster in self.monsters:
-                    if monster.x:
-                        if HASH_MAP_NORMS[monster.position - my_drone.position] <= FLEE_RADIUS_FROM_MONSTERS:
-                            my_drone.has_to_flee_from.append(monster)
-            drones_targets = {}
-            for drone_idt, drone in my_drones.items():
-                eligible_targets, drone_target, d_min = ({}, None, D_MAX)
-                for creature_idt, creature in creatures.items():
-                    if drone_idt not in creature.scanned_by_drones and creature.kind != -1 and (not creature.escaped):
-                        eligible_targets[creature_idt] = creature
-                drones_targets[drone_idt] = get_closest_unit_from(drone, eligible_targets)
+                    if HASH_MAP_NORMS[monster.position - my_drone.position] <= FLEE_RADIUS_FROM_MONSTERS:
+                        my_drone.has_to_flee_from.append(monster)
+            ordered_creatures_with_most_extra_score = order_assets(creatures.values(), on_attr='my_extra_score', ascending=False)
+            nb_find_actions = 0
             for drone_idt, drone in my_drones.items():
                 drone_has_to_flee_from = drone.has_to_flee_from
                 if len(drone_has_to_flee_from) == 1:
@@ -476,18 +473,11 @@ class GameLoop:
                     for creature in drone_has_to_flee_from:
                         flee_vector += drone.position - creature.position
                     action = Action(target=drone.position + DRONE_SPEED ** (1 / 2) / flee_vector.norm * flee_vector, comment='FLEE')
-                elif self.drones_scan_count[drone_idt] >= 4 or self.my_scan_count + self.my_drones_scan_count >= 12:
+                elif drone.extra_score_with_unsaved_creatures >= 15:
                     action = Action(target=Point(drone.x, 499), comment='SAVE')
                 else:
-                    drone_target = drones_targets[drone_idt]
-                    if drone_target is None:
-                        max_radar_count = 0
-                        radar_chosen = None
-                        for radar, radar_count in self.my_drones_radar_count[drone_idt].items():
-                            if radar_count >= max_radar_count:
-                                radar_chosen = radar
-                                max_radar_count = radar_count
-                        drone_target = CORNERS[radar_chosen]
-                    action = Action(target=drone_target, light=True, comment='EXPLORE')
+                    drone_target = ordered_creatures_with_most_extra_score[nb_find_actions]
+                    nb_find_actions += 1
+                    action = Action(target=drone_target, light=True, comment=f'FIND {drone_target.idt}')
                 print(action)
 GameLoop().start()
