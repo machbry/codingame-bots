@@ -45,21 +45,32 @@ def start_game_loop(init_inputs: List[str], turns_inputs: List[str], running_sid
         game_loop.start()
 
 
+def update_game_loop(init_inputs: List[str], turns_inputs: List[str]):
+    game_loop = init_game_loop(init_inputs)
+    with patch(f"{BOT_PACKAGE}.game_loop.input", side_effect=turns_inputs):
+        game_loop.update()
+
+
 # @pytest.mark.skip
 def test_perfs():
     N = 1000
     print()
     init_perfs = []
     start_perfs = []
+    update_perfs = []
     for i, test_inputs in enumerate(TEST_INPUTS):
         init_inputs, nb_turns, turns_inputs = test_inputs
         with patch(f"{BOT_PACKAGE}.game_loop.print"):
             init_perf = min(repeat(partial(init_game_loop, init_inputs), number=N))
-            running_side_effect = [*[True] * nb_turns, False]
-            loop_perf = min(repeat(partial(start_game_loop, init_inputs, turns_inputs, running_side_effect), number=N))
             init_perfs.append(init_perf)
-            start_perfs.append(loop_perf-init_perf)
 
-    print(f"init, start: {round(1000*sum(init_perfs)/len(TEST_INPUTS))}ms, {round(1000*sum(start_perfs)/len(TEST_INPUTS))}ms")
+            running_side_effect = [*[True] * nb_turns, False]
+            start_perf = min(repeat(partial(start_game_loop, init_inputs, turns_inputs, running_side_effect), number=N))
+            start_perfs.append(start_perf-init_perf)
 
-    # last results : 385ms, 1174ms
+            update_perf = min(repeat(partial(update_game_loop, init_inputs, turns_inputs), number=N))
+            update_perfs.append(update_perf-init_perf)
+
+    print(f"init, start, update: {round(1000*sum(init_perfs)/len(TEST_INPUTS))}ms, {round(1000*sum(start_perfs)/len(TEST_INPUTS))}ms, {round(1000*sum(update_perfs)/len(TEST_INPUTS))}ms")
+
+    # last results : 391ms, 1205ms, 696ms
