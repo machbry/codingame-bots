@@ -1,9 +1,9 @@
-import numpy as np
-import sys
 import math
+import sys
+import numpy as np
 from enum import Enum
 from dataclasses import field, dataclass
-from typing import Literal, List, Union, Dict, Any, Set
+from typing import Any, Union, Set, Literal, Dict, List
 
 class Point:
 
@@ -539,11 +539,14 @@ class GameLoop:
                         my_drones_action[drone_idt] = Action(target=drone_target, light=True, comment=f'FIND {drone_target.idt}')
                 elif nb_creatures_with_extra_score > 1:
                     unassigned_drones_idt = list(unassigned_drones.keys())
-                    x_separation = sum([creature.x for creature in creatures_with_extra_score]) / nb_creatures_with_extra_score
-                    creatures_with_extra_score_left = [creature for creature in creatures_with_extra_score if creature.x <= x_separation]
-                    creatures_with_extra_score_right = [creature for creature in creatures_with_extra_score if creature.x > x_separation]
+                    x_median = np.median([creature.x for creature in creatures_with_extra_score])
+                    creatures_with_extra_score_left = [creature for creature in creatures_with_extra_score if creature.x <= x_median]
+                    creatures_with_extra_score_right = [creature for creature in creatures_with_extra_score if creature.x > x_median]
                     left_target = creatures_with_extra_score_left[0]
-                    right_target = creatures_with_extra_score_right[0]
+                    if len(creatures_with_extra_score_right) == 0:
+                        right_target = creatures_with_extra_score_left[1]
+                    else:
+                        right_target = creatures_with_extra_score_right[0]
                     drone_left_idt = self.my_drones_idt_play_order[0]
                     drone_right_idt = self.my_drones_idt_play_order[1]
                     if drone_left_idt in unassigned_drones_idt:
