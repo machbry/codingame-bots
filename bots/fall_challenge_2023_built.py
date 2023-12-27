@@ -1,9 +1,9 @@
-import math
 import sys
+import math
 import numpy as np
 from enum import Enum
-from dataclasses import field, dataclass
-from typing import Any, Union, Set, Literal, Dict, List
+from dataclasses import dataclass, field
+from typing import List, Set, Literal, Dict, Any, Union
 
 class Point:
 
@@ -547,8 +547,9 @@ class GameLoop:
                         right_target = creatures_with_extra_score_left[1]
                     else:
                         right_target = creatures_with_extra_score_right[0]
-                    drone_left_idt = self.my_drones_idt_play_order[0]
-                    drone_right_idt = self.my_drones_idt_play_order[1]
+                    my_drones_from_left_to_right = order_assets(my_drones.values(), 'x')
+                    drone_left_idt = my_drones_from_left_to_right[0].idt
+                    drone_right_idt = my_drones_from_left_to_right[-1].idt
                     if drone_left_idt in unassigned_drones_idt:
                         my_drones_action[drone_left_idt] = Action(target=left_target, light=True, comment=f'FIND {left_target.idt}')
                     if drone_right_idt in unassigned_drones_idt:
