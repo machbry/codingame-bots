@@ -5,6 +5,7 @@ import numpy as np
 
 from botlibs.trigonometry import Point, Vector
 from bots.fall_challenge_2023.challengelibs.act import Action, order_assets
+from bots.fall_challenge_2023.challengelibs.drone_algorithm import use_light_to_find_a_target
 from bots.fall_challenge_2023.challengelibs.game_assets import AssetType, GameAssets
 from bots.fall_challenge_2023.challengelibs.score import evaluate_extra_score_for_owner_creature, update_trophies
 from bots.fall_challenge_2023.singletons import MY_OWNER, FOE_OWNER, OWNERS, HASH_MAP_NORMS, CORNERS, \
@@ -354,13 +355,7 @@ class GameLoop:
                 if nb_creatures_with_extra_score == 1:
                     drone_target = ordered_creatures_with_most_extra_score[0]
                     for drone_idt, drone in unassigned_drones.items():
-
-                        light = False
-                        if drone.battery >= 5:
-                            distance_to_target = HASH_MAP_NORMS[drone_target.position - drone.position]
-                            if distance_to_target <= AUGMENTED_LIGHT_RADIUS and not drone_target.visible:
-                                light = True
-
+                        light = use_light_to_find_a_target(drone, drone_target)
                         my_drones_action[drone_idt] = Action(target=drone_target, light=light, comment=f"FIND {drone_target.idt}")
 
                 elif nb_creatures_with_extra_score > 1:
@@ -381,24 +376,12 @@ class GameLoop:
 
                     drone_left = unassigned_drones.get(drone_left_idt)
                     if drone_left is not None:
-
-                        light = False
-                        if drone_left.battery >= 5:
-                            distance_to_target = HASH_MAP_NORMS[left_target.position - drone_left.position]
-                            if distance_to_target <= AUGMENTED_LIGHT_RADIUS and not left_target.visible:
-                                light = True
-
+                        light = use_light_to_find_a_target(drone_left, left_target)
                         my_drones_action[drone_left_idt] = Action(target=left_target, light=light, comment=f"FIND {left_target.idt}")
 
                     drone_right = unassigned_drones.get(drone_right_idt)
                     if drone_right is not None:
-
-                        light = False
-                        if drone_right.battery >= 5:
-                            distance_to_target = HASH_MAP_NORMS[right_target.position - drone_right.position]
-                            if distance_to_target <= AUGMENTED_LIGHT_RADIUS and not right_target.visible:
-                                light = True
-
+                        light = use_light_to_find_a_target(drone_right, right_target)
                         my_drones_action[drone_right_idt] = Action(target=right_target, light=light, comment=f"FIND {right_target.idt}")
 
                 else:

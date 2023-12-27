@@ -1,9 +1,9 @@
-import numpy as np
 import sys
 import math
+import numpy as np
 from enum import Enum
-from dataclasses import field, dataclass
-from typing import Dict, List, Set, Any, Union, Literal
+from dataclasses import dataclass, field
+from typing import Union, Dict, Literal, Any, List, Set
 
 class Point:
 
@@ -227,6 +227,16 @@ class Action:
 
 def order_assets(assets: List[Asset], on_attr: str, ascending: bool=True):
     return sorted(assets, key=lambda asset: getattr(asset, on_attr), reverse=not ascending)
+
+def use_light_to_find_a_target(drone: Drone, target: Creature):
+    battery = drone.battery
+    if battery >= 10 and drone.y > 4000:
+        return True
+    if drone.battery >= 5:
+        distance_to_target = HASH_MAP_NORMS[target.position - drone.position]
+        if distance_to_target <= AUGMENTED_LIGHT_RADIUS and (not target.visible):
+            return True
+    return False
 
 class AssetType(Enum):
     CREATURE = Creature
@@ -536,11 +546,7 @@ class GameLoop:
                 if nb_creatures_with_extra_score == 1:
                     drone_target = ordered_creatures_with_most_extra_score[0]
                     for drone_idt, drone in unassigned_drones.items():
-                        light = False
-                        if drone.battery >= 5:
-                            distance_to_target = HASH_MAP_NORMS[drone_target.position - drone.position]
-                            if distance_to_target <= AUGMENTED_LIGHT_RADIUS and (not drone_target.visible):
-                                light = True
+                        light = use_light_to_find_a_target(drone, drone_target)
                         my_drones_action[drone_idt] = Action(target=drone_target, light=light, comment=f'FIND {drone_target.idt}')
                 elif nb_creatures_with_extra_score > 1:
                     x_median = np.median([creature.x for creature in creatures_with_extra_score])
@@ -556,19 +562,11 @@ class GameLoop:
                     drone_right_idt = my_drones_from_left_to_right[-1].idt
                     drone_left = unassigned_drones.get(drone_left_idt)
                     if drone_left is not None:
-                        light = False
-                        if drone_left.battery >= 5:
-                            distance_to_target = HASH_MAP_NORMS[left_target.position - drone_left.position]
-                            if distance_to_target <= AUGMENTED_LIGHT_RADIUS and (not left_target.visible):
-                                light = True
+                        light = use_light_to_find_a_target(drone_left, left_target)
                         my_drones_action[drone_left_idt] = Action(target=left_target, light=light, comment=f'FIND {left_target.idt}')
                     drone_right = unassigned_drones.get(drone_right_idt)
                     if drone_right is not None:
-                        light = False
-                        if drone_right.battery >= 5:
-                            distance_to_target = HASH_MAP_NORMS[right_target.position - drone_right.position]
-                            if distance_to_target <= AUGMENTED_LIGHT_RADIUS and (not right_target.visible):
-                                light = True
+                        light = use_light_to_find_a_target(drone_right, right_target)
                         my_drones_action[drone_right_idt] = Action(target=right_target, light=light, comment=f'FIND {right_target.idt}')
                 else:
                     for drone_idt, drone in unassigned_drones.items():
