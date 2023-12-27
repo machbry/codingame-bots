@@ -33,6 +33,9 @@ class Unit(Asset):
     def next_position(self):
         return Point(self.next_x, self.next_y)
 
+    def log(self):
+        return f"{(self.idt, int(self.x), int(self.y))}"
+
 
 @dataclass(slots=True)
 class Creature(Unit):

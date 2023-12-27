@@ -206,10 +206,10 @@ class GameLoop:
         while GameLoop.RUNNING:
             # RESET ASSETS - BEGIN
 
-            for creature in self.game_assets.get_all(asset_type=AssetType.CREATURE).values():
-                creature.scanned_by_drones = set()
-                creature.visible = False
-                creature.escaped = True
+            for monster in self.game_assets.get_all(asset_type=AssetType.CREATURE).values():
+                monster.scanned_by_drones = set()
+                monster.visible = False
+                monster.escaped = True
 
             # RESET ASSETS - END
 
@@ -228,9 +228,9 @@ class GameLoop:
             ordered_drones_from_top_to_bottom = order_assets(all_drones, 'y')
 
             # INIT
-            for creature in creatures.values():
-                creature.eval_saved_by_owners = creature.saved_by_owners.copy()
-                creature.extra_scores = {owner: 0 for owner in OWNERS}
+            for monster in creatures.values():
+                monster.eval_saved_by_owners = monster.saved_by_owners.copy()
+                monster.extra_scores = {owner: 0 for owner in OWNERS}
 
             # EVALUATE EXTRA SCORE FOR UNSAVED CREATURES FOR EACH DRONE
             # SIMULATE THAT EACH DRONE SAVES ITS SCANS (FROM TOP TO BOTTOM)
@@ -238,31 +238,31 @@ class GameLoop:
                 drone.extra_score_with_unsaved_creatures = 0
                 owner = drone.owner
                 for creature_idt in drone.unsaved_creatures_idt:
-                    creature = self.game_assets.get(AssetType.CREATURE, creature_idt)
-                    extra_score = evaluate_extra_score_for_owner_creature(creature_kind=creature.kind,
-                                                                          creature_escaped=creature.escaped,
-                                                                          creature_saved_by_owners=creature.saved_by_owners,
+                    monster = self.game_assets.get(AssetType.CREATURE, creature_idt)
+                    extra_score = evaluate_extra_score_for_owner_creature(creature_kind=monster.kind,
+                                                                          creature_escaped=monster.escaped,
+                                                                          creature_saved_by_owners=monster.saved_by_owners,
                                                                           owner=owner)
                     drone.extra_score_with_unsaved_creatures += extra_score
-                    creature.eval_saved_by_owners.append(owner)
+                    monster.eval_saved_by_owners.append(owner)
 
             # EVALUATE EXTRA SCORE IF CREATURE SAVED BY AN OWNER
-            for creature in creatures.values():
+            for monster in creatures.values():
                 for owner in OWNERS:
-                    extra_score = evaluate_extra_score_for_owner_creature(creature_kind=creature.kind,
-                                                                          creature_escaped=creature.escaped,
-                                                                          creature_saved_by_owners=creature.eval_saved_by_owners,
+                    extra_score = evaluate_extra_score_for_owner_creature(creature_kind=monster.kind,
+                                                                          creature_escaped=monster.escaped,
+                                                                          creature_saved_by_owners=monster.eval_saved_by_owners,
                                                                           owner=owner)
-                    creature.extra_scores[owner] += extra_score
+                    monster.extra_scores[owner] += extra_score
 
             # EVALUATE EXTRA SCORES - END
 
             # EVALUATE POSITIONS OF UNVISIBLE CREATURES - BEGIN
             # TODO : use zones lightened by drones to eliminates possible zones
 
-            for creature_idt, creature in creatures.items():
-                if not creature.visible:
-                    possible_zones = [creature.habitat]
+            for creature_idt, monster in creatures.items():
+                if not monster.visible:
+                    possible_zones = [monster.habitat]
                     for drone_idt, drone in my_drones.items():
                         radar_idt = hash((drone_idt, creature_idt))
                         radar_blip = self.game_assets.get(asset_type=AssetType.RADARBLIP, idt=radar_idt)
@@ -278,16 +278,16 @@ class GameLoop:
                     x_max = np.min(intersection[:, 2])
                     y_max = np.min(intersection[:, 3])
 
-                    if creature.last_turn_visible:
-                        last_seen_turns = self.nb_turns - creature.last_turn_visible
-                        current_x_projection = creature.x + last_seen_turns * creature.vx
-                        current_y_projection = creature.y + last_seen_turns * creature.vy
+                    if monster.last_turn_visible:
+                        last_seen_turns = self.nb_turns - monster.last_turn_visible
+                        current_x_projection = monster.x + last_seen_turns * monster.vx
+                        current_y_projection = monster.y + last_seen_turns * monster.vy
                         if (x_min <= current_x_projection <= x_max) and (y_min <= current_y_projection <= y_max):
-                            creature.x = current_x_projection
-                            creature.y = current_y_projection
+                            monster.x = current_x_projection
+                            monster.y = current_y_projection
                     else:
-                        creature.x = (x_min + x_max) / 2
-                        creature.y = (y_min + y_max) / 2
+                        monster.x = (x_min + x_max) / 2
+                        monster.y = (y_min + y_max) / 2
 
             # EVALUATE POSITIONS OF UNVISIBLE CREATURES - END
 
@@ -312,7 +312,8 @@ class GameLoop:
                 drone_has_to_flee_from = drone.has_to_flee_from
                 if len(drone_has_to_flee_from) == 1:
                     del unassigned_drones[drone_idt]
-                    vector_to_creature = drone_has_to_flee_from[0].position - drone.position
+                    monster = drone_has_to_flee_from[0]
+                    vector_to_creature = monster.position - drone.position
                     distance_to_creature = HASH_MAP_NORMS[vector_to_creature]
                     if distance_to_creature > SAFE_RADIUS_FROM_MONSTERS:
                         v = (1 / distance_to_creature ** (1 / 2)) * vector_to_creature
@@ -322,21 +323,21 @@ class GameLoop:
                         cos_with_center = flee_vector.dot(vector_to_center)
                         if flee_vectors[1].dot(vector_to_center) > cos_with_center:
                             flee_vector = flee_vectors[1]
-                        my_drones_action[drone_idt] = Action(
-                            target=drone.position + (DRONE_SPEED ** (1 / 2)) * flee_vector, comment="FLEE")
+                        my_drones_action[drone_idt] = Action(target=drone.position + (DRONE_SPEED ** (1 / 2)) * flee_vector,
+                                                             comment=f"FLEE FROM {monster.log()}")
                     else:
                         flee_vector = -1 * vector_to_creature
-                        my_drones_action[drone_idt] = Action(target=drone.position + (
-                                    (DRONE_SPEED ** (1 / 2)) / (distance_to_creature ** (1 / 2))) * flee_vector,
-                                                             comment="FLEE")
+                        my_drones_action[drone_idt] = Action(target=drone.position + ((DRONE_SPEED ** (1 / 2)) / (distance_to_creature ** (1 / 2))) * flee_vector,
+                                                             comment=f"FLEE FROM {monster.log()}")
                 elif len(drone_has_to_flee_from) > 1:
                     del unassigned_drones[drone_idt]
                     flee_vector = Vector(0, 0)
-                    for creature in drone_has_to_flee_from:
-                        flee_vector += drone.position - creature.position
-                    my_drones_action[drone_idt] = Action(
-                        target=drone.position + ((DRONE_SPEED ** (1 / 2)) / flee_vector.norm) * flee_vector,
-                        comment="FLEE")
+                    comment = ""
+                    for monster in drone_has_to_flee_from:
+                        flee_vector += drone.position - monster.position
+                        comment = f"{comment} {monster.log()}"
+                    my_drones_action[drone_idt] = Action(target=drone.position + ((DRONE_SPEED ** (1 / 2)) / flee_vector.norm) * flee_vector,
+                                                         comment=f"FLEE FROM{comment}")
 
             if len(unassigned_drones) > 0:
                 ordered_my_drones_with_most_extra_score = order_assets(unassigned_drones.values(), on_attr='extra_score_with_unsaved_creatures', ascending=False)
@@ -356,7 +357,7 @@ class GameLoop:
                     drone_target = ordered_creatures_with_most_extra_score[0]
                     for drone_idt, drone in unassigned_drones.items():
                         light = use_light_to_find_a_target(drone, drone_target)
-                        my_drones_action[drone_idt] = Action(target=drone_target, light=light, comment=f"FIND {drone_target.idt}")
+                        my_drones_action[drone_idt] = Action(target=drone_target, light=light, comment=f"FIND {drone_target.log()}")
 
                 elif nb_creatures_with_extra_score > 1:
                     x_median = np.median([creature.x for creature in creatures_with_extra_score])
@@ -377,12 +378,12 @@ class GameLoop:
                     drone_left = unassigned_drones.get(drone_left_idt)
                     if drone_left is not None:
                         light = use_light_to_find_a_target(drone_left, left_target)
-                        my_drones_action[drone_left_idt] = Action(target=left_target, light=light, comment=f"FIND {left_target.idt}")
+                        my_drones_action[drone_left_idt] = Action(target=left_target, light=light, comment=f"FIND {left_target.log()}")
 
                     drone_right = unassigned_drones.get(drone_right_idt)
                     if drone_right is not None:
                         light = use_light_to_find_a_target(drone_right, right_target)
-                        my_drones_action[drone_right_idt] = Action(target=right_target, light=light, comment=f"FIND {right_target.idt}")
+                        my_drones_action[drone_right_idt] = Action(target=right_target, light=light, comment=f"FIND {right_target.log()}")
 
                 else:
                     for drone_idt, drone in unassigned_drones.items():
@@ -391,7 +392,7 @@ class GameLoop:
                         else:
                             drone_target = order_assets(creatures.values(), on_attr='foe_extra_score', ascending=False)[nb_find_actions]
                             nb_find_actions += 1
-                            my_drones_action[drone.idt] = Action(target=drone_target, light=True, comment=f"FIND {drone_target.idt}")
+                            my_drones_action[drone.idt] = Action(target=drone_target, light=True, comment=f"FIND {drone_target.log()}")
 
             # COMPUTE ALGORITHMS FOR DRONE TO ACT - END
 
