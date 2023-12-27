@@ -1,9 +1,9 @@
-import math
 import sys
+import math
 import numpy as np
 from enum import Enum
-from dataclasses import dataclass, field
-from typing import Dict, Any, Literal, Union, List, Set
+from dataclasses import field, dataclass
+from typing import Any, List, Union, Set, Literal, Dict
 
 class Point:
 
@@ -518,9 +518,10 @@ class GameLoop:
                 for monster in self.monsters:
                     if HASH_MAP_NORMS[monster.position - my_drone.position] <= FLEE_RADIUS_FROM_MONSTERS:
                         my_drone.has_to_flee_from.append(monster)
-            my_drones_action = {}
-            unassigned_drones = my_drones.copy()
-            for drone_idt, drone in my_drones.items():
+            default_action = Action(move=False, light=False)
+            my_drones_action = {drone_idt: default_action for drone_idt in self.my_drones_idt_play_order}
+            unassigned_drones = {drone_idt: drone for drone_idt, drone in my_drones.items() if drone.emergency == 0}
+            for drone_idt, drone in unassigned_drones.copy().items():
                 drone_has_to_flee_from = drone.has_to_flee_from
                 if len(drone_has_to_flee_from) == 1:
                     del unassigned_drones[drone_idt]

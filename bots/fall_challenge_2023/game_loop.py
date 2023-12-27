@@ -293,11 +293,13 @@ class GameLoop:
             # COMPUTE EXTRA METRICS FOR ASSETS - END
 
             # COMPUTE ALGORITHMS FOR DRONE TO ACT - BEGIN
-            my_drones_action = {}
-            unassigned_drones = my_drones.copy()
+            default_action = Action(move=False, light=False)
+            my_drones_action = {drone_idt: default_action for drone_idt in self.my_drones_idt_play_order}
+
+            unassigned_drones = {drone_idt: drone for drone_idt, drone in my_drones.items() if drone.emergency == 0}
 
             # FLEE FROM MONSTERS - TODO : use trigo to solve this & take into account previous target
-            for drone_idt, drone in my_drones.items():
+            for drone_idt, drone in unassigned_drones.copy().items():
                 drone_has_to_flee_from = drone.has_to_flee_from
                 if len(drone_has_to_flee_from) == 1:
                     del unassigned_drones[drone_idt]
