@@ -11,7 +11,7 @@ from bots.fall_challenge_2023.challengelibs.score import evaluate_extra_score_fo
     update_saved_scans, update_unsaved_scan
 from bots.fall_challenge_2023.singletons import MY_OWNER, FOE_OWNER, OWNERS, HASH_MAP_NORMS, CORNERS, \
     CREATURE_HABITATS_PER_KIND, DRONE_SPEED, SAFE_RADIUS_FROM_MONSTERS, MAP_CENTER, \
-    FLEE_RADIUS_FROM_MONSTERS, MAX_SPEED_PER_KIND, Color, Kind, MAX_NUMBER_OF_RADAR_BLIPS_USED
+    FLEE_RADIUS_FROM_MONSTERS, MAX_SPEED_PER_KIND, Color, Kind, MAX_NUMBER_OF_RADAR_BLIPS_USED, COLORS, KINDS
 
 GAME_ASSETS = GameAssets()
 
@@ -49,12 +49,17 @@ class GameLoop:
                 scans.owner = owner
                 scans.saved_creatures = np.zeros(shape=(len(Color), len(Kind) - 1))
 
+        trophies = self.game_assets.new_asset(asset_type=AssetType.TROPHIES, idt=42)
+        trophies.creatures_win_by = np.zeros(shape=(len(Color), len(Kind) - 1))
+        trophies.colors_win_by = np.zeros_like(COLORS)
+        trophies.kinds_win_by = np.zeros_like(KINDS)
+
         for color in Color:
-            self.game_assets.new_asset(asset_type=AssetType.COLORSTROPHY, idt=color.value)
+            self.game_assets.new_asset(asset_type=AssetType.COLORS_TROPHY, idt=color.value)
 
         for kind in Kind:
             if kind != Kind.MONSTER.value:
-                self.game_assets.new_asset(asset_type=AssetType.KINDSTROPHY, idt=kind.value)
+                self.game_assets.new_asset(asset_type=AssetType.KINDS_TROPHY, idt=kind.value)
 
         if GameLoop.LOG:
             print(self.init_inputs, file=sys.stderr, flush=True)
@@ -70,7 +75,7 @@ class GameLoop:
         return result
 
     def update_drone(self, drone_idt, drone_x, drone_y, emergency, battery,
-                     asset_type: Union[AssetType.MYDRONE, AssetType.FOEDRONE]):
+                     asset_type: Union[AssetType.MY_DRONE, AssetType.FOE_DRONE]):
         drone = self.game_assets.get(asset_type=asset_type, idt=drone_idt)
         if drone is None:
             drone = self.game_assets.new_asset(asset_type=asset_type, idt=drone_idt)
@@ -93,9 +98,9 @@ class GameLoop:
 
     def update_radar_blip(self, drone_idt, creature_idt, radar):
         radar_idt = hash((drone_idt, creature_idt))
-        radar_blip = self.game_assets.get(asset_type=AssetType.RADARBLIP, idt=radar_idt)
+        radar_blip = self.game_assets.get(asset_type=AssetType.RADAR_BLIP, idt=radar_idt)
         if radar_blip is None:
-            radar_blip = self.game_assets.new_asset(asset_type=AssetType.RADARBLIP, idt=radar_idt)
+            radar_blip = self.game_assets.new_asset(asset_type=AssetType.RADAR_BLIP, idt=radar_idt)
             radar_blip.drone_idt = drone_idt
             radar_blip.creature_idt = creature_idt
 
@@ -112,9 +117,9 @@ class GameLoop:
                                       zone[2] + creature_max_speed,
                                       zone[3] + creature_max_speed]
 
-        drone = self.game_assets.get(asset_type=AssetType.MYDRONE, idt=drone_idt)
+        drone = self.game_assets.get(asset_type=AssetType.MY_DRONE, idt=drone_idt)
         if drone is None:
-            drone = self.game_assets.get(asset_type=AssetType.FOEDRONE, idt=drone_idt)
+            drone = self.game_assets.get(asset_type=AssetType.FOE_DRONE, idt=drone_idt)
 
         zone_corner = CORNERS[radar]
         drone_x, drone_y = drone.x, drone.y
@@ -132,21 +137,21 @@ class GameLoop:
         foe_score = int(self.get_turn_input())
 
         my_scan_count = int(self.get_turn_input())
+        scans = self.game_assets.get(asset_type=AssetType.SCANS, idt=MY_OWNER)
         for i in range(my_scan_count):
             creature_idt = int(self.get_turn_input())
-            scans = self.game_assets.get(asset_type=AssetType.SCANS, idt=MY_OWNER)
             creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
-            update_saved_scans(MY_OWNER, creature, scans)
+            newly_saved = update_saved_scans(MY_OWNER, creature, scans)
 
         foe_scan_count = int(self.get_turn_input())
+        scans = self.game_assets.get(asset_type=AssetType.SCANS, idt=FOE_OWNER)
         for i in range(foe_scan_count):
             creature_idt = int(self.get_turn_input())
-            scans = self.game_assets.get(asset_type=AssetType.SCANS, idt=FOE_OWNER)
             creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
-            update_saved_scans(FOE_OWNER, creature, scans)
+            newly_saved = update_saved_scans(FOE_OWNER, creature, scans)
 
-        colors_trophies = self.game_assets.get_all(AssetType.COLORSTROPHY)
-        kinds_trophies = self.game_assets.get_all(AssetType.KINDSTROPHY)
+        colors_trophies = self.game_assets.get_all(AssetType.COLORS_TROPHY)
+        kinds_trophies = self.game_assets.get_all(AssetType.KINDS_TROPHY)
         for owner in OWNERS:
             saved_creatures = self.game_assets.get(AssetType.SCANS, owner).saved_creatures
             update_trophies(owner, saved_creatures, colors_trophies, kinds_trophies)
@@ -155,20 +160,20 @@ class GameLoop:
         self.my_drones_idt_play_order = []
         for i in range(my_drone_count):
             drone_idt, drone_x, drone_y, emergency, battery = [int(j) for j in self.get_turn_input().split()]
-            self.update_drone(drone_idt, drone_x, drone_y, emergency, battery, AssetType.MYDRONE)
+            self.update_drone(drone_idt, drone_x, drone_y, emergency, battery, AssetType.MY_DRONE)
             self.my_drones_idt_play_order.append(drone_idt)
 
         foe_drone_count = int(self.get_turn_input())
         for i in range(foe_drone_count):
             drone_idt, drone_x, drone_y, emergency, battery = [int(j) for j in self.get_turn_input().split()]
-            self.update_drone(drone_idt, drone_x, drone_y, emergency, battery, AssetType.FOEDRONE)
+            self.update_drone(drone_idt, drone_x, drone_y, emergency, battery, AssetType.FOE_DRONE)
 
         drone_scan_count = int(self.get_turn_input())
         for i in range(drone_scan_count):
             drone_idt, creature_idt = [int(j) for j in self.get_turn_input().split()]
-            drone = self.game_assets.get(asset_type=AssetType.MYDRONE, idt=drone_idt)
+            drone = self.game_assets.get(asset_type=AssetType.MY_DRONE, idt=drone_idt)
             if drone is None:
-                drone = self.game_assets.get(asset_type=AssetType.FOEDRONE, idt=drone_idt)
+                drone = self.game_assets.get(asset_type=AssetType.FOE_DRONE, idt=drone_idt)
             creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
             update_unsaved_scan(drone, creature)
 
@@ -209,13 +214,14 @@ class GameLoop:
             # COMPUTE EXTRA METRICS FOR ASSETS - BEGIN
 
             creatures = self.game_assets.get_all(AssetType.CREATURE)
-            my_drones = self.game_assets.get_all(AssetType.MYDRONE)
-            foe_drones = self.game_assets.get_all(AssetType.FOEDRONE)
+            my_drones = self.game_assets.get_all(AssetType.MY_DRONE)
+            foe_drones = self.game_assets.get_all(AssetType.FOE_DRONE)
             all_drones = [*my_drones.values(), *foe_drones.values()]
 
             # EVALUATE EXTRA SCORES - BEGIN
             # TODO : matrix representations & calculus for scores, combinaisons for colors & kinds
             # TODO : can be done later
+            my_drones_from_top_to_bottom = order_assets(my_drones.values(), 'y')
             ordered_drones_from_top_to_bottom = order_assets(all_drones, 'y')
 
             # INIT
@@ -256,7 +262,7 @@ class GameLoop:
                     possible_zones = [creature.habitat]
                     for drone_idt, drone in my_drones.items():
                         radar_idt = hash((drone_idt, creature_idt))
-                        radar_blip = self.game_assets.get(asset_type=AssetType.RADARBLIP, idt=radar_idt)
+                        radar_blip = self.game_assets.get(asset_type=AssetType.RADAR_BLIP, idt=radar_idt)
                         if radar_blip is not None:
                             radar_blip_zones = radar_blip.zones
                             n = min(len(radar_blip_zones), MAX_NUMBER_OF_RADAR_BLIPS_USED)
