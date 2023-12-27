@@ -1,9 +1,9 @@
+import numpy as np
 import sys
 import math
-import numpy as np
 from enum import Enum
-from dataclasses import dataclass, field
-from typing import List, Set, Literal, Dict, Any, Union
+from dataclasses import field, dataclass
+from typing import Dict, List, Set, Any, Union, Literal
 
 class Point:
 
@@ -536,9 +536,13 @@ class GameLoop:
                 if nb_creatures_with_extra_score == 1:
                     drone_target = ordered_creatures_with_most_extra_score[0]
                     for drone_idt, drone in unassigned_drones.items():
-                        my_drones_action[drone_idt] = Action(target=drone_target, light=True, comment=f'FIND {drone_target.idt}')
+                        light = False
+                        if drone.battery >= 5:
+                            distance_to_target = HASH_MAP_NORMS[drone_target.position - drone.position]
+                            if distance_to_target <= AUGMENTED_LIGHT_RADIUS and (not drone_target.visible):
+                                light = True
+                        my_drones_action[drone_idt] = Action(target=drone_target, light=light, comment=f'FIND {drone_target.idt}')
                 elif nb_creatures_with_extra_score > 1:
-                    unassigned_drones_idt = list(unassigned_drones.keys())
                     x_median = np.median([creature.x for creature in creatures_with_extra_score])
                     creatures_with_extra_score_left = [creature for creature in creatures_with_extra_score if creature.x <= x_median]
                     creatures_with_extra_score_right = [creature for creature in creatures_with_extra_score if creature.x > x_median]
@@ -550,10 +554,22 @@ class GameLoop:
                     my_drones_from_left_to_right = order_assets(my_drones.values(), 'x')
                     drone_left_idt = my_drones_from_left_to_right[0].idt
                     drone_right_idt = my_drones_from_left_to_right[-1].idt
-                    if drone_left_idt in unassigned_drones_idt:
-                        my_drones_action[drone_left_idt] = Action(target=left_target, light=True, comment=f'FIND {left_target.idt}')
-                    if drone_right_idt in unassigned_drones_idt:
-                        my_drones_action[drone_right_idt] = Action(target=right_target, light=True, comment=f'FIND {right_target.idt}')
+                    drone_left = unassigned_drones.get(drone_left_idt)
+                    if drone_left is not None:
+                        light = False
+                        if drone_left.battery >= 5:
+                            distance_to_target = HASH_MAP_NORMS[left_target.position - drone_left.position]
+                            if distance_to_target <= AUGMENTED_LIGHT_RADIUS and (not left_target.visible):
+                                light = True
+                        my_drones_action[drone_left_idt] = Action(target=left_target, light=light, comment=f'FIND {left_target.idt}')
+                    drone_right = unassigned_drones.get(drone_right_idt)
+                    if drone_right is not None:
+                        light = False
+                        if drone_right.battery >= 5:
+                            distance_to_target = HASH_MAP_NORMS[right_target.position - drone_right.position]
+                            if distance_to_target <= AUGMENTED_LIGHT_RADIUS and (not right_target.visible):
+                                light = True
+                        my_drones_action[drone_right_idt] = Action(target=right_target, light=light, comment=f'FIND {right_target.idt}')
                 else:
                     for drone_idt, drone in unassigned_drones.items():
                         if drone.extra_score_with_unsaved_creatures > 0:
