@@ -2,8 +2,8 @@ import sys
 import numpy as np
 import math
 from enum import Enum
-from dataclasses import field, dataclass
-from typing import Dict, List, Union, Set, Any, Literal
+from dataclasses import dataclass, field
+from typing import Union, Set, Dict, List, Any, Literal
 
 class Point:
 
@@ -465,34 +465,34 @@ class GameLoop:
 
     def start(self):
         while GameLoop.RUNNING:
-            for monster in self.game_assets.get_all(asset_type=AssetType.CREATURE).values():
-                monster.scanned_by_drones = set()
-                monster.visible = False
-                monster.escaped = True
+            for creature in self.game_assets.get_all(asset_type=AssetType.CREATURE).values():
+                creature.scanned_by_drones = set()
+                creature.visible = False
+                creature.escaped = True
             self.update()
             creatures = self.game_assets.get_all(AssetType.CREATURE)
             my_drones = self.game_assets.get_all(AssetType.MYDRONE)
             foe_drones = self.game_assets.get_all(AssetType.FOEDRONE)
             all_drones = [*my_drones.values(), *foe_drones.values()]
             ordered_drones_from_top_to_bottom = order_assets(all_drones, 'y')
-            for monster in creatures.values():
-                monster.eval_saved_by_owners = monster.saved_by_owners.copy()
-                monster.extra_scores = {owner: 0 for owner in OWNERS}
+            for creature in creatures.values():
+                creature.eval_saved_by_owners = creature.saved_by_owners.copy()
+                creature.extra_scores = {owner: 0 for owner in OWNERS}
             for drone in ordered_drones_from_top_to_bottom:
                 drone.extra_score_with_unsaved_creatures = 0
                 owner = drone.owner
                 for creature_idt in drone.unsaved_creatures_idt:
-                    monster = self.game_assets.get(AssetType.CREATURE, creature_idt)
-                    extra_score = evaluate_extra_score_for_owner_creature(creature_kind=monster.kind, creature_escaped=monster.escaped, creature_saved_by_owners=monster.saved_by_owners, owner=owner)
+                    creature = self.game_assets.get(AssetType.CREATURE, creature_idt)
+                    extra_score = evaluate_extra_score_for_owner_creature(creature_kind=creature.kind, creature_escaped=creature.escaped, creature_saved_by_owners=creature.saved_by_owners, owner=owner)
                     drone.extra_score_with_unsaved_creatures += extra_score
-                    monster.eval_saved_by_owners.append(owner)
-            for monster in creatures.values():
+                    creature.eval_saved_by_owners.append(owner)
+            for creature in creatures.values():
                 for owner in OWNERS:
-                    extra_score = evaluate_extra_score_for_owner_creature(creature_kind=monster.kind, creature_escaped=monster.escaped, creature_saved_by_owners=monster.eval_saved_by_owners, owner=owner)
-                    monster.extra_scores[owner] += extra_score
-            for creature_idt, monster in creatures.items():
-                if not monster.visible:
-                    possible_zones = [monster.habitat]
+                    extra_score = evaluate_extra_score_for_owner_creature(creature_kind=creature.kind, creature_escaped=creature.escaped, creature_saved_by_owners=creature.eval_saved_by_owners, owner=owner)
+                    creature.extra_scores[owner] += extra_score
+            for creature_idt, creature in creatures.items():
+                if not creature.visible:
+                    possible_zones = [creature.habitat]
                     for drone_idt, drone in my_drones.items():
                         radar_idt = hash((drone_idt, creature_idt))
                         radar_blip = self.game_assets.get(asset_type=AssetType.RADARBLIP, idt=radar_idt)
@@ -506,16 +506,19 @@ class GameLoop:
                     y_min = np.max(intersection[:, 1])
                     x_max = np.min(intersection[:, 2])
                     y_max = np.min(intersection[:, 3])
-                    if monster.last_turn_visible:
-                        last_seen_turns = self.nb_turns - monster.last_turn_visible
-                        current_x_projection = monster.x + last_seen_turns * monster.vx
-                        current_y_projection = monster.y + last_seen_turns * monster.vy
+                    if creature.last_turn_visible:
+                        last_seen_turns = self.nb_turns - creature.last_turn_visible
+                        current_x_projection = creature.x + last_seen_turns * creature.vx
+                        current_y_projection = creature.y + last_seen_turns * creature.vy
                         if x_min <= current_x_projection <= x_max and y_min <= current_y_projection <= y_max:
-                            monster.x = current_x_projection
-                            monster.y = current_y_projection
+                            creature.x = current_x_projection
+                            creature.y = current_y_projection
+                        else:
+                            creature.x = (x_min + x_max) / 2
+                            creature.y = (y_min + y_max) / 2
                     else:
-                        monster.x = (x_min + x_max) / 2
-                        monster.y = (y_min + y_max) / 2
+                        creature.x = (x_min + x_max) / 2
+                        creature.y = (y_min + y_max) / 2
             for my_drone in my_drones.values():
                 my_drone.has_to_flee_from = []
                 for monster in self.monsters:
