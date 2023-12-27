@@ -1,9 +1,9 @@
 import sys
-import math
 import numpy as np
+import math
 from enum import Enum
 from dataclasses import field, dataclass
-from typing import Any, List, Union, Set, Literal, Dict
+from typing import Dict, List, Union, Set, Any, Literal
 
 class Point:
 
@@ -120,6 +120,7 @@ AGGRESSIVE_MONSTER_SPEED = HASH_MAP_NORMS[Vector(0, 540)]
 NON_AGGRESSIVE_MONSTER_SPEED = HASH_MAP_NORMS[Vector(0, 270)]
 SAFE_RADIUS_FROM_MONSTERS = HASH_MAP_NORMS[Vector(0, 500 + 540)]
 FLEE_RADIUS_FROM_MONSTERS = HASH_MAP_NORMS[Vector(0, 500 + 270 + 600)]
+MAX_NUMBER_OF_RADAR_BLIPS_USED = 3
 
 @dataclass(slots=True)
 class Asset:
@@ -387,10 +388,12 @@ class GameLoop:
             radar_blip.creature_idt = creature_idt
         creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
         creature.escaped = False
-        if len(radar_blip.zones) > 0:
-            previous_zone = radar_blip.zones[-1]
+        radar_blip_zones = radar_blip.zones
+        n = min(len(radar_blip_zones), MAX_NUMBER_OF_RADAR_BLIPS_USED - 1)
+        for i in range(0, n):
+            zone = radar_blip.zones[-i - 1]
             creature_max_speed = MAX_SPEED_PER_KIND[creature.kind]
-            radar_blip.zones[-1] = [previous_zone[0] - creature_max_speed, previous_zone[1] - creature_max_speed, previous_zone[2] + creature_max_speed, previous_zone[3] + creature_max_speed]
+            radar_blip.zones[-i - 1] = [zone[0] - creature_max_speed, zone[1] - creature_max_speed, zone[2] + creature_max_speed, zone[3] + creature_max_speed]
         drone = self.game_assets.get(asset_type=AssetType.MYDRONE, idt=drone_idt)
         if drone is None:
             drone = self.game_assets.get(asset_type=AssetType.FOEDRONE, idt=drone_idt)
@@ -495,7 +498,7 @@ class GameLoop:
                         radar_blip = self.game_assets.get(asset_type=AssetType.RADARBLIP, idt=radar_idt)
                         if radar_blip is not None:
                             radar_blip_zones = radar_blip.zones
-                            n = min(len(radar_blip_zones), 2)
+                            n = min(len(radar_blip_zones), MAX_NUMBER_OF_RADAR_BLIPS_USED)
                             for i in range(0, n):
                                 possible_zones.append(radar_blip_zones[-i - 1])
                     intersection = np.array(possible_zones)

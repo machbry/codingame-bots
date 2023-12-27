@@ -11,7 +11,7 @@ from bots.fall_challenge_2023.challengelibs.score import evaluate_extra_score_fo
     update_saved_scans, update_unsaved_scan
 from bots.fall_challenge_2023.singletons import MY_OWNER, FOE_OWNER, OWNERS, HASH_MAP_NORMS, CORNERS, \
     CREATURE_HABITATS_PER_KIND, DRONE_SPEED, SAFE_RADIUS_FROM_MONSTERS, MAP_CENTER, \
-    FLEE_RADIUS_FROM_MONSTERS, MAX_SPEED_PER_KIND, Color, Kind
+    FLEE_RADIUS_FROM_MONSTERS, MAX_SPEED_PER_KIND, Color, Kind, MAX_NUMBER_OF_RADAR_BLIPS_USED
 
 GAME_ASSETS = GameAssets()
 
@@ -102,13 +102,15 @@ class GameLoop:
         creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
         creature.escaped = False
 
-        if len(radar_blip.zones) > 0:
-            previous_zone = radar_blip.zones[-1]
+        radar_blip_zones = radar_blip.zones
+        n = min(len(radar_blip_zones), MAX_NUMBER_OF_RADAR_BLIPS_USED - 1)
+        for i in range(0, n):
+            zone = radar_blip.zones[-i-1]
             creature_max_speed = MAX_SPEED_PER_KIND[creature.kind]
-            radar_blip.zones[-1] = [previous_zone[0] - creature_max_speed,
-                                    previous_zone[1] - creature_max_speed,
-                                    previous_zone[2] + creature_max_speed,
-                                    previous_zone[3] + creature_max_speed]
+            radar_blip.zones[-i-1] = [zone[0] - creature_max_speed,
+                                      zone[1] - creature_max_speed,
+                                      zone[2] + creature_max_speed,
+                                      zone[3] + creature_max_speed]
 
         drone = self.game_assets.get(asset_type=AssetType.MYDRONE, idt=drone_idt)
         if drone is None:
@@ -257,7 +259,7 @@ class GameLoop:
                         radar_blip = self.game_assets.get(asset_type=AssetType.RADARBLIP, idt=radar_idt)
                         if radar_blip is not None:
                             radar_blip_zones = radar_blip.zones
-                            n = min(len(radar_blip_zones), 2)  # TODO : create constant for max number of zones
+                            n = min(len(radar_blip_zones), MAX_NUMBER_OF_RADAR_BLIPS_USED)
                             for i in range(0, n):
                                 possible_zones.append(radar_blip_zones[-i-1])
 
