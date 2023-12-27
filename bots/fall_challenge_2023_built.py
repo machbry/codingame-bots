@@ -1,9 +1,9 @@
 import math
-import numpy as np
 import sys
+import numpy as np
 from enum import Enum
-from dataclasses import field, dataclass
-from typing import Set, Literal, Any, List, Dict, Union
+from dataclasses import dataclass, field
+from typing import Dict, Any, Literal, Union, List, Set
 
 class Point:
 
@@ -276,6 +276,19 @@ class GameAssets(Singleton):
     def get_all(self, asset_type: AssetType):
         return self.assets[asset_type.name]
 
+def update_saved_scans(owner: int, creature: Creature, scans: Scans):
+    saved_creatures = scans.saved_creatures
+    creature_saved = saved_creatures[creature.color, creature.kind]
+    if creature_saved == 1:
+        return
+    creature.saved_by_owners.append(owner)
+    creature_color, creature_kind = (creature.color, creature.kind)
+    saved_creatures[creature_color, creature_kind] = 1
+
+def update_unsaved_scan(drone: Drone, creature: Creature):
+    drone.unsaved_creatures_idt.add(creature.idt)
+    creature.scanned_by_drones.add(drone.idt)
+
 def update_trophies(owner: int, saved_creatures: np.ndarray, colors_trophies: Dict[int, ColorsTrophy], kinds_trophies: Dict[int, KindsTrophy]):
     for color in COLORS[saved_creatures.dot(ACTIVATE_COLORS) == SCORE_FOR_FULL_COLOR]:
         colors_trophy = colors_trophies[color]
@@ -345,17 +358,6 @@ class GameLoop:
         self.turns_inputs.append(result)
         return result
 
-    def update_saved_scan(self, owner: int, creature_idt: int):
-        scans = self.game_assets.get(asset_type=AssetType.SCANS, idt=owner)
-        creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
-        saved_creatures = scans.saved_creatures
-        creature_saved = saved_creatures[creature.color, creature.kind]
-        if creature_saved == 1:
-            return
-        creature.saved_by_owners.append(owner)
-        creature_color, creature_kind = (creature.color, creature.kind)
-        saved_creatures[creature_color, creature_kind] = 1
-
     def update_drone(self, drone_idt, drone_x, drone_y, emergency, battery, asset_type: Union[AssetType.MYDRONE, AssetType.FOEDRONE]):
         drone = self.game_assets.get(asset_type=asset_type, idt=drone_idt)
         if drone is None:
@@ -367,6 +369,40 @@ class GameLoop:
         if drone.emergency == 1:
             drone.unsaved_creatures_idt = set()
 
+    def update_visible_creature(self, creature_idt, creature_x, creature_y, creature_vx, creature_vy):
+        creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
+        creature.x = creature_x
+        creature.y = creature_y
+        creature.vx = creature_vx
+        creature.vy = creature_vy
+        creature.visible = True
+        creature.last_turn_visible = self.nb_turns
+
+    def update_radar_blip(self, drone_idt, creature_idt, radar):
+        radar_idt = hash((drone_idt, creature_idt))
+        radar_blip = self.game_assets.get(asset_type=AssetType.RADARBLIP, idt=radar_idt)
+        if radar_blip is None:
+            radar_blip = self.game_assets.new_asset(asset_type=AssetType.RADARBLIP, idt=radar_idt)
+            radar_blip.drone_idt = drone_idt
+            radar_blip.creature_idt = creature_idt
+        creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
+        creature.escaped = False
+        if len(radar_blip.zones) > 0:
+            previous_zone = radar_blip.zones[-1]
+            creature_max_speed = MAX_SPEED_PER_KIND[creature.kind]
+            radar_blip.zones[-1] = [previous_zone[0] - creature_max_speed, previous_zone[1] - creature_max_speed, previous_zone[2] + creature_max_speed, previous_zone[3] + creature_max_speed]
+        drone = self.game_assets.get(asset_type=AssetType.MYDRONE, idt=drone_idt)
+        if drone is None:
+            drone = self.game_assets.get(asset_type=AssetType.FOEDRONE, idt=drone_idt)
+        zone_corner = CORNERS[radar]
+        drone_x, drone_y = (drone.x, drone.y)
+        zone_corner_x, zone_corner_y = (zone_corner.x, zone_corner.y)
+        zone_x_min = min(drone_x, zone_corner_x)
+        zone_y_min = min(drone_y, zone_corner_y)
+        zone_x_max = max(drone_x, zone_corner_x)
+        zone_y_max = max(drone_y, zone_corner_y)
+        radar_blip.zones.append([zone_x_min, zone_y_min, zone_x_max, zone_y_max])
+
     def update(self):
         self.nb_turns += 1
         my_score = int(self.get_turn_input())
@@ -374,11 +410,15 @@ class GameLoop:
         my_scan_count = int(self.get_turn_input())
         for i in range(my_scan_count):
             creature_idt = int(self.get_turn_input())
-            self.update_saved_scan(owner=MY_OWNER, creature_idt=creature_idt)
+            scans = self.game_assets.get(asset_type=AssetType.SCANS, idt=MY_OWNER)
+            creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
+            update_saved_scans(MY_OWNER, creature, scans)
         foe_scan_count = int(self.get_turn_input())
         for i in range(foe_scan_count):
             creature_idt = int(self.get_turn_input())
-            self.update_saved_scan(owner=FOE_OWNER, creature_idt=creature_idt)
+            scans = self.game_assets.get(asset_type=AssetType.SCANS, idt=FOE_OWNER)
+            creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
+            update_saved_scans(FOE_OWNER, creature, scans)
         colors_trophies = self.game_assets.get_all(AssetType.COLORSTROPHY)
         kinds_trophies = self.game_assets.get_all(AssetType.KINDSTROPHY)
         for owner in OWNERS:
@@ -401,47 +441,16 @@ class GameLoop:
             if drone is None:
                 drone = self.game_assets.get(asset_type=AssetType.FOEDRONE, idt=drone_idt)
             creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
-            drone.unsaved_creatures_idt.add(creature_idt)
-            creature.scanned_by_drones.add(drone_idt)
+            update_unsaved_scan(drone, creature)
         visible_creature_count = int(self.get_turn_input())
         for i in range(visible_creature_count):
             creature_idt, creature_x, creature_y, creature_vx, creature_vy = [int(j) for j in self.get_turn_input().split()]
-            creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
-            creature.x = creature_x
-            creature.y = creature_y
-            creature.vx = creature_vx
-            creature.vy = creature_vy
-            creature.visible = True
-            creature.last_turn_visible = self.nb_turns
+            self.update_visible_creature(creature_idt, creature_x, creature_y, creature_vx, creature_vy)
         radar_blip_count = int(self.get_turn_input())
         for i in range(radar_blip_count):
             inputs = self.get_turn_input().split()
-            drone_idt = int(inputs[0])
-            creature_idt = int(inputs[1])
-            radar = inputs[2]
-            radar_idt = hash((drone_idt, creature_idt))
-            radar_blip = self.game_assets.get(asset_type=AssetType.RADARBLIP, idt=radar_idt)
-            if radar_blip is None:
-                radar_blip = self.game_assets.new_asset(asset_type=AssetType.RADARBLIP, idt=radar_idt)
-                radar_blip.drone_idt = drone_idt
-                radar_blip.creature_idt = creature_idt
-            creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
-            creature.escaped = False
-            if len(radar_blip.zones) > 0:
-                previous_zone = radar_blip.zones[-1]
-                creature_max_speed = MAX_SPEED_PER_KIND[creature.kind]
-                radar_blip.zones[-1] = [previous_zone[0] - creature_max_speed, previous_zone[1] - creature_max_speed, previous_zone[2] + creature_max_speed, previous_zone[3] + creature_max_speed]
-            drone = self.game_assets.get(asset_type=AssetType.MYDRONE, idt=drone_idt)
-            if drone is None:
-                drone = self.game_assets.get(asset_type=AssetType.FOEDRONE, idt=drone_idt)
-            zone_corner = CORNERS[radar]
-            drone_x, drone_y = (drone.x, drone.y)
-            zone_corner_x, zone_corner_y = (zone_corner.x, zone_corner.y)
-            zone_x_min = min(drone_x, zone_corner_x)
-            zone_y_min = min(drone_y, zone_corner_y)
-            zone_x_max = max(drone_x, zone_corner_x)
-            zone_y_max = max(drone_y, zone_corner_y)
-            radar_blip.zones.append([zone_x_min, zone_y_min, zone_x_max, zone_y_max])
+            drone_idt, creature_idt, radar = (int(inputs[0]), int(inputs[1]), inputs[2])
+            self.update_radar_blip(drone_idt, creature_idt, radar)
         if GameLoop.LOG:
             self.print_turn_logs()
 
