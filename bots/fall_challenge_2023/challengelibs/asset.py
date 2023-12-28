@@ -44,7 +44,6 @@ class Creature(Unit):
     habitat: List[int] = None
     visible: bool = False
     escaped: bool = False
-    scanned_by_drones: Set[int] = field(default_factory=set)  # reset à chaque tour
     extra_scores: Dict[int, int] = field(default_factory=dict)
     last_turn_visible: int = None
 
@@ -61,6 +60,7 @@ class Creature(Unit):
 class Drone(Unit):
     emergency: int = None
     battery: int = None
+    # TODO : set of creatures instead of idt ?
     unsaved_creatures_idt: Set[int] = field(default_factory=set)  # reset if drone.emergency == 1
     eval_unsaved_creatures_idt: Set[int] = field(default_factory=set)
     extra_score_with_unsaved_creatures: int = 0
@@ -108,3 +108,37 @@ class Trophies(Asset):
                         creatures_win_by=self.creatures_win_by.copy(),
                         colors_win_by=self.colors_win_by.copy(),
                         kinds_win_by=self.kinds_win_by.copy())
+
+
+@dataclass(slots=True)
+class Score:
+    base_creatures: int = 0
+    bonus_creatures: int = 0
+    base_colors: int = 0
+    bonus_colors: int = 0
+    base_kinds: int = 0
+    bonus_kinds: int = 0
+
+    @property
+    def base(self):
+        return self.base_creatures + self.base_colors + self.base_kinds
+
+    @property
+    def bonus(self):
+        return self.bonus_creatures + self.bonus_colors + self.bonus_kinds
+
+    @property
+    def creatures(self):
+        return self.base_creatures + self.bonus_creatures
+
+    @property
+    def colors(self):
+        return self.base_colors + self.bonus_colors
+
+    @property
+    def kinds(self):
+        return self.base_kinds + self.bonus_kinds
+
+    @property
+    def total(self):
+        return self.base + self.bonus
