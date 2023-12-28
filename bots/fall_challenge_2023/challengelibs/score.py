@@ -21,17 +21,19 @@ def update_unsaved_scan(drone: Drone, creature: Creature):
 
 
 def update_trophies(owner: int, saved_creatures: np.ndarray, newly_saved_creatures: np.ndarray,
-                    creatures_win_by: np.ndarray, colors_win_by: np.ndarray, kinds_win_by: np.ndarray):
+                    creatures_win_by: np.ndarray, colors_win_by: np.ndarray, kinds_win_by: np.ndarray,
+                    activate_colors=ACTIVATE_COLORS, activate_kinds=ACTIVATE_KINDS,
+                    score_for_full_color=SCORE_FOR_FULL_COLOR, score_for_full_kind=SCORE_FOR_FULL_KIND):
 
     newly_completed_creatures = newly_saved_creatures == owner
     creatures_trophies_available = creatures_win_by == 0
     creatures_win_by[newly_completed_creatures & creatures_trophies_available] = owner
 
-    completed_colors = saved_creatures.dot(ACTIVATE_COLORS) == SCORE_FOR_FULL_COLOR
+    completed_colors = saved_creatures.dot(activate_colors) == score_for_full_color
     colors_trophies_available = colors_win_by == 0
     colors_win_by[completed_colors & colors_trophies_available] = owner
 
-    completed_kinds = ACTIVATE_KINDS.dot(saved_creatures) == SCORE_FOR_FULL_KIND
+    completed_kinds = activate_kinds.dot(saved_creatures) == score_for_full_kind
     kinds_trophies_available = kinds_win_by == 0
     kinds_win_by[completed_kinds & kinds_trophies_available] = owner
 

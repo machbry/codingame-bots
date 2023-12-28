@@ -78,8 +78,8 @@ def update_game_loop(init_inputs: List[str], turns_inputs: List[str]):
 
 # @pytest.mark.skip
 def test_perfs():
-    R = 10
-    N = 10
+    R = 1000
+    N = 1
     print()
     init_perfs = []
     start_perfs = []
@@ -103,4 +103,4 @@ def test_perfs():
 
     print(f"init, start, update: {round(1000*sum(init_perfs)/L, 2)}ms, {round(1000*sum(start_perfs)/L, 2)}ms, {round(1000*sum(update_perfs)/L, 2)}ms")
 
-    # last results : 0.47ms, 1.36ms, 0.81ms
+    # last results : 0.47ms, 1.37ms, 0.8ms
