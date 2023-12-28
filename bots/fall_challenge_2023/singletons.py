@@ -38,6 +38,8 @@ class Color(Enum):
 
 KINDS = np.array([[Kind.ZERO.value, Kind.ONE.value, Kind.TWO.value]])
 COLORS = np.array([[Color.ROSE.value], [Color.YELLOW.value], [Color.GREEN.value], [Color.BLUE.value]])
+EMPTY_ARRAY_CREATURES = np.zeros(shape=(len(Color), len(Kind) - 1))
+
 SCORE_BY_KIND = {Kind.MONSTER.value: 0,
                  Kind.ZERO.value: 1,
                  Kind.ONE.value: 2,

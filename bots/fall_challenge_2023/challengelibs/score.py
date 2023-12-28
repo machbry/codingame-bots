@@ -1,23 +1,17 @@
-from typing import List, Dict
+from typing import List
 
 import numpy as np
 
-from bots.fall_challenge_2023.challengelibs.asset import KindsTrophy, ColorsTrophy, Creature, Scans, Drone
-from bots.fall_challenge_2023.singletons import SCORE_BY_KIND, SCORE_MULTIPLIER_FIRST, COLORS, ACTIVATE_COLORS, \
-    SCORE_FOR_FULL_COLOR, SCORE_FOR_FULL_KIND, ACTIVATE_KINDS, KINDS
+from bots.fall_challenge_2023.challengelibs.asset import Creature, Drone
+from bots.fall_challenge_2023.singletons import SCORE_BY_KIND, SCORE_MULTIPLIER_FIRST, ACTIVATE_COLORS, \
+    SCORE_FOR_FULL_COLOR, SCORE_FOR_FULL_KIND, ACTIVATE_KINDS
 
 
-def update_saved_scans(owner: int, creature: Creature, scans: Scans):
-    saved_creatures = scans.saved_creatures
-    creature_color, creature_kind = creature.color, creature.kind
+def update_saved_scans(saved_creatures: np.ndarray, creature_color: int, creature_kind: int):
     creature_saved = saved_creatures[creature_color, creature_kind]
-
     if creature_saved == 1:
         return False
-
     saved_creatures[creature_color, creature_kind] = 1
-
-    creature.saved_by_owners.append(owner)  # TODO : do not use creature for creature trophies
     return True
 
 
@@ -26,19 +20,20 @@ def update_unsaved_scan(drone: Drone, creature: Creature):
     creature.scanned_by_drones.add(drone.idt)
 
 
-def update_trophies(owner: int, saved_creatures: np.ndarray, colors_trophies: Dict[int, ColorsTrophy],
-                    kinds_trophies: Dict[int, KindsTrophy]):
-    for color in COLORS[saved_creatures.dot(ACTIVATE_COLORS) == SCORE_FOR_FULL_COLOR]:
-        colors_trophy = colors_trophies[color]
-        color_win_by_owners = colors_trophy.win_by_owners
-        if owner not in color_win_by_owners:
-            color_win_by_owners.append(owner)
+def update_trophies(owner: int, saved_creatures: np.ndarray, newly_saved_creatures: np.ndarray,
+                    creatures_win_by: np.ndarray, colors_win_by: np.ndarray, kinds_win_by: np.ndarray):
 
-    for kind in KINDS[ACTIVATE_KINDS.dot(saved_creatures) == SCORE_FOR_FULL_KIND]:
-        kinds_trophy = kinds_trophies[kind]
-        kind_win_by_owners = kinds_trophy.win_by_owners
-        if owner not in kind_win_by_owners:
-            kind_win_by_owners.append(owner)
+    newly_completed_creatures = newly_saved_creatures == owner
+    creatures_trophies_available = creatures_win_by == 0
+    creatures_win_by[newly_completed_creatures & creatures_trophies_available] = owner
+
+    completed_colors = saved_creatures.dot(ACTIVATE_COLORS) == SCORE_FOR_FULL_COLOR
+    colors_trophies_available = colors_win_by == 0
+    colors_win_by[completed_colors & colors_trophies_available] = owner
+
+    completed_kinds = ACTIVATE_KINDS.dot(saved_creatures) == SCORE_FOR_FULL_KIND
+    kinds_trophies_available = kinds_win_by == 0
+    kinds_win_by[completed_kinds & kinds_trophies_available] = owner
 
 
 def evaluate_extra_score_for_owner_creature(creature_kind: int, creature_escaped: bool,

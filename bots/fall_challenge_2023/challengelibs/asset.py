@@ -45,8 +45,6 @@ class Creature(Unit):
     visible: bool = False
     escaped: bool = False
     scanned_by_drones: Set[int] = field(default_factory=set)  # reset à chaque tour
-    saved_by_owners: List[int] = field(default_factory=list)  # TODO : do not use creature for creature trophies
-    eval_saved_by_owners: List[int] = field(default_factory=list)  # TODO : do not use creature for creature trophies
     extra_scores: Dict[int, int] = field(default_factory=dict)
     last_turn_visible: int = None
 
@@ -109,23 +107,3 @@ class Trophies(Asset):
                         creatures_win_by=self.creatures_win_by.copy(),
                         colors_win_by=self.colors_win_by.copy(),
                         kinds_win_by=self.kinds_win_by.copy())
-
-
-@dataclass(slots=True)
-class ColorsTrophy(Asset):
-    # idt = Color.value
-    win_by_owners: List[int] = field(default_factory=list)  # TODO : remove
-
-    def copy(self):
-        return ColorsTrophy(idt=self.idt,
-                            win_by_owners=self.win_by_owners.copy())
-
-
-@dataclass(slots=True)
-class KindsTrophy(Asset):
-    # idt = Kind.value
-    win_by_owners: List[int] = field(default_factory=list)  # TODO : remove
-
-    def copy(self):
-        return KindsTrophy(idt=self.idt,
-                           win_by_owners=self.win_by_owners.copy())

@@ -11,7 +11,8 @@ from bots.fall_challenge_2023.challengelibs.score import evaluate_extra_score_fo
     update_saved_scans, update_unsaved_scan
 from bots.fall_challenge_2023.singletons import MY_OWNER, FOE_OWNER, OWNERS, HASH_MAP_NORMS, CORNERS, \
     CREATURE_HABITATS_PER_KIND, DRONE_SPEED, SAFE_RADIUS_FROM_MONSTERS, MAP_CENTER, \
-    FLEE_RADIUS_FROM_MONSTERS, MAX_SPEED_PER_KIND, Color, Kind, MAX_NUMBER_OF_RADAR_BLIPS_USED, COLORS, KINDS
+    FLEE_RADIUS_FROM_MONSTERS, MAX_SPEED_PER_KIND, MAX_NUMBER_OF_RADAR_BLIPS_USED, COLORS, KINDS, \
+    EMPTY_ARRAY_CREATURES
 
 GAME_ASSETS = GameAssets()
 
@@ -28,9 +29,11 @@ class GameLoop:
 
         self.game_assets = GAME_ASSETS
         self.hash_map_norms = HASH_MAP_NORMS
+        self.empty_array_saved_creatures = EMPTY_ARRAY_CREATURES
+        # TODO : do the same for all constants ?
 
         self.my_drones_idt_play_order = []
-
+        self.newly_saved_creatures = np.zeros_like(self.empty_array_saved_creatures)
         self.monsters = []
 
         creature_count = int(self.get_init_input())
@@ -47,19 +50,12 @@ class GameLoop:
             for owner in OWNERS:
                 scans = self.game_assets.new_asset(asset_type=AssetType.SCANS, idt=owner)
                 scans.owner = owner
-                scans.saved_creatures = np.zeros(shape=(len(Color), len(Kind) - 1))
+                scans.saved_creatures = np.zeros_like(self.empty_array_saved_creatures)
 
         trophies = self.game_assets.new_asset(asset_type=AssetType.TROPHIES, idt=42)
-        trophies.creatures_win_by = np.zeros(shape=(len(Color), len(Kind) - 1))
+        trophies.creatures_win_by = np.zeros_like(self.empty_array_saved_creatures)
         trophies.colors_win_by = np.zeros_like(COLORS)
         trophies.kinds_win_by = np.zeros_like(KINDS)
-
-        for color in Color:
-            self.game_assets.new_asset(asset_type=AssetType.COLORS_TROPHY, idt=color.value)
-
-        for kind in Kind:
-            if kind != Kind.MONSTER.value:
-                self.game_assets.new_asset(asset_type=AssetType.KINDS_TROPHY, idt=kind.value)
 
         if GameLoop.LOG:
             print(self.init_inputs, file=sys.stderr, flush=True)
@@ -131,30 +127,50 @@ class GameLoop:
         radar_blip.zones.append([zone_x_min, zone_y_min, zone_x_max, zone_y_max])
 
     def update(self):
+        self.newly_saved_creatures = np.zeros_like(self.empty_array_saved_creatures)
+
+        for creature in self.game_assets.get_all(asset_type=AssetType.CREATURE).values():
+            creature.scanned_by_drones = set()
+            creature.visible = False
+            creature.escaped = True
+
         self.nb_turns += 1
 
         my_score = int(self.get_turn_input())
         foe_score = int(self.get_turn_input())
 
+        trophies = self.game_assets.get(AssetType.TROPHIES, 42)
+        creatures_win_by = trophies.creatures_win_by
+        colors_win_by = trophies.colors_win_by
+        kinds_win_by = trophies.kinds_win_by
+
+        my_scans = self.game_assets.get(asset_type=AssetType.SCANS, idt=MY_OWNER)
+        my_saved_creatures = my_scans.saved_creatures
+
+        foe_scans = self.game_assets.get(asset_type=AssetType.SCANS, idt=FOE_OWNER)
+        foe_saved_creatures = foe_scans.saved_creatures
+
         my_scan_count = int(self.get_turn_input())
-        scans = self.game_assets.get(asset_type=AssetType.SCANS, idt=MY_OWNER)
         for i in range(my_scan_count):
-            creature_idt = int(self.get_turn_input())
-            creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
-            newly_saved = update_saved_scans(MY_OWNER, creature, scans)
+            creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=int(self.get_turn_input()))
+            creature_color, creature_kind = creature.color, creature.kind
+            if update_saved_scans(my_saved_creatures, creature_color, creature_kind):
+                self.newly_saved_creatures[creature_color, creature_kind] = MY_OWNER
+
+        update_trophies(owner=MY_OWNER, saved_creatures=my_saved_creatures,
+                        newly_saved_creatures=self.newly_saved_creatures,
+                        creatures_win_by=creatures_win_by, colors_win_by=colors_win_by, kinds_win_by=kinds_win_by)
 
         foe_scan_count = int(self.get_turn_input())
-        scans = self.game_assets.get(asset_type=AssetType.SCANS, idt=FOE_OWNER)
         for i in range(foe_scan_count):
-            creature_idt = int(self.get_turn_input())
-            creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
-            newly_saved = update_saved_scans(FOE_OWNER, creature, scans)
+            creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=int(self.get_turn_input()))
+            creature_color, creature_kind = creature.color, creature.kind
+            if update_saved_scans(foe_saved_creatures, creature_color, creature_kind):
+                self.newly_saved_creatures[creature_color, creature_kind] = FOE_OWNER
 
-        colors_trophies = self.game_assets.get_all(AssetType.COLORS_TROPHY)
-        kinds_trophies = self.game_assets.get_all(AssetType.KINDS_TROPHY)
-        for owner in OWNERS:
-            saved_creatures = self.game_assets.get(AssetType.SCANS, owner).saved_creatures
-            update_trophies(owner, saved_creatures, colors_trophies, kinds_trophies)
+        update_trophies(owner=FOE_OWNER, saved_creatures=foe_saved_creatures,
+                        newly_saved_creatures=self.newly_saved_creatures,
+                        creatures_win_by=creatures_win_by, colors_win_by=colors_win_by, kinds_win_by=kinds_win_by)
 
         my_drone_count = int(self.get_turn_input())
         self.my_drones_idt_play_order = []
@@ -200,15 +216,6 @@ class GameLoop:
 
     def start(self):
         while GameLoop.RUNNING:
-            # RESET ASSETS - BEGIN
-
-            for creature in self.game_assets.get_all(asset_type=AssetType.CREATURE).values():
-                creature.scanned_by_drones = set()
-                creature.visible = False
-                creature.escaped = True
-
-            # RESET ASSETS - END
-
             self.update()
 
             # COMPUTE EXTRA METRICS FOR ASSETS - BEGIN
@@ -219,14 +226,14 @@ class GameLoop:
             all_drones = [*my_drones.values(), *foe_drones.values()]
 
             # EVALUATE EXTRA SCORES - BEGIN
-            # TODO : matrix representations & calculus for scores, combinaisons for colors & kinds
+            # TODO : only arrays for scores, trophies for creatures, colors & kinds
+            # TODO : separate basic score (scans) from bonuses coming from trophies
             # TODO : can be done later
             my_drones_from_top_to_bottom = order_assets(my_drones.values(), 'y')
             ordered_drones_from_top_to_bottom = order_assets(all_drones, 'y')
 
             # INIT
             for creature in creatures.values():
-                creature.eval_saved_by_owners = creature.saved_by_owners.copy()
                 creature.extra_scores = {owner: 0 for owner in OWNERS}
 
             # EVALUATE EXTRA SCORE FOR UNSAVED CREATURES FOR EACH DRONE
@@ -236,21 +243,22 @@ class GameLoop:
                 owner = drone.owner
                 for creature_idt in drone.unsaved_creatures_idt:
                     creature = self.game_assets.get(AssetType.CREATURE, creature_idt)
-                    extra_score = evaluate_extra_score_for_owner_creature(creature_kind=creature.kind,
-                                                                          creature_escaped=creature.escaped,
-                                                                          creature_saved_by_owners=creature.saved_by_owners,
-                                                                          owner=owner)
-                    drone.extra_score_with_unsaved_creatures += extra_score
-                    creature.eval_saved_by_owners.append(owner)
+                    # extra_score = evaluate_extra_score_for_owner_creature(creature_kind=creature.kind,
+                    #                                                       creature_escaped=creature.escaped,
+                    #                                                       creature_saved_by_owners=creature.saved_by_owners,
+                    #                                                       owner=owner)
+                    # drone.extra_score_with_unsaved_creatures += extra_score
+                    # creature.eval_saved_by_owners.append(owner)
 
             # EVALUATE EXTRA SCORE IF CREATURE SAVED BY AN OWNER
             for creature in creatures.values():
                 for owner in OWNERS:
-                    extra_score = evaluate_extra_score_for_owner_creature(creature_kind=creature.kind,
-                                                                          creature_escaped=creature.escaped,
-                                                                          creature_saved_by_owners=creature.eval_saved_by_owners,
-                                                                          owner=owner)
-                    creature.extra_scores[owner] += extra_score
+                    pass
+                    # extra_score = evaluate_extra_score_for_owner_creature(creature_kind=creature.kind,
+                    #                                                       creature_escaped=creature.escaped,
+                    #                                                       creature_saved_by_owners=creature.eval_saved_by_owners,
+                    #                                                       owner=owner)
+                    # creature.extra_scores[owner] += extra_score
 
             # EVALUATE EXTRA SCORES - END
 
