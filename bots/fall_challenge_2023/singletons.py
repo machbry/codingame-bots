@@ -40,16 +40,13 @@ KINDS = np.array([[Kind.ZERO.value, Kind.ONE.value, Kind.TWO.value]])
 COLORS = np.array([[Color.ROSE.value], [Color.YELLOW.value], [Color.GREEN.value], [Color.BLUE.value]])
 EMPTY_ARRAY_CREATURES = np.zeros(shape=(len(Color), len(Kind) - 1))
 
-SCORE_BY_KIND = {Kind.MONSTER.value: 0,
-                 Kind.ZERO.value: 1,
-                 Kind.ONE.value: 2,
-                 Kind.TWO.value: 3}
+SCORE_BY_KIND = np.array([[1], [2], [3]])
 SCORE_FOR_FULL_COLOR = 3
 SCORE_FOR_FULL_KIND = 4
-SCORE_MULTIPLIER_FIRST = 2
 
 ACTIVATE_COLORS = np.array([[1], [1], [1]])
 ACTIVATE_KINDS = np.array([[1, 1, 1, 1]])
+
 
 CREATURE_HABITATS_PER_KIND = {Kind.MONSTER.value: [X_MIN, 2500, X_MAX, 10000],
                               Kind.ZERO.value: [X_MIN, 2500, X_MAX, 5000],

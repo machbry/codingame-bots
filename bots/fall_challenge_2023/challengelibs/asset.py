@@ -62,6 +62,7 @@ class Drone(Unit):
     emergency: int = None
     battery: int = None
     unsaved_creatures_idt: Set[int] = field(default_factory=set)  # reset if drone.emergency == 1
+    eval_unsaved_creatures_idt: Set[int] = field(default_factory=set)
     extra_score_with_unsaved_creatures: int = 0
     has_to_flee_from: List[Creature] = field(default_factory=list)
 
