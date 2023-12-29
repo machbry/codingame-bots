@@ -34,7 +34,7 @@ class Unit(Asset):
         return Point(self.next_x, self.next_y)
 
     def log(self):
-        return f"{(self.idt, int(self.x), int(self.y))}"
+        return f"{self.idt}"
 
 
 @dataclass(slots=True)
@@ -60,8 +60,7 @@ class Creature(Unit):
 class Drone(Unit):
     emergency: int = None
     battery: int = None
-    # TODO : set of creatures instead of idt ?
-    unsaved_creatures_idt: Set[int] = field(default_factory=set)  # reset if drone.emergency == 1
+    unsaved_creatures_idt: Set[int] = field(default_factory=set)  # reset each turn
     eval_unsaved_creatures_idt: Set[int] = field(default_factory=set)
     extra_score_with_unsaved_creatures: int = 0
     has_to_flee_from: List[Creature] = field(default_factory=list)

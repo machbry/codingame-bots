@@ -67,6 +67,9 @@ def compute_score(owner: int, saved_creatures: np.ndarray, creatures_win_by: np.
 
 
 class ScoreSimulation:
+    __slots__ = ("simulation_scenario", "owners_saved_creatures", "creatures_win_by", "colors_win_by", "kinds_win_by",
+                 "empty_array_creatures", "newly_saved_creatures", "owners_in_scenario", "simulation_done")
+
     def __init__(self, simulation_scenario: List[Tuple[int, List[Creature]]],
                  owners_saved_creatures: Dict[int, np.ndarray],
                  creatures_win_by: np.ndarray, colors_win_by: np.ndarray, kinds_win_by: np.ndarray):
