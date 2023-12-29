@@ -482,6 +482,9 @@ class GameLoop:
                     left_target = creatures_with_extra_score_left[0]
                     if len(creatures_with_extra_score_right) == 0:
                         right_target = creatures_with_extra_score_left[1]
+                        if left_target.x > right_target.x:
+                            left_target = creatures_with_extra_score_left[1]
+                            right_target = creatures_with_extra_score_left[0]
                     else:
                         right_target = creatures_with_extra_score_right[0]
 

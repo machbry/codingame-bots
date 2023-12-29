@@ -1,9 +1,9 @@
-import numpy as np
 import math
+import numpy as np
 import sys
 from enum import Enum
 from dataclasses import field, dataclass
-from typing import Set, Dict, Tuple, Any, Literal, List, Union
+from typing import Union, Any, Literal, Tuple, Dict, List, Set
 
 class Point:
 
@@ -706,6 +706,9 @@ class GameLoop:
                     left_target = creatures_with_extra_score_left[0]
                     if len(creatures_with_extra_score_right) == 0:
                         right_target = creatures_with_extra_score_left[1]
+                        if left_target.x > right_target.x:
+                            left_target = creatures_with_extra_score_left[1]
+                            right_target = creatures_with_extra_score_left[0]
                     else:
                         right_target = creatures_with_extra_score_right[0]
                     my_drones_from_left_to_right = order_assets(my_drones.values(), 'x')
