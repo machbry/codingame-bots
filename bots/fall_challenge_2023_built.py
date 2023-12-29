@@ -1,9 +1,9 @@
-import numpy as np
 import math
+import numpy as np
 import sys
 from enum import Enum
-from dataclasses import dataclass, field
-from typing import Dict, Set, Tuple, Union, List, Any, Literal
+from dataclasses import field, dataclass
+from typing import Union, Tuple, Dict, Set, Literal, List, Any
 
 class Point:
 
@@ -524,7 +524,6 @@ class GameLoop:
             drone = self.game_assets.get(asset_type=AssetType.MY_DRONE, idt=drone_idt)
             if drone is None:
                 drone = self.game_assets.get(asset_type=AssetType.FOE_DRONE, idt=drone_idt)
-            creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
             drone.unsaved_creatures_idt.add(creature_idt)
         visible_creature_count = int(self.get_turn_input())
         for i in range(visible_creature_count):
@@ -577,7 +576,7 @@ class GameLoop:
             simulation_scenario = [(drone.owner, [creatures[creature_idt] for creature_idt in drone.eval_unsaved_creatures_idt]) for drone in ordered_drones_from_top_to_bottom]
             owners_saved_creatures = {owner: scans[owner].saved_creatures for owner in self.owners}
             score_simulation = ScoreSimulation(simulation_scenario=simulation_scenario, owners_saved_creatures=owners_saved_creatures, creatures_win_by=trophies.creatures_win_by, colors_win_by=trophies.colors_win_by, kinds_win_by=trophies.kinds_win_by)
-            new_owners_scores = {owner: self.owners_scores[owner] + score_simulation.compute_new_score()[owner].total for owner in self.owners}
+            new_owners_scores = {owner: score_simulation.compute_new_score()[owner].total for owner in self.owners}
             new_state = score_simulation.scans_and_trophies_after_simulation()
             for creature in creatures.values():
                 for owner in self.owners:

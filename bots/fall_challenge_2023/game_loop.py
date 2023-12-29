@@ -200,7 +200,6 @@ class GameLoop:
             drone = self.game_assets.get(asset_type=AssetType.MY_DRONE, idt=drone_idt)
             if drone is None:
                 drone = self.game_assets.get(asset_type=AssetType.FOE_DRONE, idt=drone_idt)
-            creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=creature_idt)
             drone.unsaved_creatures_idt.add(creature_idt)
 
         visible_creature_count = int(self.get_turn_input())
@@ -296,8 +295,8 @@ class GameLoop:
                                                colors_win_by=trophies.colors_win_by,
                                                kinds_win_by=trophies.kinds_win_by)
 
-            new_owners_scores = {owner: self.owners_scores[owner] + score_simulation.compute_new_score()[owner].total
-                                 for owner in self.owners}
+            new_owners_scores = {owner: score_simulation.compute_new_score()[owner].total
+                                 for owner in self.owners}  # TODO : use these results also to act
 
             new_state = score_simulation.scans_and_trophies_after_simulation()
 
@@ -316,6 +315,8 @@ class GameLoop:
                         creature_extra_score = new_owner_score - new_owners_scores[owner]
 
                         creature.extra_scores[owner] = creature_extra_score
+
+            # TODO : evaluate max scores for each owner ? how much left to win ?
 
             # EVALUATE EXTRA SCORES - END
 
