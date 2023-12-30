@@ -3,8 +3,8 @@ from typing import List, Dict
 import numpy as np
 
 from botlibs.trigonometry import Vector, Point
-from bots.fall_challenge_2023.challengelibs.act import Action, order_assets
-from bots.fall_challenge_2023.challengelibs.asset import Drone, Creature, MyDrone
+from bots.fall_challenge_2023.challengelibs.act import Action
+from bots.fall_challenge_2023.challengelibs.asset import Drone, Creature, MyDrone, Asset
 from bots.fall_challenge_2023.singletons import HASH_MAP_NORMS, AUGMENTED_LIGHT_RADIUS, FLEE_RADIUS_FROM_MONSTERS, \
     SAFE_RADIUS_FROM_MONSTERS, MAP_CENTER, DRONE_SPEED, MY_OWNER, FOE_OWNER
 
@@ -166,3 +166,7 @@ def flee_from_monsters(my_drones: Dict[int, MyDrone], monsters: List[Creature], 
                 comment=f"FLEE FROM{comment}")
 
     return actions
+
+
+def order_assets(assets: List[Asset], on_attr: str, ascending: bool = True):
+    return sorted(assets, key=lambda asset: getattr(asset, on_attr), reverse=not ascending)

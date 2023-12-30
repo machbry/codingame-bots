@@ -2,7 +2,7 @@ from typing import List, Dict, Tuple
 
 import numpy as np
 
-from bots.fall_challenge_2023.challengelibs.act import order_assets
+from bots.fall_challenge_2023.challengelibs.algorithms import order_assets
 from bots.fall_challenge_2023.challengelibs.asset import Score, Creature, MyDrone, FoeDrone, Scans, Trophies
 from bots.fall_challenge_2023.singletons import SCORE_BY_KIND, ACTIVATE_COLORS, \
     SCORE_FOR_FULL_COLOR, SCORE_FOR_FULL_KIND, ACTIVATE_KINDS, EMPTY_ARRAY_CREATURES, MY_OWNER, FOE_OWNER, OWNERS, Kind

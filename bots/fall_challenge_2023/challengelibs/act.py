@@ -1,9 +1,9 @@
 from dataclasses import dataclass
-from typing import Union, List
+from typing import Union, List, Dict
 
 from botlibs.trigonometry import Point
 from bots.fall_challenge_2023.singletons import MAP_CENTER
-from bots.fall_challenge_2023.challengelibs.asset import Unit, Asset
+from bots.fall_challenge_2023.challengelibs.asset import Unit, MyDrone
 
 
 @dataclass
@@ -21,5 +21,22 @@ class Action:
         return instruction
 
 
-def order_assets(assets: List[Asset], on_attr: str, ascending: bool = True):
-    return sorted(assets, key=lambda asset: getattr(asset, on_attr), reverse=not ascending)
+def choose_action_for_drones(my_drones: Dict[int, MyDrone], actions_priorities: List[Dict[int, Action]],
+                             default_action: Action):
+    my_drones_action = {}
+
+    for drone_idt, drone in my_drones.items():
+        if drone.emergency == 0:
+            action_chosen = None
+            i, N = 0, len(actions_priorities)
+            while not action_chosen and i < N:
+                action_chosen = actions_priorities[i].get(drone_idt)
+                i += 1
+            if not action_chosen:
+                action_chosen = default_action
+        else:
+            action_chosen = default_action
+
+        my_drones_action[drone_idt] = action_chosen
+
+    return my_drones_action

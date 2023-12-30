@@ -3,7 +3,7 @@ from typing import List, Dict
 
 import numpy as np
 
-from bots.fall_challenge_2023.challengelibs.act import Action
+from bots.fall_challenge_2023.challengelibs.act import Action, choose_action_for_drones
 from bots.fall_challenge_2023.challengelibs.asset import Creature
 from bots.fall_challenge_2023.challengelibs.algorithms import (flee_from_monsters, save_points, find_valuable_target,
                                                                just_do_something)
@@ -261,24 +261,9 @@ class GameLoop:
 
             flee_actions = flee_from_monsters(my_drones=my_drones, monsters=self.monsters, nb_turns=self.nb_turns)
 
-            my_drones_action = {}
-            for drone_idt, drone in my_drones.items():
-                if not drone.emergency:
-                    flee_action = flee_actions.get(drone_idt)
-                    if not flee_action:
-                        save_action = save_actions.get(drone_idt)
-                        if not save_action:
-                            find_action = find_actions.get(drone_idt)
-                            if not find_action:
-                                my_drones_action[drone_idt] = just_do_something_actions[drone_idt]
-                            else:
-                                my_drones_action[drone_idt] = find_action
-                        else:
-                            my_drones_action[drone_idt] = save_action
-                    else:
-                        my_drones_action[drone_idt] = flee_action
-                else:
-                    my_drones_action[drone_idt] = default_action
+            actions_priorities = [flee_actions, save_actions, find_actions, just_do_something_actions]
+            my_drones_action = choose_action_for_drones(my_drones=my_drones, actions_priorities=actions_priorities,
+                                                        default_action=default_action)
 
             for drone_idt in self.my_drones_idt_play_order:
                 print(my_drones_action[drone_idt])

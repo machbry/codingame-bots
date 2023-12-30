@@ -1,9 +1,9 @@
-import sys
 import numpy as np
 import math
+import sys
 from enum import Enum
-from dataclasses import field, dataclass
-from typing import Set, Literal, Tuple, Union, List, Dict, Any
+from dataclasses import dataclass, field
+from typing import Dict, List, Union, Any, Literal, Tuple, Set
 
 class Point:
 
@@ -256,8 +256,21 @@ class Action:
             instruction = f'{instruction} {self.comment}'
         return instruction
 
-def order_assets(assets: List[Asset], on_attr: str, ascending: bool=True):
-    return sorted(assets, key=lambda asset: getattr(asset, on_attr), reverse=not ascending)
+def choose_action_for_drones(my_drones: Dict[int, MyDrone], actions_priorities: List[Dict[int, Action]], default_action: Action):
+    my_drones_action = {}
+    for drone_idt, drone in my_drones.items():
+        if drone.emergency == 0:
+            action_chosen = None
+            i, N = (0, len(actions_priorities))
+            while not action_chosen and i < N:
+                action_chosen = actions_priorities[i].get(drone_idt)
+                i += 1
+            if not action_chosen:
+                action_chosen = default_action
+        else:
+            action_chosen = default_action
+        my_drones_action[drone_idt] = action_chosen
+    return my_drones_action
 
 def use_light_to_find_a_target(drone: Drone, target: Creature, hash_map_norms=HASH_MAP_NORMS, augmented_light_radius=AUGMENTED_LIGHT_RADIUS):
     battery = drone.battery
@@ -367,6 +380,9 @@ def flee_from_monsters(my_drones: Dict[int, MyDrone], monsters: List[Creature], 
                 comment = f'{comment} {monster.log()}'
             actions[drone_idt] = Action(target=drone.position + drone_speed ** (1 / 2) / flee_vector.norm * flee_vector, comment=f'FLEE FROM{comment}')
     return actions
+
+def order_assets(assets: List[Asset], on_attr: str, ascending: bool=True):
+    return sorted(assets, key=lambda asset: getattr(asset, on_attr), reverse=not ascending)
 
 class AssetType(Enum):
     CREATURE = Creature
@@ -744,24 +760,8 @@ class GameLoop:
             if len(save_actions) < 2 and len(find_actions) < 2:
                 just_do_something_actions = just_do_something(my_drones=my_drones, creatures=creatures)
             flee_actions = flee_from_monsters(my_drones=my_drones, monsters=self.monsters, nb_turns=self.nb_turns)
-            my_drones_action = {}
-            for drone_idt, drone in my_drones.items():
-                if not drone.emergency:
-                    flee_action = flee_actions.get(drone_idt)
-                    if not flee_action:
-                        save_action = save_actions.get(drone_idt)
-                        if not save_action:
-                            find_action = find_actions.get(drone_idt)
-                            if not find_action:
-                                my_drones_action[drone_idt] = just_do_something_actions[drone_idt]
-                            else:
-                                my_drones_action[drone_idt] = find_action
-                        else:
-                            my_drones_action[drone_idt] = save_action
-                    else:
-                        my_drones_action[drone_idt] = flee_action
-                else:
-                    my_drones_action[drone_idt] = default_action
+            actions_priorities = [flee_actions, save_actions, find_actions, just_do_something_actions]
+            my_drones_action = choose_action_for_drones(my_drones=my_drones, actions_priorities=actions_priorities, default_action=default_action)
             for drone_idt in self.my_drones_idt_play_order:
                 print(my_drones_action[drone_idt])
 GameLoop().start()
