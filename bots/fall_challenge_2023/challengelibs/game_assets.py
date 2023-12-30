@@ -13,14 +13,7 @@ class AssetType(Enum):
     TROPHIES = Trophies
 
 
-class Singleton(object):
-    def __new__(cls):
-        if not hasattr(cls, 'instance'):
-            cls.instance = super(Singleton, cls).__new__(cls)
-        return cls.instance
-
-
-class GameAssets(Singleton):
+class GameAssets:
 
     def __init__(self):
         self.assets: Dict[str, Dict[int, Any]] = {asset_type.name: {} for asset_type in AssetType.__iter__()}

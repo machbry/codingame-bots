@@ -60,6 +60,7 @@ class Creature(Unit):
 class Drone(Unit):
     emergency: int = None
     battery: int = None
+    light_on: bool = False  # TODO : to update
     unsaved_creatures_idt: Set[int] = field(default_factory=set)  # reset each turn
     eval_unsaved_creatures_idt: Set[int] = field(default_factory=set)
     extra_score_with_unsaved_creatures: int = 0

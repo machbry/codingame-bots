@@ -76,7 +76,7 @@ TEST_INPUTS = [
 @pytest.mark.parametrize("init_inputs, nb_turns, turns_inputs", TEST_INPUTS)
 def test_replay_turns(init_inputs: List[str], nb_turns: int, turns_inputs: List[str]):
     input_side_effect = [*init_inputs, *turns_inputs]
-    with patch(f"{BOT_PACKAGE}.game_loop.input", side_effect=input_side_effect):
+    with (patch(f"{BOT_PACKAGE}.game_loop.input", side_effect=input_side_effect)):
         running_side_effect = [*[True]*nb_turns, False]
         GameLoop.RUNNING = PropertyMock(side_effect=running_side_effect)
         GameLoop().start()
@@ -127,4 +127,4 @@ def test_perfs():
 
     print(f"init, start, update: {round(1000*sum(init_perfs)/L, 2)}ms, {round(1000*sum(start_perfs)/L, 2)}ms, {round(1000*sum(update_perfs)/L, 2)}ms (R = {R}, N = {N})")
 
-    # last results : 0.46ms, 2.65ms, 0.8ms (R = 100, N = 10)
+    # last results : 0.46ms, 2.57ms, 0.8ms (R = 100, N = 10)

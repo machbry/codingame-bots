@@ -16,8 +16,7 @@ def evaluate_positions_of_creatures(creatures: Dict[int, Creature], radar_blips:
         if not creature.visible:
             possible_zones = [creature.habitat]
             for drone_idt, drone in my_drones.items():
-                radar_idt = hash((drone_idt, creature_idt))
-                radar_blip = radar_blips[radar_idt]
+                radar_blip = radar_blips.get(hash((drone_idt, creature_idt)))
                 if radar_blip is not None:
                     radar_blip_zones = radar_blip.zones
                     n = min(len(radar_blip_zones), max_number_of_radar_blips_used)
@@ -30,6 +29,9 @@ def evaluate_positions_of_creatures(creatures: Dict[int, Creature], radar_blips:
             x_max = np.min(intersection[:, 2])
             y_max = np.min(intersection[:, 3])
 
+            creature.x = creature.next_x = (x_min + x_max) / 2
+            creature.y = creature.next_y = (y_min + y_max) / 2
+
             if creature.last_turn_visible:
                 last_seen_turns = nb_turns - creature.last_turn_visible
                 current_x_projection = creature.x + last_seen_turns * creature.vx
@@ -37,12 +39,12 @@ def evaluate_positions_of_creatures(creatures: Dict[int, Creature], radar_blips:
                 if (x_min <= current_x_projection <= x_max) and (y_min <= current_y_projection <= y_max):
                     creature.x = current_x_projection
                     creature.y = current_y_projection
-                else:
-                    creature.x = (x_min + x_max) / 2
-                    creature.y = (y_min + y_max) / 2
-            else:
-                creature.x = (x_min + x_max) / 2
-                creature.y = (y_min + y_max) / 2
+                    creature.next_x = current_x_projection + creature.vx
+                    creature.next_y = current_y_projection + creature.vy
+
+        else:
+            creature.next_x = creature.x + creature.vx
+            creature.next_y = creature.y + creature.vy
 
 
 def get_closest_unit_from(unit: Unit, other_units: Dict[int, Unit]):
