@@ -1,8 +1,10 @@
-from typing import Dict
+from typing import Dict, List
 
 import numpy as np
 
-from bots.fall_challenge_2023.singletons import D_MAX, HASH_MAP_NORMS, MAX_NUMBER_OF_RADAR_BLIPS_USED
+from bots.fall_challenge_2023.challengelibs.act import Action
+from bots.fall_challenge_2023.singletons import D_MAX, HASH_MAP_NORMS, MAX_NUMBER_OF_RADAR_BLIPS_USED, DRONE_MAX_SPEED, \
+    EMERGENCY_RADIUS
 from bots.fall_challenge_2023.challengelibs.asset import Unit, Creature, RadarBlip, MyDrone
 
 
@@ -61,3 +63,41 @@ def get_closest_unit_from(unit: Unit, other_units: Dict[int, Unit]):
                 d_min = unit_to_other_unit_distance
                 closest_unit = other_unit
     return closest_unit
+
+
+def avoid_monsters_while_aiming_for_an_action(drone: MyDrone, aimed_action: Action, monsters: List[Creature],
+                                              nb_turns: int,
+                                              hash_map_norms=HASH_MAP_NORMS, drone_max_speed=DRONE_MAX_SPEED,
+                                              emergency_radius=EMERGENCY_RADIUS):
+
+    # INIT
+    monsters_positions = []
+    target_position = aimed_action.target_position
+    drone_to_target = target_position - drone.position
+
+    # CHECK MONSTERS POSITIONS (CURRENT & NEXT)
+    for monster in monsters:
+        if monster.last_turn_visible:
+            if nb_turns - monster.last_turn_visible <= 3:
+                monsters_positions.extend([monster.position, monster.next_position])
+
+    # TRY GO DIRECTLY TOWARDS THE TARGET
+    distance_to_target = hash_map_norms[drone_to_target]
+    if distance_to_target <= drone_max_speed:
+        wanted_next_position = target_position
+    else:
+        wanted_next_position = drone.position + (drone_max_speed / distance_to_target) * drone_to_target
+
+    # DANGER OF EMERGENCY ?
+    future_emergency = False
+    monsters_in_my_way = []
+    for monster_position in monsters_positions:
+        monster_in_my_way = hash_map_norms[monster_position - wanted_next_position] <= emergency_radius
+        if monster_in_my_way:
+            future_emergency = True
+            monsters_in_my_way.append(monster_position)
+
+    if not future_emergency:
+        return aimed_action
+    else:
+        pass  # TRY ANOTHER NEXT_POSITION

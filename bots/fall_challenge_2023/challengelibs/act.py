@@ -20,6 +20,10 @@ class Action:
             instruction = f"{instruction} {self.comment}"
         return instruction
 
+    @property
+    def target_position(self):
+        return Point(self.target.x, self.target.y)
+
 
 def choose_action_for_drones(my_drones: Dict[int, MyDrone], actions_priorities: List[Dict[int, Action]],
                              default_action: Action):

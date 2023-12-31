@@ -1,9 +1,9 @@
-import numpy as np
 import math
 import sys
+import numpy as np
 from enum import Enum
-from dataclasses import dataclass, field
-from typing import Dict, List, Union, Any, Literal, Tuple, Set
+from dataclasses import field, dataclass
+from typing import Set, Dict, Literal, Any, Union, List, Tuple
 
 class Point:
 
@@ -115,7 +115,7 @@ MAX_SPEED_PER_KIND = {Kind.MONSTER.value: 540, Kind.ZERO.value: 400, Kind.ONE.va
 LIGHT_RADIUS = HASH_MAP_NORMS[Vector(0, 800)]
 AUGMENTED_LIGHT_RADIUS = HASH_MAP_NORMS[Vector(0, 2000)]
 EMERGENCY_RADIUS = HASH_MAP_NORMS[Vector(0, 500)]
-DRONE_SPEED = HASH_MAP_NORMS[Vector(0, 600)]
+DRONE_MAX_SPEED = HASH_MAP_NORMS[Vector(0, 600)]
 AGGRESSIVE_MONSTER_SPEED = HASH_MAP_NORMS[Vector(0, 540)]
 NON_AGGRESSIVE_MONSTER_SPEED = HASH_MAP_NORMS[Vector(0, 270)]
 SAFE_RADIUS_FROM_MONSTERS = HASH_MAP_NORMS[Vector(0, 500 + 540)]
@@ -256,6 +256,10 @@ class Action:
             instruction = f'{instruction} {self.comment}'
         return instruction
 
+    @property
+    def target_position(self):
+        return Point(self.target.x, self.target.y)
+
 def choose_action_for_drones(my_drones: Dict[int, MyDrone], actions_priorities: List[Dict[int, Action]], default_action: Action):
     my_drones_action = {}
     for drone_idt, drone in my_drones.items():
@@ -345,42 +349,6 @@ def just_do_something(my_drones: Dict[int, MyDrone], creatures: Dict[int, Creatu
             actions[drone.idt] = Action(target=drone_target, light=True, comment=f'FIND {drone_target.log()}')
     return actions
 
-def flee_from_monsters(my_drones: Dict[int, MyDrone], monsters: List[Creature], nb_turns: int, hash_map_norms=HASH_MAP_NORMS, flee_radius_from_monsters=FLEE_RADIUS_FROM_MONSTERS, safe_radius_from_monsters=SAFE_RADIUS_FROM_MONSTERS, map_center=MAP_CENTER, drone_speed=DRONE_SPEED):
-    actions = {}
-    for my_drone in my_drones.values():
-        my_drone.has_to_flee_from = []
-        for monster in monsters:
-            if monster.last_turn_visible:
-                if nb_turns - monster.last_turn_visible <= 3:
-                    if hash_map_norms[monster.position - my_drone.position] <= flee_radius_from_monsters:
-                        my_drone.has_to_flee_from.append(monster)
-    for drone_idt, drone in my_drones.items():
-        drone_has_to_flee_from = drone.has_to_flee_from
-        if len(drone_has_to_flee_from) == 1:
-            monster = drone_has_to_flee_from[0]
-            vector_to_creature = monster.position - drone.position
-            distance_to_creature = hash_map_norms[vector_to_creature]
-            if distance_to_creature > safe_radius_from_monsters:
-                v = 1 / distance_to_creature ** (1 / 2) * vector_to_creature
-                flee_vectors = [Vector(v.y, -v.x), Vector(-v.y, v.x)]
-                flee_vector = flee_vectors[0]
-                vector_to_center = map_center - drone.position
-                cos_with_center = flee_vector.dot(vector_to_center)
-                if flee_vectors[1].dot(vector_to_center) > cos_with_center:
-                    flee_vector = flee_vectors[1]
-                actions[drone_idt] = Action(target=drone.position + drone_speed ** (1 / 2) * flee_vector, comment=f'FLEE FROM {monster.log()}')
-            else:
-                flee_vector = -1 * vector_to_creature
-                actions[drone_idt] = Action(target=drone.position + drone_speed ** (1 / 2) / distance_to_creature ** (1 / 2) * flee_vector, comment=f'FLEE FROM {monster.log()}')
-        elif len(drone_has_to_flee_from) > 1:
-            flee_vector = Vector(0, 0)
-            comment = ''
-            for monster in drone_has_to_flee_from:
-                flee_vector += drone.position - monster.position
-                comment = f'{comment} {monster.log()}'
-            actions[drone_idt] = Action(target=drone.position + drone_speed ** (1 / 2) / flee_vector.norm * flee_vector, comment=f'FLEE FROM{comment}')
-    return actions
-
 def order_assets(assets: List[Asset], on_attr: str, ascending: bool=True):
     return sorted(assets, key=lambda asset: getattr(asset, on_attr), reverse=not ascending)
 
@@ -441,6 +409,31 @@ def evaluate_positions_of_creatures(creatures: Dict[int, Creature], radar_blips:
         else:
             creature.next_x = creature.x + creature.vx
             creature.next_y = creature.y + creature.vy
+
+def avoid_monsters_while_aiming_for_an_action(drone: MyDrone, aimed_action: Action, monsters: List[Creature], nb_turns: int, hash_map_norms=HASH_MAP_NORMS, drone_max_speed=DRONE_MAX_SPEED, emergency_radius=EMERGENCY_RADIUS):
+    monsters_positions = []
+    target_position = aimed_action.target_position
+    drone_to_target = target_position - drone.position
+    for monster in monsters:
+        if monster.last_turn_visible:
+            if nb_turns - monster.last_turn_visible <= 3:
+                monsters_positions.extend([monster.position, monster.next_position])
+    distance_to_target = hash_map_norms[drone_to_target]
+    if distance_to_target <= drone_max_speed:
+        wanted_next_position = target_position
+    else:
+        wanted_next_position = drone.position + drone_max_speed / distance_to_target * drone_to_target
+    future_emergency = False
+    monsters_in_my_way = []
+    for monster_position in monsters_positions:
+        monster_in_my_way = hash_map_norms[monster_position - wanted_next_position] <= emergency_radius
+        if monster_in_my_way:
+            future_emergency = True
+            monsters_in_my_way.append(monster_position)
+    if not future_emergency:
+        return aimed_action
+    else:
+        pass
 
 def update_saved_scans(saved_creatures: np.ndarray, creature_color: int, creature_kind: int):
     creature_saved = saved_creatures[creature_color, creature_kind]
@@ -573,7 +566,7 @@ def evaluate_extra_scores_for_multiple_scenarios(creatures: Dict[int, Creature],
     return (owners_extra_score_with_all_unsaved_creatures, owners_max_possible_score)
 
 class GameLoop:
-    __slots__ = ('init_inputs', 'nb_turns', 'turns_inputs', 'game_assets', 'hash_map_norms', 'empty_array_saved_creatures', 'max_number_of_radar_blips_used', 'max_speed_per_kind', 'corners', 'my_owner', 'foe_owner', 'owners', 'owners_scores', 'owners_extra_score_with_all_unsaved_creatures', 'owners_max_possible_score', 'my_drones_idt_play_order', 'newly_saved_creatures', 'monsters')
+    __slots__ = ('init_inputs', 'nb_turns', 'turns_inputs', 'game_assets', 'empty_array_saved_creatures', 'max_number_of_radar_blips_used', 'max_speed_per_kind', 'corners', 'my_owner', 'foe_owner', 'owners', 'owners_scores', 'owners_extra_score_with_all_unsaved_creatures', 'owners_max_possible_score', 'my_drones_idt_play_order', 'newly_saved_creatures', 'monsters')
     RUNNING = True
     LOG = True
     RESET_TURNS_INPUTS = True
@@ -582,7 +575,6 @@ class GameLoop:
         self.init_inputs: List[str] = []
         self.nb_turns: int = 0
         self.turns_inputs: List[str] = []
-        self.hash_map_norms = HASH_MAP_NORMS
         self.empty_array_saved_creatures = EMPTY_ARRAY_CREATURES
         self.max_number_of_radar_blips_used = MAX_NUMBER_OF_RADAR_BLIPS_USED
         self.max_speed_per_kind = MAX_SPEED_PER_KIND
@@ -759,9 +751,10 @@ class GameLoop:
             just_do_something_actions = {}
             if len(save_actions) < 2 and len(find_actions) < 2:
                 just_do_something_actions = just_do_something(my_drones=my_drones, creatures=creatures)
-            flee_actions = flee_from_monsters(my_drones=my_drones, monsters=self.monsters, nb_turns=self.nb_turns)
-            actions_priorities = [flee_actions, save_actions, find_actions, just_do_something_actions]
+            actions_priorities = [save_actions, find_actions, just_do_something_actions]
             my_drones_action = choose_action_for_drones(my_drones=my_drones, actions_priorities=actions_priorities, default_action=default_action)
             for drone_idt in self.my_drones_idt_play_order:
+                aimed_action = my_drones_action[drone_idt]
+                safe_action = avoid_monsters_while_aiming_for_an_action(drone=my_drones[drone_idt], aimed_action=aimed_action, monsters=self.monsters, nb_turns=self.nb_turns)
                 print(my_drones_action[drone_idt])
 GameLoop().start()

@@ -6,7 +6,7 @@ from botlibs.trigonometry import Vector, Point
 from bots.fall_challenge_2023.challengelibs.act import Action
 from bots.fall_challenge_2023.challengelibs.asset import Drone, Creature, MyDrone, Asset
 from bots.fall_challenge_2023.singletons import HASH_MAP_NORMS, AUGMENTED_LIGHT_RADIUS, FLEE_RADIUS_FROM_MONSTERS, \
-    SAFE_RADIUS_FROM_MONSTERS, MAP_CENTER, DRONE_SPEED, MY_OWNER, FOE_OWNER
+    SAFE_RADIUS_FROM_MONSTERS, MAP_CENTER, DRONE_MAX_SPEED, MY_OWNER, FOE_OWNER
 
 
 def use_light_to_find_a_target(drone: Drone, target: Creature, hash_map_norms=HASH_MAP_NORMS,
@@ -120,7 +120,7 @@ def just_do_something(my_drones: Dict[int, MyDrone], creatures: Dict[int, Creatu
 def flee_from_monsters(my_drones: Dict[int, MyDrone], monsters: List[Creature], nb_turns: int,
                        hash_map_norms=HASH_MAP_NORMS, flee_radius_from_monsters=FLEE_RADIUS_FROM_MONSTERS,
                        safe_radius_from_monsters=SAFE_RADIUS_FROM_MONSTERS, map_center=MAP_CENTER,
-                       drone_speed=DRONE_SPEED):
+                       drone_speed=DRONE_MAX_SPEED):
 
     actions = {}
 

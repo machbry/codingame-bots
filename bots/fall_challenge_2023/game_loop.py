@@ -8,7 +8,8 @@ from bots.fall_challenge_2023.challengelibs.asset import Creature
 from bots.fall_challenge_2023.challengelibs.algorithms import (flee_from_monsters, save_points, find_valuable_target,
                                                                just_do_something)
 from bots.fall_challenge_2023.challengelibs.game_assets import AssetType, GameAssets
-from bots.fall_challenge_2023.challengelibs.map import evaluate_positions_of_creatures
+from bots.fall_challenge_2023.challengelibs.map import evaluate_positions_of_creatures, \
+    avoid_monsters_while_aiming_for_an_action
 from bots.fall_challenge_2023.challengelibs.score import update_trophies, update_saved_scans, \
     evaluate_extra_scores_for_multiple_scenarios
 from bots.fall_challenge_2023.singletons import MY_OWNER, FOE_OWNER, OWNERS, HASH_MAP_NORMS, CORNERS, \
@@ -18,7 +19,7 @@ from bots.fall_challenge_2023.singletons import MY_OWNER, FOE_OWNER, OWNERS, HAS
 
 class GameLoop:
     __slots__ = (
-    "init_inputs", "nb_turns", "turns_inputs", "game_assets", "hash_map_norms", "empty_array_saved_creatures",
+    "init_inputs", "nb_turns", "turns_inputs", "game_assets", "empty_array_saved_creatures",
     "max_number_of_radar_blips_used", "max_speed_per_kind", "corners", "my_owner", "foe_owner", "owners",
     "owners_scores", "owners_extra_score_with_all_unsaved_creatures", "owners_max_possible_score",
     "my_drones_idt_play_order", "newly_saved_creatures", "monsters")
@@ -31,7 +32,6 @@ class GameLoop:
         self.nb_turns: int = 0
         self.turns_inputs: List[str] = []
 
-        self.hash_map_norms = HASH_MAP_NORMS
         self.empty_array_saved_creatures = EMPTY_ARRAY_CREATURES
         self.max_number_of_radar_blips_used = MAX_NUMBER_OF_RADAR_BLIPS_USED
         self.max_speed_per_kind = MAX_SPEED_PER_KIND
@@ -259,11 +259,16 @@ class GameLoop:
             if len(save_actions) < 2 and len(find_actions) < 2:
                 just_do_something_actions = just_do_something(my_drones=my_drones, creatures=creatures)
 
-            flee_actions = flee_from_monsters(my_drones=my_drones, monsters=self.monsters, nb_turns=self.nb_turns)
+            # flee_actions = flee_from_monsters(my_drones=my_drones, monsters=self.monsters, nb_turns=self.nb_turns)
 
-            actions_priorities = [flee_actions, save_actions, find_actions, just_do_something_actions]
+            actions_priorities = [save_actions, find_actions, just_do_something_actions]
             my_drones_action = choose_action_for_drones(my_drones=my_drones, actions_priorities=actions_priorities,
                                                         default_action=default_action)
 
             for drone_idt in self.my_drones_idt_play_order:
+                aimed_action = my_drones_action[drone_idt]
+
+                safe_action = avoid_monsters_while_aiming_for_an_action(drone=my_drones[drone_idt], aimed_action=aimed_action,
+                                                                        monsters=self.monsters, nb_turns=self.nb_turns)
+
                 print(my_drones_action[drone_idt])
