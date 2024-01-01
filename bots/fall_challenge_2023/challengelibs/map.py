@@ -2,6 +2,7 @@ from typing import Dict, List
 
 import numpy as np
 
+from botlibs.trigonometry import Point
 from bots.fall_challenge_2023.challengelibs.act import Action
 from bots.fall_challenge_2023.singletons import D_MAX, HASH_MAP_NORMS, MAX_NUMBER_OF_RADAR_BLIPS_USED, DRONE_MAX_SPEED, \
     EMERGENCY_RADIUS
@@ -31,9 +32,6 @@ def evaluate_positions_of_creatures(creatures: Dict[int, Creature], radar_blips:
             x_max = np.min(intersection[:, 2])
             y_max = np.min(intersection[:, 3])
 
-            creature.x = creature.next_x = (x_min + x_max) / 2
-            creature.y = creature.next_y = (y_min + y_max) / 2
-
             if creature.last_turn_visible:
                 last_seen_turns = nb_turns - creature.last_turn_visible
                 current_x_projection = creature.x + last_seen_turns * creature.vx
@@ -43,6 +41,12 @@ def evaluate_positions_of_creatures(creatures: Dict[int, Creature], radar_blips:
                     creature.y = current_y_projection
                     creature.next_x = current_x_projection + creature.vx
                     creature.next_y = current_y_projection + creature.vy
+                else:
+                    creature.x = creature.next_x = round((x_min + x_max) / 2)
+                    creature.y = creature.next_y = round((y_min + y_max) / 2)
+            else:
+                creature.x = creature.next_x = round((x_min + x_max) / 2)
+                creature.y = creature.next_y = round((y_min + y_max) / 2)
 
         else:
             creature.next_x = creature.x + creature.vx
@@ -68,7 +72,7 @@ def get_closest_unit_from(unit: Unit, other_units: Dict[int, Unit]):
 def avoid_monsters_while_aiming_for_an_action(drone: MyDrone, aimed_action: Action, monsters: List[Creature],
                                               nb_turns: int,
                                               hash_map_norms=HASH_MAP_NORMS, drone_max_speed=DRONE_MAX_SPEED,
-                                              emergency_radius=EMERGENCY_RADIUS):
+                                              emergency_radius=1.15*EMERGENCY_RADIUS):
 
     # INIT
     monsters_positions = []
@@ -84,9 +88,9 @@ def avoid_monsters_while_aiming_for_an_action(drone: MyDrone, aimed_action: Acti
     # TRY GO DIRECTLY TOWARDS THE TARGET
     distance_to_target = hash_map_norms[drone_to_target]
     if distance_to_target <= drone_max_speed:
-        wanted_next_position = target_position
+        wanted_next_position = round(target_position)
     else:
-        wanted_next_position = drone.position + (drone_max_speed / distance_to_target) * drone_to_target
+        wanted_next_position = round(drone.position + ((drone_max_speed / distance_to_target) ** (1/2)) * drone_to_target)
 
     # DANGER OF EMERGENCY ?
     future_emergency = False
