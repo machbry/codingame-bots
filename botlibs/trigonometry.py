@@ -31,6 +31,9 @@ class Point:
     def __hash__(self):
         return (self.x, self.y).__hash__()
 
+    def __round__(self, n=None):
+        return Point(round(self.x, n), round(self.y, n))
+
     def dist(self, point):
         return math.dist([self.x, self.y], [point.x, point.y])
 
@@ -41,6 +44,9 @@ class Vector(Point):
 
     def __mul__(self, nombre):
         return Vector(nombre * self.x, nombre * self.y)
+
+    def __round__(self, n=None):
+        return Vector(round(self.x, n), round(self.y, n))
 
     def dot(self, vector):
         return self.x * vector.x + self.y * vector.y
