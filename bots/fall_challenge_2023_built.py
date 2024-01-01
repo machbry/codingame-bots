@@ -2,8 +2,8 @@ import math
 import sys
 import numpy as np
 from enum import Enum
-from dataclasses import dataclass, field
-from typing import Union, Literal, Set, List, Dict, Tuple, Any
+from dataclasses import field, dataclass
+from typing import List, Any, Literal, Union, Set, Dict, Tuple
 
 class Point:
 
@@ -456,26 +456,30 @@ def evaluate_positions_of_creatures(creatures: Dict[int, Creature], radar_blips:
             creature.next_x = creature.x + creature.vx
             creature.next_y = creature.y + creature.vy
 
-def avoid_monsters_while_aiming_for_an_action(drone: MyDrone, aimed_action: Action, monsters: List[Creature], nb_turns: int, hash_map_norms=HASH_MAP_NORMS, drone_max_speed=DRONE_MAX_SPEED, emergency_radius=1.15 * EMERGENCY_RADIUS):
+def avoid_monsters_while_aiming_for_an_action(drone: MyDrone, aimed_action: Action, monsters: List[Creature], nb_turns: int, hash_map_norms=HASH_MAP_NORMS, drone_max_speed=DRONE_MAX_SPEED, emergency_radius=1.1 * EMERGENCY_RADIUS):
     monsters_positions = []
     target_position = aimed_action.target_position
     drone_to_target = target_position - drone.position
     for monster in monsters:
         if monster.last_turn_visible:
             if nb_turns - monster.last_turn_visible <= 3:
-                monsters_positions.extend([monster.position, monster.next_position])
+                monster_path = monster.next_position - monster.position
+                monsters_positions.extend([monster.position + x * monster_path for x in np.arange(0, 1.25, 0.25)])
     distance_to_target = hash_map_norms[drone_to_target]
     if distance_to_target <= drone_max_speed:
         wanted_next_position = round(target_position)
     else:
-        wanted_next_position = round(drone.position + (drone_max_speed / distance_to_target) ** (1 / 2) * drone_to_target)
+        wanted_next_position = drone.position + round((drone_max_speed / distance_to_target) ** (1 / 2) * drone_to_target)
+    drone_path = wanted_next_position - drone.position
+    drone_positions = [drone.position + x * drone_path for x in np.arange(0, 1.25, 0.25)]
     future_emergency = False
     monsters_in_my_way = []
-    for monster_position in monsters_positions:
-        monster_in_my_way = hash_map_norms[monster_position - wanted_next_position] <= emergency_radius
-        if monster_in_my_way:
-            future_emergency = True
-            monsters_in_my_way.append(monster_position)
+    for drone_position in drone_positions:
+        for monster_position in monsters_positions:
+            monster_in_my_way = hash_map_norms[monster_position - drone_position] <= emergency_radius
+            if monster_in_my_way:
+                future_emergency = True
+                monsters_in_my_way.append(monster_position)
     if not future_emergency:
         return aimed_action
     else:
