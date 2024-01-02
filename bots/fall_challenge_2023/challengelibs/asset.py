@@ -1,10 +1,54 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from typing import Set, List, Dict
 
 import numpy as np
 
 from botlibs.trigonometry import Point, Vector
 from bots.fall_challenge_2023.singletons import MY_OWNER, FOE_OWNER
+
+
+@dataclass(slots=True)
+class Score:
+    base_creatures: int = 0
+    bonus_creatures: int = 0
+    base_colors: int = 0
+    bonus_colors: int = 0
+    base_kinds: int = 0
+    bonus_kinds: int = 0
+
+    def __add__(self, other):
+        # self + other
+        other_dict = asdict(other)
+        return Score(**{attr: value + other_dict[attr] for attr, value in asdict(self).items()})
+
+    def __sub__(self, other):
+        # self - other
+        other_dict = asdict(other)
+        return Score(**{attr: value - other_dict[attr] for attr, value in asdict(self).items()})
+
+    @property
+    def base(self):
+        return self.base_creatures + self.base_colors + self.base_kinds
+
+    @property
+    def bonus(self):
+        return self.bonus_creatures + self.bonus_colors + self.bonus_kinds
+
+    @property
+    def creatures(self):
+        return self.base_creatures + self.bonus_creatures
+
+    @property
+    def colors(self):
+        return self.base_colors + self.bonus_colors
+
+    @property
+    def kinds(self):
+        return self.base_kinds + self.bonus_kinds
+
+    @property
+    def total(self):
+        return self.base + self.bonus
 
 
 @dataclass(slots=True)
@@ -108,37 +152,3 @@ class Trophies(Asset):
                         creatures_win_by=self.creatures_win_by.copy(),
                         colors_win_by=self.colors_win_by.copy(),
                         kinds_win_by=self.kinds_win_by.copy())
-
-
-@dataclass(slots=True)
-class Score:
-    base_creatures: int = 0
-    bonus_creatures: int = 0
-    base_colors: int = 0
-    bonus_colors: int = 0
-    base_kinds: int = 0
-    bonus_kinds: int = 0
-
-    @property
-    def base(self):
-        return self.base_creatures + self.base_colors + self.base_kinds
-
-    @property
-    def bonus(self):
-        return self.bonus_creatures + self.bonus_colors + self.bonus_kinds
-
-    @property
-    def creatures(self):
-        return self.base_creatures + self.bonus_creatures
-
-    @property
-    def colors(self):
-        return self.base_colors + self.bonus_colors
-
-    @property
-    def kinds(self):
-        return self.base_kinds + self.bonus_kinds
-
-    @property
-    def total(self):
-        return self.base + self.bonus

@@ -5,7 +5,7 @@ import numpy as np
 
 from botlibs.trigonometry import Vector, Point
 from bots.fall_challenge_2023.singletons import HASH_MAP_NORM2, MAX_NUMBER_OF_RADAR_BLIPS_USED, DRONE_MAX_SPEED, \
-    EMERGENCY_RADIUS, SAFE_RADIUS_FROM_MONSTERS, HASH_MAP_NORM, X_MIN, Y_MIN, X_MAX, Y_MAX
+    EMERGENCY_RADIUS2, SAFE_RADIUS_FROM_MONSTERS2, HASH_MAP_NORM, X_MIN, Y_MIN, X_MAX, Y_MAX
 from bots.fall_challenge_2023.challengelibs.asset import Creature, RadarBlip, MyDrone, Drone
 
 
@@ -14,6 +14,7 @@ def evaluate_positions_of_creatures(creatures: Dict[int, Creature], radar_blips:
                                     max_number_of_radar_blips_used=MAX_NUMBER_OF_RADAR_BLIPS_USED):
 
     # TODO : use zones lightened by drones to eliminates possible zones
+    # TODO : add collisions with limits & others to projections
 
     for creature_idt, creature in creatures.items():
         if not creature.visible:
@@ -54,7 +55,7 @@ def evaluate_positions_of_creatures(creatures: Dict[int, Creature], radar_blips:
 
 
 def evaluate_monsters_to_avoid(my_drones: Dict[int, MyDrone], monsters: List[Creature], nb_turns: int,
-                               hash_map_norm2=HASH_MAP_NORM2, safe_radius_from_monsters=SAFE_RADIUS_FROM_MONSTERS):
+                               hash_map_norm2=HASH_MAP_NORM2, safe_radius_from_monsters=SAFE_RADIUS_FROM_MONSTERS2):
     for drone in my_drones.values():
         drone.has_to_avoid = []
         for monster in monsters:
@@ -64,7 +65,7 @@ def evaluate_monsters_to_avoid(my_drones: Dict[int, MyDrone], monsters: List[Cre
                         drone.has_to_avoid.append(monster)
 
 
-def is_collision(drone: Drone, monster: Creature, collision_range=EMERGENCY_RADIUS, hash_map_norm2=HASH_MAP_NORM2):
+def is_collision(drone: Drone, monster: Creature, collision_range=EMERGENCY_RADIUS2, hash_map_norm2=HASH_MAP_NORM2):
     xm, ym, xd, yd = monster.x, monster.y, drone.x, drone.y
     x, y = xm - xd, ym - yd
     vx, vy = monster.vx - drone.vx, monster.vy - drone.vy

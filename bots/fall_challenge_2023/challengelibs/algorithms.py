@@ -5,13 +5,13 @@ import numpy as np
 
 from botlibs.trigonometry import Vector, Point
 from bots.fall_challenge_2023.challengelibs.act import Action
-from bots.fall_challenge_2023.challengelibs.asset import Drone, Creature, MyDrone, Asset
+from bots.fall_challenge_2023.challengelibs.asset import Drone, Creature, MyDrone, Asset, Score
 from bots.fall_challenge_2023.challengelibs.map import is_next_position_safe, get_drone_next_position_with_target
-from bots.fall_challenge_2023.singletons import HASH_MAP_NORM2, AUGMENTED_LIGHT_RADIUS, MY_OWNER, FOE_OWNER, ROTATE_2D_MATRIX
+from bots.fall_challenge_2023.singletons import HASH_MAP_NORM2, AUGMENTED_LIGHT_RADIUS2, MY_OWNER, FOE_OWNER, ROTATE_2D_MATRIX
 
 
 def use_light_to_find_a_target(drone: Drone, target: Creature, hash_map_norm2=HASH_MAP_NORM2,
-                               augmented_light_radius=AUGMENTED_LIGHT_RADIUS):
+                               augmented_light_radius=AUGMENTED_LIGHT_RADIUS2):
     battery = drone.battery
     if battery >= 10 and drone.y > 4000:
         return True
@@ -22,12 +22,16 @@ def use_light_to_find_a_target(drone: Drone, target: Creature, hash_map_norm2=HA
     return False
 
 
-def save_points(my_drones: Dict[int, MyDrone], owners_scores: Dict[int, int], owners_max_possible_score: Dict[int, int],
-                owners_extra_score_with_all_unsaved_creatures: Dict[int, int], my_owner=MY_OWNER, foe_owner=FOE_OWNER):
+def save_points(my_drones: Dict[int, MyDrone], owners_scores: Dict[int, Score], owners_max_possible_score: Dict[int, Score],
+                owners_extra_score_with_all_unsaved_creatures: Dict[int, Score], my_owner=MY_OWNER, foe_owner=FOE_OWNER):
     actions = {}
 
-    extra_score_to_win = owners_max_possible_score[foe_owner] - owners_scores[my_owner] + 1  # TODO : bonus scores are shared
-    extra_score_if_all_my_drones_save = owners_extra_score_with_all_unsaved_creatures[my_owner]
+    extra_score_to_win = owners_max_possible_score[foe_owner].total - owners_scores[my_owner].total + 1  # TODO : bonus scores are shared
+    extra_score_if_all_my_drones_save = owners_extra_score_with_all_unsaved_creatures[my_owner].total
+
+    # foe_score_base_max + foe_score_bonus_max < my_base_score + my_bonus_score + extra_base_to_win + extra_bonus_to_win
+    # my_base_score + extra_base_to_win = foe_score_base_max = my_score_base_max
+    # extra_base_to_win = my_score_base_max - my_base_score
 
     if extra_score_if_all_my_drones_save >= extra_score_to_win:
         for drone in my_drones.values():

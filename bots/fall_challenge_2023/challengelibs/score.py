@@ -127,7 +127,7 @@ class ScoreSimulation:
 
 def evaluate_extra_scores_for_multiple_scenarios(creatures: Dict[int, Creature], my_drones: Dict[int, MyDrone],
                                                  foe_drones: Dict[int, FoeDrone], scans: Dict[int, Scans],
-                                                 trophies: Trophies, current_owners_scores: Dict[int, int],
+                                                 trophies: Trophies, current_owners_scores: Dict[int, Score],
                                                  my_owner=MY_OWNER, foe_owner=FOE_OWNER, owners=OWNERS,
                                                  monster_kind=Kind.MONSTER.value):
 
@@ -140,8 +140,8 @@ def evaluate_extra_scores_for_multiple_scenarios(creatures: Dict[int, Creature],
     for creature in creatures.values():
         creature.extra_scores = {owner: 0 for owner in owners}
 
-    owners_extra_score_with_all_unsaved_creatures = {owner: 0 for owner in owners}
-    owners_max_possible_score = {owner: 0 for owner in owners}
+    owners_extra_score_with_all_unsaved_creatures = {owner: Score() for owner in owners}
+    owners_max_possible_score = {owner: Score() for owner in owners}
 
     # REMOVE DUPLICATES IN UNSAVED CREATURES FOR EACH OWNER (THE TOP DRONE KEEPS IT)
     unsaved_creatures_idt = {}
@@ -168,7 +168,7 @@ def evaluate_extra_scores_for_multiple_scenarios(creatures: Dict[int, Creature],
                                                colors_win_by=trophies.colors_win_by,
                                                kinds_win_by=trophies.kinds_win_by)
 
-            drone_extra_score = score_simulation.compute_new_score()[owner].total - current_owners_scores[owner]
+            drone_extra_score = score_simulation.compute_new_score()[owner].total - current_owners_scores[owner].total
 
         drone.extra_score_with_unsaved_creatures = drone_extra_score
 
@@ -182,7 +182,7 @@ def evaluate_extra_scores_for_multiple_scenarios(creatures: Dict[int, Creature],
                                                creatures_win_by=trophies.creatures_win_by,
                                                colors_win_by=trophies.colors_win_by,
                                                kinds_win_by=trophies.kinds_win_by)
-            owner_extra_score = score_simulation.compute_new_score()[owner].total - current_owners_scores[owner]
+            owner_extra_score = score_simulation.compute_new_score()[owner] - current_owners_scores[owner]
             owners_extra_score_with_all_unsaved_creatures[owner] = owner_extra_score
 
     # EVALUATE EXTRA SCORES IF CURRENT SCANS ARE SAVED (FROM TOP TO BOTTOM DRONES)
@@ -197,8 +197,7 @@ def evaluate_extra_scores_for_multiple_scenarios(creatures: Dict[int, Creature],
                                        colors_win_by=trophies.colors_win_by,
                                        kinds_win_by=trophies.kinds_win_by)
 
-    new_owners_scores = {owner: score_simulation.compute_new_score()[owner].total
-                         for owner in owners}
+    new_owners_scores = {owner: score_simulation.compute_new_score()[owner].total for owner in owners}
 
     new_state = score_simulation.scans_and_trophies_after_simulation()
 
@@ -230,6 +229,6 @@ def evaluate_extra_scores_for_multiple_scenarios(creatures: Dict[int, Creature],
                                            colors_win_by=trophies.colors_win_by,
                                            kinds_win_by=trophies.kinds_win_by)
 
-        owners_max_possible_score[owner] = score_simulation.compute_new_score()[owner].total
+        owners_max_possible_score[owner] = score_simulation.compute_new_score()[owner]
 
     return owners_extra_score_with_all_unsaved_creatures, owners_max_possible_score
