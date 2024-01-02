@@ -5,8 +5,8 @@ import numpy as np
 from botlibs.trigonometry import Vector, Point
 from bots.fall_challenge_2023.challengelibs.act import Action
 from bots.fall_challenge_2023.challengelibs.asset import Drone, Creature, MyDrone, Asset
-from bots.fall_challenge_2023.singletons import HASH_MAP_NORMS, AUGMENTED_LIGHT_RADIUS, FLEE_RADIUS_FROM_MONSTERS, \
-    SAFE_RADIUS_FROM_MONSTERS, MAP_CENTER, DRONE_MAX_SPEED, MY_OWNER, FOE_OWNER
+from bots.fall_challenge_2023.singletons import HASH_MAP_NORMS, AUGMENTED_LIGHT_RADIUS, \
+    MAX_REACHED_RADIUS_FOR_MONSTERS, MAP_CENTER, DRONE_MAX_SPEED, MY_OWNER, FOE_OWNER
 
 
 def use_light_to_find_a_target(drone: Drone, target: Creature, hash_map_norms=HASH_MAP_NORMS,
@@ -117,55 +117,44 @@ def just_do_something(my_drones: Dict[int, MyDrone], creatures: Dict[int, Creatu
     return actions
 
 
-def flee_from_monsters(my_drones: Dict[int, MyDrone], monsters: List[Creature], nb_turns: int,
-                       hash_map_norms=HASH_MAP_NORMS, flee_radius_from_monsters=FLEE_RADIUS_FROM_MONSTERS,
-                       safe_radius_from_monsters=SAFE_RADIUS_FROM_MONSTERS, map_center=MAP_CENTER,
-                       drone_speed=DRONE_MAX_SPEED):
+def avoid_monsters(drone: MyDrone, default_action: Action, hash_map_norms=HASH_MAP_NORMS, drone_speed=DRONE_MAX_SPEED,
+                   max_reached_radius_from_monsters=MAX_REACHED_RADIUS_FOR_MONSTERS, map_center=MAP_CENTER):
 
-    actions = {}
+    action = default_action
 
-    for my_drone in my_drones.values():
-        my_drone.has_to_flee_from = []
-        for monster in monsters:
-            if monster.last_turn_visible:
-                if nb_turns - monster.last_turn_visible <= 3:
-                    if hash_map_norms[monster.position - my_drone.position] <= flee_radius_from_monsters:
-                        my_drone.has_to_flee_from.append(monster)
+    drone_has_to_avoid = drone.has_to_avoid
+    if len(drone_has_to_avoid) == 1:
+        monster = drone_has_to_avoid[0]
+        vector_to_creature = monster.position - drone.position
+        distance_to_creature = hash_map_norms[vector_to_creature]
 
-    for drone_idt, drone in my_drones.items():
-        drone_has_to_flee_from = drone.has_to_flee_from
-        if len(drone_has_to_flee_from) == 1:
-            monster = drone_has_to_flee_from[0]
-            vector_to_creature = monster.position - drone.position
-            distance_to_creature = hash_map_norms[vector_to_creature]
+        if distance_to_creature > max_reached_radius_from_monsters:
+            v = (1 / distance_to_creature ** (1 / 2)) * vector_to_creature
+            flee_vectors = [Vector(v.y, -v.x), Vector(-v.y, v.x)]
+            flee_vector = flee_vectors[0]
+            vector_to_center = map_center - drone.position
+            cos_with_center = flee_vector.dot(vector_to_center)
+            if flee_vectors[1].dot(vector_to_center) > cos_with_center:
+                flee_vector = flee_vectors[1]
+            action = Action(
+                target=drone.position + (drone_speed ** (1 / 2)) * flee_vector,
+                comment=f"FLEE FROM {monster.log()}")
+        else:
+            flee_vector = -1 * vector_to_creature
+            action = Action(target=drone.position + (
+                    (drone_speed ** (1 / 2)) / (distance_to_creature ** (1 / 2))) * flee_vector,
+                                        comment=f"FLEE FROM {monster.log()}")
+    elif len(drone_has_to_avoid) > 1:
+        flee_vector = Vector(0, 0)
+        comment = ""
+        for monster in drone_has_to_avoid:
+            flee_vector += drone.position - monster.position
+            comment = f"{comment} {monster.log()}"
+        action = Action(
+            target=drone.position + ((drone_speed ** (1 / 2)) / flee_vector.norm) * flee_vector,
+            comment=f"FLEE FROM{comment}")
 
-            if distance_to_creature > safe_radius_from_monsters:
-                v = (1 / distance_to_creature ** (1 / 2)) * vector_to_creature
-                flee_vectors = [Vector(v.y, -v.x), Vector(-v.y, v.x)]
-                flee_vector = flee_vectors[0]
-                vector_to_center = map_center - drone.position
-                cos_with_center = flee_vector.dot(vector_to_center)
-                if flee_vectors[1].dot(vector_to_center) > cos_with_center:
-                    flee_vector = flee_vectors[1]
-                actions[drone_idt] = Action(
-                    target=drone.position + (drone_speed ** (1 / 2)) * flee_vector,
-                    comment=f"FLEE FROM {monster.log()}")
-            else:
-                flee_vector = -1 * vector_to_creature
-                actions[drone_idt] = Action(target=drone.position + (
-                        (drone_speed ** (1 / 2)) / (distance_to_creature ** (1 / 2))) * flee_vector,
-                                                      comment=f"FLEE FROM {monster.log()}")
-        elif len(drone_has_to_flee_from) > 1:
-            flee_vector = Vector(0, 0)
-            comment = ""
-            for monster in drone_has_to_flee_from:
-                flee_vector += drone.position - monster.position
-                comment = f"{comment} {monster.log()}"
-            actions[drone_idt] = Action(
-                target=drone.position + ((drone_speed ** (1 / 2)) / flee_vector.norm) * flee_vector,
-                comment=f"FLEE FROM{comment}")
-
-    return actions
+    return action
 
 
 def order_assets(assets: List[Asset], on_attr: str, ascending: bool = True):

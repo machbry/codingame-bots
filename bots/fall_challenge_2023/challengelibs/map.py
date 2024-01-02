@@ -1,12 +1,13 @@
 from typing import Dict, List
+import math
 import sys
 
 import numpy as np
 
 from bots.fall_challenge_2023.challengelibs.act import Action
 from bots.fall_challenge_2023.singletons import D_MAX, HASH_MAP_NORMS, MAX_NUMBER_OF_RADAR_BLIPS_USED, DRONE_MAX_SPEED, \
-    EMERGENCY_RADIUS
-from bots.fall_challenge_2023.challengelibs.asset import Unit, Creature, RadarBlip, MyDrone
+    EMERGENCY_RADIUS, SAFE_RADIUS_FROM_MONSTERS
+from bots.fall_challenge_2023.challengelibs.asset import Unit, Creature, RadarBlip, MyDrone, Drone
 
 
 def evaluate_positions_of_creatures(creatures: Dict[int, Creature], radar_blips: Dict[int, RadarBlip],
@@ -69,22 +70,49 @@ def get_closest_unit_from(unit: Unit, other_units: Dict[int, Unit]):
     return closest_unit
 
 
-def avoid_monsters_while_aiming_for_an_action(drone: MyDrone, aimed_action: Action, monsters: List[Creature],
-                                              nb_turns: int,
-                                              hash_map_norms=HASH_MAP_NORMS, drone_max_speed=DRONE_MAX_SPEED,
-                                              emergency_radius=1.1*EMERGENCY_RADIUS):
+def is_collision(drone: Drone, monster: Creature, collision_range=EMERGENCY_RADIUS):
+    xm, ym, xd, yd = monster.x, monster.y, drone.x, drone.y
+    x, y = xm - xd, ym - yd
+    vx, vy = monster.vx - drone.vx, monster.vy - drone.vy
+
+    a = vx**2 + vy**2
+
+    if a <= 0:
+        return False
+
+    b = 2*(x * vx + y * vy)
+    c = x**2 + y**2 - collision_range
+    delta = b**2 - 4 * a * c
+
+    if delta < 0:
+        return False
+
+    t = (-b - math.sqrt(delta)) / (2 * a)
+
+    if t <= 0:
+        return False
+
+    if t > 1:
+        return False
+
+    return True
+
+
+def is_action_safe(drone: MyDrone, aimed_action: Action, monsters: List[Creature], nb_turns: int,
+                   hash_map_norms=HASH_MAP_NORMS, drone_max_speed=DRONE_MAX_SPEED,
+                   safe_radius_from_monsters=SAFE_RADIUS_FROM_MONSTERS):
 
     # INIT
-    monsters_positions = []
     target_position = aimed_action.target_position
     drone_to_target = target_position - drone.position
+    drone.has_to_avoid = []
 
     # CHECK MONSTERS POSITIONS (CURRENT & NEXT)
     for monster in monsters:
         if monster.last_turn_visible:
             if nb_turns - monster.last_turn_visible <= 3:
-                monster_path = monster.next_position - monster.position
-                monsters_positions.extend([monster.position + x * monster_path for x in np.arange(0, 1.25, 0.25)])
+                if hash_map_norms[monster.position - drone.position] <= safe_radius_from_monsters:
+                    drone.has_to_avoid.append(monster)
 
     # TRY GO DIRECTLY TOWARDS THE TARGET
     distance_to_target = hash_map_norms[drone_to_target]
@@ -93,22 +121,13 @@ def avoid_monsters_while_aiming_for_an_action(drone: MyDrone, aimed_action: Acti
     else:
         wanted_next_position = drone.position + round(((drone_max_speed / distance_to_target) ** (1/2)) * drone_to_target)
 
-    # print(f"{drone.log()}: {wanted_next_position.x, wanted_next_position.y}", file=sys.stderr, flush=True)
-
-    drone_path = wanted_next_position - drone.position
-    drone_positions = [drone.position + x * drone_path for x in np.arange(0, 1.25, 0.25)]
+    drone.vx = wanted_next_position.x - drone.x
+    drone.vy = wanted_next_position.y - drone.y
 
     # DANGER OF EMERGENCY ?
-    future_emergency = False
-    monsters_in_my_way = []
-    for drone_position in drone_positions:
-        for monster_position in monsters_positions:
-            monster_in_my_way = hash_map_norms[monster_position - drone_position] <= emergency_radius
-            if monster_in_my_way:
-                future_emergency = True
-                monsters_in_my_way.append(monster_position)
+    safe_action = True
+    for monster in drone.has_to_avoid:
+        if is_collision(drone, monster):
+            safe_action = False
 
-    if not future_emergency:
-        return aimed_action
-    else:
-        pass  # TRY ANOTHER NEXT_POSITION
+    return safe_action
