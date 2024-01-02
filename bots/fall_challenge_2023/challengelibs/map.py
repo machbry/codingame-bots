@@ -1,13 +1,12 @@
 from typing import Dict, List
 import math
-import sys
 
 import numpy as np
 
-from bots.fall_challenge_2023.challengelibs.act import Action
-from bots.fall_challenge_2023.singletons import D_MAX, HASH_MAP_NORMS, MAX_NUMBER_OF_RADAR_BLIPS_USED, DRONE_MAX_SPEED, \
-    EMERGENCY_RADIUS, SAFE_RADIUS_FROM_MONSTERS
-from bots.fall_challenge_2023.challengelibs.asset import Unit, Creature, RadarBlip, MyDrone, Drone
+from botlibs.trigonometry import Vector, Point
+from bots.fall_challenge_2023.singletons import HASH_MAP_NORM2, MAX_NUMBER_OF_RADAR_BLIPS_USED, DRONE_MAX_SPEED, \
+    EMERGENCY_RADIUS, SAFE_RADIUS_FROM_MONSTERS, HASH_MAP_NORM, X_MIN, Y_MIN, X_MAX, Y_MAX
+from bots.fall_challenge_2023.challengelibs.asset import Creature, RadarBlip, MyDrone, Drone
 
 
 def evaluate_positions_of_creatures(creatures: Dict[int, Creature], radar_blips: Dict[int, RadarBlip],
@@ -54,34 +53,36 @@ def evaluate_positions_of_creatures(creatures: Dict[int, Creature], radar_blips:
             creature.next_y = creature.y + creature.vy
 
 
-def get_closest_unit_from(unit: Unit, other_units: Dict[int, Unit]):
-    d_min = D_MAX
-    closest_unit = None
-    for other_unit_idt, other_unit in other_units.items():
-        if unit.idt != other_unit.idt:
-            try:
-                unit_to_other_unit_vector = other_unit.position - unit.position
-            except (AttributeError, TypeError):
-                continue
-            unit_to_other_unit_distance = HASH_MAP_NORMS[unit_to_other_unit_vector]
-            if unit_to_other_unit_distance < d_min:
-                d_min = unit_to_other_unit_distance
-                closest_unit = other_unit
-    return closest_unit
+def evaluate_monsters_to_avoid(my_drones: Dict[int, MyDrone], monsters: List[Creature], nb_turns: int,
+                               hash_map_norm2=HASH_MAP_NORM2, safe_radius_from_monsters=SAFE_RADIUS_FROM_MONSTERS):
+    for drone in my_drones.values():
+        drone.has_to_avoid = []
+        for monster in monsters:
+            if monster.last_turn_visible:
+                if nb_turns - monster.last_turn_visible <= 3:
+                    if hash_map_norm2[monster.position - drone.position] <= safe_radius_from_monsters:
+                        drone.has_to_avoid.append(monster)
 
 
-def is_collision(drone: Drone, monster: Creature, collision_range=EMERGENCY_RADIUS):
+def is_collision(drone: Drone, monster: Creature, collision_range=EMERGENCY_RADIUS, hash_map_norm2=HASH_MAP_NORM2):
     xm, ym, xd, yd = monster.x, monster.y, drone.x, drone.y
     x, y = xm - xd, ym - yd
     vx, vy = monster.vx - drone.vx, monster.vy - drone.vy
 
-    a = vx**2 + vy**2
+    # Resolving: sqrt((x + t * vx) ^ 2 + (y + t * vy) ^ 2) = radius <= > t ^ 2 * (vx ^ 2 + vy ^ 2) + t * 2 * (
+    #             x * vx + y * vy) + x ^ 2 + y ^ 2 - radius ^ 2 = 0
+    # at ^ 2 + bt + c = 0;
+    # a = vx ^ 2 + vy ^ 2
+    # b = 2 * (x * vx + y * vy)
+    # c = x ^ 2 + y ^ 2 - radius ^ 2
+
+    a = hash_map_norm2[Vector(vx, vy)]
 
     if a <= 0:
         return False
 
     b = 2*(x * vx + y * vy)
-    c = x**2 + y**2 - collision_range
+    c = hash_map_norm2[Vector(x, y)] - collision_range
     delta = b**2 - 4 * a * c
 
     if delta < 0:
@@ -98,36 +99,29 @@ def is_collision(drone: Drone, monster: Creature, collision_range=EMERGENCY_RADI
     return True
 
 
-def is_action_safe(drone: MyDrone, aimed_action: Action, monsters: List[Creature], nb_turns: int,
-                   hash_map_norms=HASH_MAP_NORMS, drone_max_speed=DRONE_MAX_SPEED,
-                   safe_radius_from_monsters=SAFE_RADIUS_FROM_MONSTERS):
-
-    # INIT
-    target_position = aimed_action.target_position
+def get_drone_next_position_with_target(drone: MyDrone, target_position: Point, drone_max_speed=DRONE_MAX_SPEED,
+                                        hash_map_norm=HASH_MAP_NORM):
     drone_to_target = target_position - drone.position
-    drone.has_to_avoid = []
-
-    # CHECK MONSTERS POSITIONS (CURRENT & NEXT)
-    for monster in monsters:
-        if monster.last_turn_visible:
-            if nb_turns - monster.last_turn_visible <= 3:
-                if hash_map_norms[monster.position - drone.position] <= safe_radius_from_monsters:
-                    drone.has_to_avoid.append(monster)
-
-    # TRY GO DIRECTLY TOWARDS THE TARGET
-    distance_to_target = hash_map_norms[drone_to_target]
+    distance_to_target = hash_map_norm[drone_to_target]
     if distance_to_target <= drone_max_speed:
-        wanted_next_position = round(target_position)
+        return round(target_position)
     else:
-        wanted_next_position = drone.position + round(((drone_max_speed / distance_to_target) ** (1/2)) * drone_to_target)
+        return round((drone_max_speed / distance_to_target) * drone_to_target) + drone.position
 
-    drone.vx = wanted_next_position.x - drone.x
-    drone.vy = wanted_next_position.y - drone.y
 
-    # DANGER OF EMERGENCY ?
-    safe_action = True
+def is_next_position_safe(drone: MyDrone, next_position: Point,
+                          x_min=X_MIN, y_min=Y_MIN, x_max=X_MAX, y_max=Y_MAX):
+    next_x, next_y = next_position.x, next_position.y
+
+    drone.vx = next_x - drone.x
+    drone.vy = next_y - drone.y
+
+    if next_x < x_min or next_x > x_max or next_y < y_min or next_y > y_max:
+        return False
+
+    is_safe = True
     for monster in drone.has_to_avoid:
         if is_collision(drone, monster):
-            safe_action = False
+            is_safe = False
 
-    return safe_action
+    return is_safe

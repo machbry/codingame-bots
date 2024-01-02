@@ -8,8 +8,7 @@ from bots.fall_challenge_2023.challengelibs.asset import Creature
 from bots.fall_challenge_2023.challengelibs.algorithms import (avoid_monsters, save_points, find_valuable_target,
                                                                just_do_something)
 from bots.fall_challenge_2023.challengelibs.game_assets import AssetType, GameAssets
-from bots.fall_challenge_2023.challengelibs.map import evaluate_positions_of_creatures, \
-    is_action_safe
+from bots.fall_challenge_2023.challengelibs.map import evaluate_positions_of_creatures, evaluate_monsters_to_avoid
 from bots.fall_challenge_2023.challengelibs.score import update_trophies, update_saved_scans, \
     evaluate_extra_scores_for_multiple_scenarios
 from bots.fall_challenge_2023.singletons import MY_OWNER, FOE_OWNER, OWNERS, CORNERS, \
@@ -247,6 +246,8 @@ class GameLoop:
             evaluate_positions_of_creatures(creatures=creatures, radar_blips=radar_blips,
                                             my_drones=my_drones, nb_turns=self.nb_turns)
 
+            evaluate_monsters_to_avoid(my_drones=my_drones, monsters=self.monsters, nb_turns=self.nb_turns)
+
             default_action = Action(move=False, light=False)
 
             save_actions = save_points(my_drones=my_drones, owners_scores=self.owners_scores,
@@ -264,19 +265,6 @@ class GameLoop:
                                                         default_action=default_action)
 
             for drone_idt in self.my_drones_idt_play_order:
-                aimed_action = my_drones_action[drone_idt]
-
                 my_drone = my_drones[drone_idt]
-                safe_action = is_action_safe(drone=my_drone, aimed_action=aimed_action,
-                                             monsters=self.monsters, nb_turns=self.nb_turns)
-
-                if not safe_action:
-                    avoid_action = avoid_monsters(my_drone, default_action)
-                    if not avoid_action:
-                        chosen_action = default_action
-                    else:
-                        chosen_action = avoid_action
-                else:
-                    chosen_action = aimed_action
-
-                print(chosen_action)
+                safe_action = avoid_monsters(my_drone, my_drones_action[drone_idt], default_action)
+                print(safe_action)

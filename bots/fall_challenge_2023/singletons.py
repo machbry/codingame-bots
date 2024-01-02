@@ -1,10 +1,13 @@
 from enum import Enum
+import math
 
 import numpy as np
 
-from botlibs.trigonometry import HashMapNorms, Vector, Point
+from botlibs.trigonometry import VectorHashMap, Vector, Point, Rotate2DMatrix
 
-HASH_MAP_NORMS = HashMapNorms(norm_name="norm2")
+HASH_MAP_NORM2 = VectorHashMap(func_to_cache=lambda v: v.norm2)
+HASH_MAP_NORM = VectorHashMap(func_to_cache=lambda v: math.sqrt(HASH_MAP_NORM2[v]))
+ROTATE_2D_MATRIX = Rotate2DMatrix()
 
 MY_OWNER = 1
 FOE_OWNER = 2
@@ -14,7 +17,6 @@ X_MIN = 0
 Y_MIN = 0
 X_MAX = 10000
 Y_MAX = 10000
-D_MAX = HASH_MAP_NORMS[Vector(X_MAX, Y_MAX)]
 MAP_CENTER = Point(X_MAX / 2, Y_MAX / 2)
 CORNERS = {"TL": Point(X_MIN, Y_MIN),
            "TR": Point(X_MAX, Y_MIN),
@@ -58,14 +60,14 @@ MAX_SPEED_PER_KIND = {Kind.MONSTER.value: 540,
                       Kind.ONE.value: 400,
                       Kind.TWO.value: 400}
 
-LIGHT_RADIUS = HASH_MAP_NORMS[Vector(0, 800)]
-AUGMENTED_LIGHT_RADIUS = HASH_MAP_NORMS[Vector(0, 2000)]
-EMERGENCY_RADIUS = HASH_MAP_NORMS[Vector(0, 500)]
-DRONE_MAX_SPEED = HASH_MAP_NORMS[Vector(0, 600)]
-AGGRESSIVE_MONSTER_SPEED = HASH_MAP_NORMS[Vector(0, 540)]
-NON_AGGRESSIVE_MONSTER_SPEED = HASH_MAP_NORMS[Vector(0, 270)]
+LIGHT_RADIUS = HASH_MAP_NORM2[Vector(0, 800)]
+AUGMENTED_LIGHT_RADIUS = HASH_MAP_NORM2[Vector(0, 2000)]
+EMERGENCY_RADIUS = HASH_MAP_NORM2[Vector(0, 500)]
+DRONE_MAX_SPEED = HASH_MAP_NORM[Vector(0, 600)]
+AGGRESSIVE_MONSTER_SPEED = HASH_MAP_NORM2[Vector(0, 540)]
+NON_AGGRESSIVE_MONSTER_SPEED = HASH_MAP_NORM2[Vector(0, 270)]
 
-MAX_REACHED_RADIUS_FOR_MONSTERS = HASH_MAP_NORMS[Vector(0, 500 + 540)]
-FLEE_RADIUS_FROM_MONSTERS = HASH_MAP_NORMS[Vector(0, 500 + 270 + 600)]
-SAFE_RADIUS_FROM_MONSTERS = HASH_MAP_NORMS[Vector(0, 500 + 540 + 600)]
+MAX_REACHED_RADIUS_FOR_MONSTERS = HASH_MAP_NORM2[Vector(0, 500 + 540)]
+FLEE_RADIUS_FROM_MONSTERS = HASH_MAP_NORM2[Vector(0, 500 + 270 + 600)]
+SAFE_RADIUS_FROM_MONSTERS = HASH_MAP_NORM2[Vector(0, 500 + 540 + 600)]
 MAX_NUMBER_OF_RADAR_BLIPS_USED = 3

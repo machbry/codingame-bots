@@ -1,21 +1,22 @@
 from typing import List, Dict
+import math
 
 import numpy as np
 
 from botlibs.trigonometry import Vector, Point
 from bots.fall_challenge_2023.challengelibs.act import Action
 from bots.fall_challenge_2023.challengelibs.asset import Drone, Creature, MyDrone, Asset
-from bots.fall_challenge_2023.singletons import HASH_MAP_NORMS, AUGMENTED_LIGHT_RADIUS, \
-    MAX_REACHED_RADIUS_FOR_MONSTERS, MAP_CENTER, DRONE_MAX_SPEED, MY_OWNER, FOE_OWNER
+from bots.fall_challenge_2023.challengelibs.map import is_next_position_safe, get_drone_next_position_with_target
+from bots.fall_challenge_2023.singletons import HASH_MAP_NORM2, AUGMENTED_LIGHT_RADIUS, MY_OWNER, FOE_OWNER, ROTATE_2D_MATRIX
 
 
-def use_light_to_find_a_target(drone: Drone, target: Creature, hash_map_norms=HASH_MAP_NORMS,
+def use_light_to_find_a_target(drone: Drone, target: Creature, hash_map_norm2=HASH_MAP_NORM2,
                                augmented_light_radius=AUGMENTED_LIGHT_RADIUS):
     battery = drone.battery
     if battery >= 10 and drone.y > 4000:
         return True
     if drone.battery >= 5:
-        distance_to_target = hash_map_norms[target.position - drone.position]
+        distance_to_target = hash_map_norm2[target.position - drone.position]
         if distance_to_target <= augmented_light_radius and not target.visible:
             return True
     return False
@@ -117,44 +118,37 @@ def just_do_something(my_drones: Dict[int, MyDrone], creatures: Dict[int, Creatu
     return actions
 
 
-def avoid_monsters(drone: MyDrone, default_action: Action, hash_map_norms=HASH_MAP_NORMS, drone_speed=DRONE_MAX_SPEED,
-                   max_reached_radius_from_monsters=MAX_REACHED_RADIUS_FOR_MONSTERS, map_center=MAP_CENTER):
+def avoid_monsters(drone: MyDrone, aimed_action: Action, default_action: Action, hash_map_norm2=HASH_MAP_NORM2,
+                   rotate_matrix=ROTATE_2D_MATRIX, theta_increment=math.pi/8):
 
-    action = default_action
-
+    safe_action = aimed_action
     drone_has_to_avoid = drone.has_to_avoid
-    if len(drone_has_to_avoid) == 1:
-        monster = drone_has_to_avoid[0]
-        vector_to_creature = monster.position - drone.position
-        distance_to_creature = hash_map_norms[vector_to_creature]
 
-        if distance_to_creature > max_reached_radius_from_monsters:
-            v = (1 / distance_to_creature ** (1 / 2)) * vector_to_creature
-            flee_vectors = [Vector(v.y, -v.x), Vector(-v.y, v.x)]
-            flee_vector = flee_vectors[0]
-            vector_to_center = map_center - drone.position
-            cos_with_center = flee_vector.dot(vector_to_center)
-            if flee_vectors[1].dot(vector_to_center) > cos_with_center:
-                flee_vector = flee_vectors[1]
-            action = Action(
-                target=drone.position + (drone_speed ** (1 / 2)) * flee_vector,
-                comment=f"FLEE FROM {monster.log()}")
-        else:
-            flee_vector = -1 * vector_to_creature
-            action = Action(target=drone.position + (
-                    (drone_speed ** (1 / 2)) / (distance_to_creature ** (1 / 2))) * flee_vector,
-                                        comment=f"FLEE FROM {monster.log()}")
-    elif len(drone_has_to_avoid) > 1:
-        flee_vector = Vector(0, 0)
-        comment = ""
-        for monster in drone_has_to_avoid:
-            flee_vector += drone.position - monster.position
-            comment = f"{comment} {monster.log()}"
-        action = Action(
-            target=drone.position + ((drone_speed ** (1 / 2)) / flee_vector.norm) * flee_vector,
-            comment=f"FLEE FROM{comment}")
+    if len(drone.has_to_avoid) == 0:
+        return safe_action
 
-    return action
+    target_position = aimed_action.target_position
+    drone_next_position = get_drone_next_position_with_target(drone, target_position)
+
+    if is_next_position_safe(drone, drone_next_position):
+        return safe_action
+
+    if len(drone_has_to_avoid) > 0:
+        speed_wanted = Vector(drone.vx, drone.vy)
+
+        thetas = [theta for theta in np.arange(theta_increment, math.pi + theta_increment, theta_increment)]
+        for theta in thetas:
+            next_positions_to_try = [drone.position + round(rotate_matrix.rotate_vector(speed_wanted, theta)),
+                                     drone.position + round(rotate_matrix.rotate_vector(speed_wanted, -theta))]
+
+            next_positions_to_try = sorted(next_positions_to_try, key=lambda p: hash_map_norm2[target_position - p])
+
+            for next_position in next_positions_to_try:
+                if is_next_position_safe(drone, next_position):
+                    safe_action.target = next_position
+                    return safe_action
+
+    return default_action
 
 
 def order_assets(assets: List[Asset], on_attr: str, ascending: bool = True):

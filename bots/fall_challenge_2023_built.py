@@ -1,9 +1,9 @@
-import numpy as np
-import math
 import sys
+import math
+import numpy as np
 from enum import Enum
 from dataclasses import dataclass, field
-from typing import Any, Literal, Union, Dict, Tuple, Set, List
+from typing import Any, Dict, Callable, List, Set, Tuple, Union
 
 class Point:
 
@@ -61,31 +61,43 @@ class Vector(Point):
 
     @property
     def norm(self):
-        return self.norm2 ** (1 / 2)
+        return math.sqrt(self.norm2)
 
-class HashMapNorms(object):
+class VectorHashMap:
 
-    def __new__(cls, norm_name: Literal['norm', 'norm2']):
-        if not hasattr(cls, 'instance'):
-            cls.instance = super(HashMapNorms, cls).__new__(cls)
-        return cls.instance
+    def __init__(self, func_to_cache: Callable[[Vector], Any]):
+        self.hasp_map: Dict[int, Any] = {}
+        self.func_to_cache = func_to_cache
 
-    def __init__(self, norm_name: Literal['norm', 'norm2']):
-        self.hasp_map: Dict[int, float] = {}
-        self.norm_name = norm_name
+    def _apply_func(self, vector: Vector) -> Any:
+        key = hash(vector)
+        if key not in self.hasp_map:
+            self.hasp_map[key] = self.func_to_cache(vector)
+        return self.hasp_map[key]
 
-    def _norm_of_vector(self, vector: Vector):
-        vector_hash = hash(vector)
-        try:
-            return self.hasp_map[vector_hash]
-        except KeyError:
-            norm = getattr(vector, self.norm_name)
-            self.hasp_map[vector_hash] = norm
-            return norm
+    def __getitem__(self, vector):
+        return self._apply_func(vector)
 
-    def __getitem__(self, vector: Vector):
-        return self._norm_of_vector(vector)
-HASH_MAP_NORMS = HashMapNorms(norm_name='norm2')
+class Rotate2DMatrix:
+
+    def __init__(self):
+        self.matrix_hash_map: Dict[int, np.ndarray] = {}
+
+    def get_rotate_matrix(self, theta: float):
+        key = hash(theta % 2 * math.pi)
+        if key not in self.matrix_hash_map:
+            cos = math.cos(theta)
+            sin = math.sin(theta)
+            self.matrix_hash_map[key] = np.array([[cos, -sin], [sin, cos]])
+        return self.matrix_hash_map[key]
+
+    def rotate_vector(self, vector: Vector, theta: float):
+        rotation_matrix = self.get_rotate_matrix(theta)
+        rotation = rotation_matrix.dot(np.array([[vector.x], [vector.y]]))
+        return Vector(rotation[0][0], rotation[1][0])
+HASH_MAP_NORM2 = VectorHashMap(func_to_cache=lambda v: v.norm2)
+HASH_MAP_NORM = VectorHashMap(func_to_cache=lambda v: math.sqrt(HASH_MAP_NORM2[v]))
+ROTATE_2D_MATRIX = Rotate2DMatrix()
 MY_OWNER = 1
 FOE_OWNER = 2
 OWNERS = [MY_OWNER, FOE_OWNER]
@@ -93,7 +105,6 @@ X_MIN = 0
 Y_MIN = 0
 X_MAX = 10000
 Y_MAX = 10000
-D_MAX = HASH_MAP_NORMS[Vector(X_MAX, Y_MAX)]
 MAP_CENTER = Point(X_MAX / 2, Y_MAX / 2)
 CORNERS = {'TL': Point(X_MIN, Y_MIN), 'TR': Point(X_MAX, Y_MIN), 'BR': Point(X_MAX, Y_MAX), 'BL': Point(X_MIN, Y_MAX)}
 
@@ -118,15 +129,15 @@ ACTIVATE_COLORS = np.array([[1], [1], [1]])
 ACTIVATE_KINDS = np.array([[1, 1, 1, 1]])
 CREATURE_HABITATS_PER_KIND = {Kind.MONSTER.value: [X_MIN, 2500, X_MAX, 10000], Kind.ZERO.value: [X_MIN, 2500, X_MAX, 5000], Kind.ONE.value: [X_MIN, 5000, X_MAX, 7500], Kind.TWO.value: [X_MIN, 7500, X_MAX, 10000]}
 MAX_SPEED_PER_KIND = {Kind.MONSTER.value: 540, Kind.ZERO.value: 400, Kind.ONE.value: 400, Kind.TWO.value: 400}
-LIGHT_RADIUS = HASH_MAP_NORMS[Vector(0, 800)]
-AUGMENTED_LIGHT_RADIUS = HASH_MAP_NORMS[Vector(0, 2000)]
-EMERGENCY_RADIUS = HASH_MAP_NORMS[Vector(0, 500)]
-DRONE_MAX_SPEED = HASH_MAP_NORMS[Vector(0, 600)]
-AGGRESSIVE_MONSTER_SPEED = HASH_MAP_NORMS[Vector(0, 540)]
-NON_AGGRESSIVE_MONSTER_SPEED = HASH_MAP_NORMS[Vector(0, 270)]
-MAX_REACHED_RADIUS_FOR_MONSTERS = HASH_MAP_NORMS[Vector(0, 500 + 540)]
-FLEE_RADIUS_FROM_MONSTERS = HASH_MAP_NORMS[Vector(0, 500 + 270 + 600)]
-SAFE_RADIUS_FROM_MONSTERS = HASH_MAP_NORMS[Vector(0, 500 + 540 + 600)]
+LIGHT_RADIUS = HASH_MAP_NORM2[Vector(0, 800)]
+AUGMENTED_LIGHT_RADIUS = HASH_MAP_NORM2[Vector(0, 2000)]
+EMERGENCY_RADIUS = HASH_MAP_NORM2[Vector(0, 500)]
+DRONE_MAX_SPEED = HASH_MAP_NORM[Vector(0, 600)]
+AGGRESSIVE_MONSTER_SPEED = HASH_MAP_NORM2[Vector(0, 540)]
+NON_AGGRESSIVE_MONSTER_SPEED = HASH_MAP_NORM2[Vector(0, 270)]
+MAX_REACHED_RADIUS_FOR_MONSTERS = HASH_MAP_NORM2[Vector(0, 500 + 540)]
+FLEE_RADIUS_FROM_MONSTERS = HASH_MAP_NORM2[Vector(0, 500 + 270 + 600)]
+SAFE_RADIUS_FROM_MONSTERS = HASH_MAP_NORM2[Vector(0, 500 + 540 + 600)]
 MAX_NUMBER_OF_RADAR_BLIPS_USED = 3
 
 @dataclass(slots=True)
@@ -183,7 +194,6 @@ class Drone(Unit):
     unsaved_creatures_idt: Set[int] = field(default_factory=set)
     eval_unsaved_creatures_idt: Set[int] = field(default_factory=set)
     extra_score_with_unsaved_creatures: int = 0
-    has_to_flee_from: List[Creature] = field(default_factory=list)
     has_to_avoid: List[Creature] = field(default_factory=list)
 
 @dataclass(slots=True)
@@ -284,12 +294,95 @@ def choose_action_for_drones(my_drones: Dict[int, MyDrone], actions_priorities: 
         my_drones_action[drone_idt] = action_chosen
     return my_drones_action
 
-def use_light_to_find_a_target(drone: Drone, target: Creature, hash_map_norms=HASH_MAP_NORMS, augmented_light_radius=AUGMENTED_LIGHT_RADIUS):
+def evaluate_positions_of_creatures(creatures: Dict[int, Creature], radar_blips: Dict[int, RadarBlip], my_drones: Dict[int, MyDrone], nb_turns: int, max_number_of_radar_blips_used=MAX_NUMBER_OF_RADAR_BLIPS_USED):
+    for creature_idt, creature in creatures.items():
+        if not creature.visible:
+            possible_zones = [creature.habitat]
+            for drone_idt, drone in my_drones.items():
+                radar_blip = radar_blips.get(hash((drone_idt, creature_idt)))
+                if radar_blip is not None:
+                    radar_blip_zones = radar_blip.zones
+                    n = min(len(radar_blip_zones), max_number_of_radar_blips_used)
+                    for i in range(0, n):
+                        possible_zones.append(radar_blip_zones[-i - 1])
+            intersection = np.array(possible_zones)
+            x_min = np.max(intersection[:, 0])
+            y_min = np.max(intersection[:, 1])
+            x_max = np.min(intersection[:, 2])
+            y_max = np.min(intersection[:, 3])
+            if creature.last_turn_visible:
+                last_seen_turns = nb_turns - creature.last_turn_visible
+                current_x_projection = creature.x + last_seen_turns * creature.vx
+                current_y_projection = creature.y + last_seen_turns * creature.vy
+                if x_min <= current_x_projection <= x_max and y_min <= current_y_projection <= y_max:
+                    creature.x = current_x_projection
+                    creature.y = current_y_projection
+                    creature.next_x = current_x_projection + creature.vx
+                    creature.next_y = current_y_projection + creature.vy
+                else:
+                    creature.x = creature.next_x = round((x_min + x_max) / 2)
+                    creature.y = creature.next_y = round((y_min + y_max) / 2)
+            else:
+                creature.x = creature.next_x = round((x_min + x_max) / 2)
+                creature.y = creature.next_y = round((y_min + y_max) / 2)
+        else:
+            creature.next_x = creature.x + creature.vx
+            creature.next_y = creature.y + creature.vy
+
+def evaluate_monsters_to_avoid(my_drones: Dict[int, MyDrone], monsters: List[Creature], nb_turns: int, hash_map_norm2=HASH_MAP_NORM2, safe_radius_from_monsters=SAFE_RADIUS_FROM_MONSTERS):
+    for drone in my_drones.values():
+        drone.has_to_avoid = []
+        for monster in monsters:
+            if monster.last_turn_visible:
+                if nb_turns - monster.last_turn_visible <= 3:
+                    if hash_map_norm2[monster.position - drone.position] <= safe_radius_from_monsters:
+                        drone.has_to_avoid.append(monster)
+
+def is_collision(drone: Drone, monster: Creature, collision_range=EMERGENCY_RADIUS, hash_map_norm2=HASH_MAP_NORM2):
+    xm, ym, xd, yd = (monster.x, monster.y, drone.x, drone.y)
+    x, y = (xm - xd, ym - yd)
+    vx, vy = (monster.vx - drone.vx, monster.vy - drone.vy)
+    a = hash_map_norm2[Vector(vx, vy)]
+    if a <= 0:
+        return False
+    b = 2 * (x * vx + y * vy)
+    c = hash_map_norm2[Vector(x, y)] - collision_range
+    delta = b ** 2 - 4 * a * c
+    if delta < 0:
+        return False
+    t = (-b - math.sqrt(delta)) / (2 * a)
+    if t <= 0:
+        return False
+    if t > 1:
+        return False
+    return True
+
+def get_drone_next_position_with_target(drone: MyDrone, target_position: Point, drone_max_speed=DRONE_MAX_SPEED, hash_map_norm=HASH_MAP_NORM):
+    drone_to_target = target_position - drone.position
+    distance_to_target = hash_map_norm[drone_to_target]
+    if distance_to_target <= drone_max_speed:
+        return round(target_position)
+    else:
+        return round(drone_max_speed / distance_to_target * drone_to_target) + drone.position
+
+def is_next_position_safe(drone: MyDrone, next_position: Point, x_min=X_MIN, y_min=Y_MIN, x_max=X_MAX, y_max=Y_MAX):
+    next_x, next_y = (next_position.x, next_position.y)
+    drone.vx = next_x - drone.x
+    drone.vy = next_y - drone.y
+    if next_x < x_min or next_x > x_max or next_y < y_min or (next_y > y_max):
+        return False
+    is_safe = True
+    for monster in drone.has_to_avoid:
+        if is_collision(drone, monster):
+            is_safe = False
+    return is_safe
+
+def use_light_to_find_a_target(drone: Drone, target: Creature, hash_map_norm2=HASH_MAP_NORM2, augmented_light_radius=AUGMENTED_LIGHT_RADIUS):
     battery = drone.battery
     if battery >= 10 and drone.y > 4000:
         return True
     if drone.battery >= 5:
-        distance_to_target = hash_map_norms[target.position - drone.position]
+        distance_to_target = hash_map_norm2[target.position - drone.position]
         if distance_to_target <= augmented_light_radius and (not target.visible):
             return True
     return False
@@ -357,33 +450,26 @@ def just_do_something(my_drones: Dict[int, MyDrone], creatures: Dict[int, Creatu
             actions[drone.idt] = Action(target=drone_target, light=True, comment=f'FIND {drone_target.log()}')
     return actions
 
-def avoid_monsters(drone: MyDrone, default_action: Action, hash_map_norms=HASH_MAP_NORMS, drone_speed=DRONE_MAX_SPEED, max_reached_radius_from_monsters=MAX_REACHED_RADIUS_FOR_MONSTERS, map_center=MAP_CENTER):
-    action = default_action
+def avoid_monsters(drone: MyDrone, aimed_action: Action, default_action: Action, hash_map_norm2=HASH_MAP_NORM2, rotate_matrix=ROTATE_2D_MATRIX, theta_increment=math.pi / 8):
+    safe_action = aimed_action
     drone_has_to_avoid = drone.has_to_avoid
-    if len(drone_has_to_avoid) == 1:
-        monster = drone_has_to_avoid[0]
-        vector_to_creature = monster.position - drone.position
-        distance_to_creature = hash_map_norms[vector_to_creature]
-        if distance_to_creature > max_reached_radius_from_monsters:
-            v = 1 / distance_to_creature ** (1 / 2) * vector_to_creature
-            flee_vectors = [Vector(v.y, -v.x), Vector(-v.y, v.x)]
-            flee_vector = flee_vectors[0]
-            vector_to_center = map_center - drone.position
-            cos_with_center = flee_vector.dot(vector_to_center)
-            if flee_vectors[1].dot(vector_to_center) > cos_with_center:
-                flee_vector = flee_vectors[1]
-            action = Action(target=drone.position + drone_speed ** (1 / 2) * flee_vector, comment=f'FLEE FROM {monster.log()}')
-        else:
-            flee_vector = -1 * vector_to_creature
-            action = Action(target=drone.position + drone_speed ** (1 / 2) / distance_to_creature ** (1 / 2) * flee_vector, comment=f'FLEE FROM {monster.log()}')
-    elif len(drone_has_to_avoid) > 1:
-        flee_vector = Vector(0, 0)
-        comment = ''
-        for monster in drone_has_to_avoid:
-            flee_vector += drone.position - monster.position
-            comment = f'{comment} {monster.log()}'
-        action = Action(target=drone.position + drone_speed ** (1 / 2) / flee_vector.norm * flee_vector, comment=f'FLEE FROM{comment}')
-    return action
+    if len(drone.has_to_avoid) == 0:
+        return safe_action
+    target_position = aimed_action.target_position
+    drone_next_position = get_drone_next_position_with_target(drone, target_position)
+    if is_next_position_safe(drone, drone_next_position):
+        return safe_action
+    if len(drone_has_to_avoid) > 0:
+        speed_wanted = Vector(drone.vx, drone.vy)
+        thetas = [theta for theta in np.arange(theta_increment, math.pi + theta_increment, theta_increment)]
+        for theta in thetas:
+            next_positions_to_try = [drone.position + round(rotate_matrix.rotate_vector(speed_wanted, theta)), drone.position + round(rotate_matrix.rotate_vector(speed_wanted, -theta))]
+            next_positions_to_try = sorted(next_positions_to_try, key=lambda p: hash_map_norm2[target_position - p])
+            for next_position in next_positions_to_try:
+                if is_next_position_safe(drone, next_position):
+                    safe_action.target = next_position
+                    return safe_action
+    return default_action
 
 def order_assets(assets: List[Asset], on_attr: str, ascending: bool=True):
     return sorted(assets, key=lambda asset: getattr(asset, on_attr), reverse=not ascending)
@@ -414,82 +500,6 @@ class GameAssets:
 
     def get_all(self, asset_type: AssetType):
         return self.assets[asset_type.name]
-
-def evaluate_positions_of_creatures(creatures: Dict[int, Creature], radar_blips: Dict[int, RadarBlip], my_drones: Dict[int, MyDrone], nb_turns: int, max_number_of_radar_blips_used=MAX_NUMBER_OF_RADAR_BLIPS_USED):
-    for creature_idt, creature in creatures.items():
-        if not creature.visible:
-            possible_zones = [creature.habitat]
-            for drone_idt, drone in my_drones.items():
-                radar_blip = radar_blips.get(hash((drone_idt, creature_idt)))
-                if radar_blip is not None:
-                    radar_blip_zones = radar_blip.zones
-                    n = min(len(radar_blip_zones), max_number_of_radar_blips_used)
-                    for i in range(0, n):
-                        possible_zones.append(radar_blip_zones[-i - 1])
-            intersection = np.array(possible_zones)
-            x_min = np.max(intersection[:, 0])
-            y_min = np.max(intersection[:, 1])
-            x_max = np.min(intersection[:, 2])
-            y_max = np.min(intersection[:, 3])
-            if creature.last_turn_visible:
-                last_seen_turns = nb_turns - creature.last_turn_visible
-                current_x_projection = creature.x + last_seen_turns * creature.vx
-                current_y_projection = creature.y + last_seen_turns * creature.vy
-                if x_min <= current_x_projection <= x_max and y_min <= current_y_projection <= y_max:
-                    creature.x = current_x_projection
-                    creature.y = current_y_projection
-                    creature.next_x = current_x_projection + creature.vx
-                    creature.next_y = current_y_projection + creature.vy
-                else:
-                    creature.x = creature.next_x = round((x_min + x_max) / 2)
-                    creature.y = creature.next_y = round((y_min + y_max) / 2)
-            else:
-                creature.x = creature.next_x = round((x_min + x_max) / 2)
-                creature.y = creature.next_y = round((y_min + y_max) / 2)
-        else:
-            creature.next_x = creature.x + creature.vx
-            creature.next_y = creature.y + creature.vy
-
-def is_collision(drone: Drone, monster: Creature, collision_range=EMERGENCY_RADIUS):
-    xm, ym, xd, yd = (monster.x, monster.y, drone.x, drone.y)
-    x, y = (xm - xd, ym - yd)
-    vx, vy = (monster.vx - drone.vx, monster.vy - drone.vy)
-    a = vx ** 2 + vy ** 2
-    if a <= 0:
-        return False
-    b = 2 * (x * vx + y * vy)
-    c = x ** 2 + y ** 2 - collision_range
-    delta = b ** 2 - 4 * a * c
-    if delta < 0:
-        return False
-    t = (-b - math.sqrt(delta)) / (2 * a)
-    if t <= 0:
-        return False
-    if t > 1:
-        return False
-    return True
-
-def is_action_safe(drone: MyDrone, aimed_action: Action, monsters: List[Creature], nb_turns: int, hash_map_norms=HASH_MAP_NORMS, drone_max_speed=DRONE_MAX_SPEED, safe_radius_from_monsters=SAFE_RADIUS_FROM_MONSTERS):
-    target_position = aimed_action.target_position
-    drone_to_target = target_position - drone.position
-    drone.has_to_avoid = []
-    for monster in monsters:
-        if monster.last_turn_visible:
-            if nb_turns - monster.last_turn_visible <= 3:
-                if hash_map_norms[monster.position - drone.position] <= safe_radius_from_monsters:
-                    drone.has_to_avoid.append(monster)
-    distance_to_target = hash_map_norms[drone_to_target]
-    if distance_to_target <= drone_max_speed:
-        wanted_next_position = round(target_position)
-    else:
-        wanted_next_position = drone.position + round((drone_max_speed / distance_to_target) ** (1 / 2) * drone_to_target)
-    drone.vx = wanted_next_position.x - drone.x
-    drone.vy = wanted_next_position.y - drone.y
-    safe_action = True
-    for monster in drone.has_to_avoid:
-        if is_collision(drone, monster):
-            safe_action = False
-    return safe_action
 
 def update_saved_scans(saved_creatures: np.ndarray, creature_color: int, creature_kind: int):
     creature_saved = saved_creatures[creature_color, creature_kind]
@@ -801,6 +811,7 @@ class GameLoop:
             trophies = self.game_assets.get(AssetType.TROPHIES, 42)
             self.owners_extra_score_with_all_unsaved_creatures, self.owners_max_possible_score = evaluate_extra_scores_for_multiple_scenarios(creatures=creatures, my_drones=my_drones, foe_drones=foe_drones, scans=scans, trophies=trophies, current_owners_scores=self.owners_scores)
             evaluate_positions_of_creatures(creatures=creatures, radar_blips=radar_blips, my_drones=my_drones, nb_turns=self.nb_turns)
+            evaluate_monsters_to_avoid(my_drones=my_drones, monsters=self.monsters, nb_turns=self.nb_turns)
             default_action = Action(move=False, light=False)
             save_actions = save_points(my_drones=my_drones, owners_scores=self.owners_scores, owners_max_possible_score=self.owners_max_possible_score, owners_extra_score_with_all_unsaved_creatures=self.owners_extra_score_with_all_unsaved_creatures)
             find_actions = find_valuable_target(my_drones=my_drones, creatures=creatures)
@@ -810,16 +821,7 @@ class GameLoop:
             actions_priorities = [save_actions, find_actions, just_do_something_actions]
             my_drones_action = choose_action_for_drones(my_drones=my_drones, actions_priorities=actions_priorities, default_action=default_action)
             for drone_idt in self.my_drones_idt_play_order:
-                aimed_action = my_drones_action[drone_idt]
                 my_drone = my_drones[drone_idt]
-                safe_action = is_action_safe(drone=my_drone, aimed_action=aimed_action, monsters=self.monsters, nb_turns=self.nb_turns)
-                if not safe_action:
-                    avoid_action = avoid_monsters(my_drone, default_action)
-                    if not avoid_action:
-                        chosen_action = default_action
-                    else:
-                        chosen_action = avoid_action
-                else:
-                    chosen_action = aimed_action
-                print(chosen_action)
+                safe_action = avoid_monsters(my_drone, my_drones_action[drone_idt], default_action)
+                print(safe_action)
 GameLoop().start()
