@@ -1,5 +1,7 @@
 import math
-from typing import Dict, Literal
+from typing import Dict, Callable, Any
+
+import numpy as np
 
 
 class Point:
@@ -57,44 +59,37 @@ class Vector(Point):
 
     @property
     def norm(self):
-        return self.norm2 ** (1 / 2)
+        return math.sqrt(self.norm2)
 
 
-class Circle:
-    def __init__(self, x, y, r=1):
-        self.center = Point(x, y)
-        self.r = r
+class VectorHashMap:
+    def __init__(self, func_to_cache: Callable[[Vector], Any]):
+        self.hasp_map: Dict[int, Any] = {}
+        self.func_to_cache = func_to_cache
 
-    @property
-    def x(self):
-        return self.center.x
+    def _apply_func(self, vector: Vector) -> Any:
+        key = hash(vector)
+        if key not in self.hasp_map:
+            self.hasp_map[key] = self.func_to_cache(vector)
+        return self.hasp_map[key]
 
-    @property
-    def y(self):
-        return self.center.y
-
-    def __eq__(self, circle):
-        return (self.center == circle.center) and (self.r == circle.r)
+    def __getitem__(self, vector):
+        return self._apply_func(vector)
 
 
-class HashMapNorms(object):
-    def __new__(cls, norm_name: Literal["norm", "norm2"]):
-        if not hasattr(cls, 'instance'):
-            cls.instance = super(HashMapNorms, cls).__new__(cls)
-        return cls.instance
+class Rotate2DMatrix:
+    def __init__(self):
+        self.matrix_hash_map: Dict[int, np.ndarray] = {}
 
-    def __init__(self, norm_name: Literal["norm", "norm2"]):
-        self.hasp_map: Dict[int, float] = {}
-        self.norm_name = norm_name
+    def get_rotate_matrix(self, theta: float):
+        key = hash(theta % 2*math.pi)
+        if key not in self.matrix_hash_map:
+            cos = math.cos(theta)
+            sin = math.sin(theta)
+            self.matrix_hash_map[key] = np.array([[cos, -sin], [sin, cos]])
+        return self.matrix_hash_map[key]
 
-    def _norm_of_vector(self, vector: Vector):
-        vector_hash = hash(vector)
-        try:
-            return self.hasp_map[vector_hash]
-        except KeyError:
-            norm = getattr(vector, self.norm_name)
-            self.hasp_map[vector_hash] = norm
-            return norm
-
-    def __getitem__(self, vector: Vector):
-        return self._norm_of_vector(vector)
+    def rotate_vector(self, vector: Vector, theta: float):
+        rotation_matrix = self.get_rotate_matrix(theta)
+        rotation = rotation_matrix.dot(np.array([[vector.x], [vector.y]]))
+        return Vector(rotation[0][0], rotation[1][0])
