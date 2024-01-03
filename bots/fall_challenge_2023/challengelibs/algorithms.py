@@ -22,14 +22,15 @@ def use_light_to_find_a_target(drone: Drone, target: Creature, hash_map_norm2=HA
     return False
 
 
-def save_points(my_drones: Dict[int, MyDrone], owners_scores: Dict[int, Score], owners_max_possible_score: Dict[int, Score],
+def save_points(my_drones: Dict[int, MyDrone], owners_scores_computed: Dict[int, Score], owners_max_possible_score: Dict[int, Score],
                 owners_extra_score_with_all_unsaved_creatures: Dict[int, Score], my_owner=MY_OWNER, foe_owner=FOE_OWNER):
     actions = {}
 
-    extra_score_to_win = owners_max_possible_score[foe_owner].total - owners_scores[my_owner].total + 1  # TODO : bonus scores are shared
+    extra_score_to_win = owners_max_possible_score[foe_owner].total - owners_scores_computed[my_owner].total + 1  # TODO : bonus scores are shared
     extra_score_if_all_my_drones_save = owners_extra_score_with_all_unsaved_creatures[my_owner].total
 
-    # foe_score_base_max + foe_score_bonus_max < my_base_score + my_bonus_score + extra_base_to_win + extra_bonus_to_win
+    # hypothèse : extra_base_to_win = my_base_max - my_base (??)
+    # hypothèse : extra_bonus_to_win is fully shared => foe_left_bonus = my_left_bonus - extra_bonus_to_win (??)
 
     if extra_score_if_all_my_drones_save >= extra_score_to_win:
         for drone in my_drones.values():

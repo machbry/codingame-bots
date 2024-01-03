@@ -248,7 +248,7 @@ class GameLoop:
 
             default_action = Action(move=False, light=False)
 
-            save_actions = save_points(my_drones=my_drones, owners_scores=self.owners_scores_computed,
+            save_actions = save_points(my_drones=my_drones, owners_scores_computed=self.owners_scores_computed,
                                        owners_max_possible_score=self.owners_max_possible_score,
                                        owners_extra_score_with_all_unsaved_creatures=self.owners_extra_score_with_all_unsaved_creatures)
 

@@ -37,8 +37,7 @@ def update_trophies(owner: int, saved_creatures: np.ndarray, newly_saved_creatur
 def update_trophies_for_all(my_saved_creatures: np.ndarray, foe_saved_creatures: np.ndarray,
                             my_newly_saved_creatures: np.ndarray, foe_newly_saved_creatures: np.ndarray,
                             trophies: Trophies, activate_colors=ACTIVATE_COLORS, activate_kinds=ACTIVATE_KINDS,
-                            score_for_full_color=SCORE_FOR_FULL_COLOR, score_for_full_kind=SCORE_FOR_FULL_KIND,
-                            my_owner=MY_OWNER, foe_owner=FOE_OWNER):
+                            score_for_full_color=SCORE_FOR_FULL_COLOR, score_for_full_kind=SCORE_FOR_FULL_KIND):
 
     # TROPHIES FOR CREATURES
     creatures_win_by = trophies.creatures_win_by
