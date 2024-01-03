@@ -1,9 +1,9 @@
-import numpy as np
 import sys
+import numpy as np
 import math
 from enum import Enum
 from dataclasses import asdict, field, dataclass
-from typing import Tuple, List, Any, Dict, Set, Union, Callable
+from typing import Callable, Dict, Tuple, List, Set, Any, Union
 
 class Point:
 
@@ -398,13 +398,13 @@ def save_points(my_drones: Dict[int, MyDrone], owners_scores: Dict[int, Score], 
     if extra_score_if_all_my_drones_save >= extra_score_to_win:
         for drone in my_drones.values():
             if len(drone.unsaved_creatures_idt) > 0:
-                actions[drone.idt] = Action(target=Point(drone.x, 499), comment=f'SAVE {extra_score_if_all_my_drones_save} ({extra_score_to_win})')
+                actions[drone.idt] = Action(target=Point(drone.x, 499), comment=f'SAVE {drone.extra_score_with_unsaved_creatures:.0f}/{extra_score_if_all_my_drones_save:.0f}/{extra_score_to_win:.0f}')
     else:
         ordered_my_drones_with_most_extra_score = order_assets(my_drones.values(), on_attr='extra_score_with_unsaved_creatures', ascending=False)
         for drone in ordered_my_drones_with_most_extra_score:
             drone_extra_score = drone.extra_score_with_unsaved_creatures
             if drone_extra_score >= 20 or drone_extra_score >= extra_score_to_win:
-                actions[drone.idt] = Action(target=Point(drone.x, 499), comment=f'SAVE {drone.extra_score_with_unsaved_creatures} ({extra_score_to_win})')
+                actions[drone.idt] = Action(target=Point(drone.x, 499), comment=f'SAVE {drone.extra_score_with_unsaved_creatures:.0f}/{extra_score_if_all_my_drones_save:.0f}/{extra_score_to_win:.0f}')
     return actions
 
 def find_valuable_target(my_drones: Dict[int, MyDrone], creatures: Dict[int, Creature]):
@@ -447,7 +447,7 @@ def just_do_something(my_drones: Dict[int, MyDrone], creatures: Dict[int, Creatu
     nb_find_actions = 0
     for drone_idt, drone in my_drones.items():
         if drone.extra_score_with_unsaved_creatures > 0:
-            actions[drone.idt] = Action(target=Point(drone.x, 499), comment=f'SAVE {drone.extra_score_with_unsaved_creatures}')
+            actions[drone.idt] = Action(target=Point(drone.x, 499), comment=f'SAVE {drone.extra_score_with_unsaved_creatures:.0f}')
         else:
             drone_target = order_assets(creatures.values(), on_attr='foe_extra_score', ascending=False)[nb_find_actions]
             nb_find_actions += 1
@@ -522,6 +522,34 @@ def update_trophies(owner: int, saved_creatures: np.ndarray, newly_saved_creatur
     completed_kinds = activate_kinds.dot(saved_creatures) == score_for_full_kind
     kinds_trophies_available = kinds_win_by == 0
     kinds_win_by[completed_kinds & kinds_trophies_available] = owner
+
+def update_trophies_for_all(my_saved_creatures: np.ndarray, foe_saved_creatures: np.ndarray, my_newly_saved_creatures: np.ndarray, foe_newly_saved_creatures: np.ndarray, trophies: Trophies, activate_colors=ACTIVATE_COLORS, activate_kinds=ACTIVATE_KINDS, score_for_full_color=SCORE_FOR_FULL_COLOR, score_for_full_kind=SCORE_FOR_FULL_KIND, my_owner=MY_OWNER, foe_owner=FOE_OWNER):
+    creatures_win_by = trophies.creatures_win_by
+    creatures_trophies_available = creatures_win_by == 0
+    my_newly_completed_creatures = my_newly_saved_creatures == MY_OWNER
+    foe_newly_completed_creatures = foe_newly_saved_creatures == FOE_OWNER
+    creatures_win_by[creatures_trophies_available & my_newly_completed_creatures] += MY_OWNER
+    creatures_win_by[creatures_trophies_available & foe_newly_completed_creatures] += FOE_OWNER
+    colors_win_by = trophies.colors_win_by
+    colors_trophies_available = colors_win_by == 0
+    my_completed_colors = my_saved_creatures.dot(activate_colors) == score_for_full_color
+    foe_completed_colors = foe_saved_creatures.dot(activate_colors) == score_for_full_color
+    my_already_completed_colors = (my_saved_creatures - my_newly_saved_creatures).dot(activate_colors) == score_for_full_color
+    foe_already_completed_colors = (foe_saved_creatures - foe_newly_saved_creatures).dot(activate_colors) == score_for_full_color
+    my_newly_completed_colors = my_completed_colors & ~my_already_completed_colors
+    foe_newly_completed_colors = foe_completed_colors & ~foe_already_completed_colors
+    colors_win_by[colors_trophies_available & my_newly_completed_colors] += MY_OWNER
+    colors_win_by[colors_trophies_available & foe_newly_completed_colors] += FOE_OWNER
+    kinds_win_by = trophies.kinds_win_by
+    kinds_trophies_available = kinds_win_by == 0
+    my_completed_kinds = activate_kinds.dot(my_saved_creatures) == score_for_full_kind
+    foe_completed_kinds = activate_kinds.dot(foe_saved_creatures) == score_for_full_kind
+    my_already_completed_kinds = activate_kinds.dot(my_saved_creatures - my_newly_saved_creatures) == score_for_full_kind
+    foe_already_completed_kinds = activate_kinds.dot(foe_saved_creatures - foe_newly_saved_creatures) == score_for_full_kind
+    my_newly_completed_kinds = my_completed_kinds & ~my_already_completed_kinds
+    foe_newly_completed_kinds = foe_completed_kinds & ~foe_already_completed_kinds
+    kinds_win_by[kinds_trophies_available & my_newly_completed_kinds] += MY_OWNER
+    kinds_win_by[kinds_trophies_available & foe_newly_completed_kinds] += FOE_OWNER
 
 def compute_score(owner: int, saved_creatures: np.ndarray, creatures_win_by: np.ndarray, colors_win_by: np.ndarray, kinds_win_by: np.ndarray, score_by_kind=SCORE_BY_KIND, activate_colors=ACTIVATE_COLORS, activate_kinds=ACTIVATE_KINDS, score_for_full_color=SCORE_FOR_FULL_COLOR, score_for_full_kind=SCORE_FOR_FULL_KIND):
     score = Score()
@@ -636,7 +664,7 @@ def evaluate_extra_scores_for_multiple_scenarios(creatures: Dict[int, Creature],
     return (owners_extra_score_with_all_unsaved_creatures, owners_max_possible_score)
 
 class GameLoop:
-    __slots__ = ('init_inputs', 'nb_turns', 'turns_inputs', 'game_assets', 'empty_array_saved_creatures', 'max_number_of_radar_blips_used', 'max_speed_per_kind', 'corners', 'my_owner', 'foe_owner', 'owners', 'owners_scores', 'owners_scores_computed', 'owners_extra_score_with_all_unsaved_creatures', 'owners_max_possible_score', 'my_drones_idt_play_order', 'newly_saved_creatures', 'monsters')
+    __slots__ = ('init_inputs', 'nb_turns', 'turns_inputs', 'game_assets', 'empty_array_saved_creatures', 'max_number_of_radar_blips_used', 'max_speed_per_kind', 'corners', 'my_owner', 'foe_owner', 'owners', 'owners_scores', 'owners_scores_computed', 'owners_extra_score_with_all_unsaved_creatures', 'owners_max_possible_score', 'my_drones_idt_play_order', 'monsters')
     RUNNING = True
     LOG = True
     RESET_TURNS_INPUTS = True
@@ -658,7 +686,6 @@ class GameLoop:
         self.owners_extra_score_with_all_unsaved_creatures: Dict[int, Score] = {}
         self.owners_max_possible_score: Dict[int, Score] = {}
         self.my_drones_idt_play_order: List[int] = []
-        self.newly_saved_creatures: np.ndarray = np.zeros_like(self.empty_array_saved_creatures)
         self.monsters: List[Creature] = []
         creature_count = int(self.get_init_input())
         for i in range(creature_count):
@@ -727,35 +754,31 @@ class GameLoop:
         radar_blip.zones.append([zone_x_min, zone_y_min, zone_x_max, zone_y_max])
 
     def update_assets(self):
-        self.newly_saved_creatures = np.zeros_like(self.empty_array_saved_creatures)
         for creature in self.game_assets.get_all(asset_type=AssetType.CREATURE).values():
             creature.visible = False
             creature.escaped = True
         self.nb_turns += 1
         self.owners_scores[self.my_owner] = int(self.get_turn_input())
         self.owners_scores[self.foe_owner] = int(self.get_turn_input())
-        trophies = self.game_assets.get(AssetType.TROPHIES, 42)
-        creatures_win_by = trophies.creatures_win_by
-        colors_win_by = trophies.colors_win_by
-        kinds_win_by = trophies.kinds_win_by
         my_scans = self.game_assets.get(asset_type=AssetType.SCANS, idt=self.my_owner)
         my_saved_creatures = my_scans.saved_creatures
-        foe_scans = self.game_assets.get(asset_type=AssetType.SCANS, idt=self.foe_owner)
-        foe_saved_creatures = foe_scans.saved_creatures
+        my_newly_saved_creatures = np.zeros_like(self.empty_array_saved_creatures)
         my_scan_count = int(self.get_turn_input())
         for i in range(my_scan_count):
             creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=int(self.get_turn_input()))
             creature_color, creature_kind = (creature.color, creature.kind)
             if update_saved_scans(my_saved_creatures, creature_color, creature_kind):
-                self.newly_saved_creatures[creature_color, creature_kind] += self.my_owner
+                my_newly_saved_creatures[creature_color, creature_kind] = self.my_owner
+        foe_scans = self.game_assets.get(asset_type=AssetType.SCANS, idt=self.foe_owner)
+        foe_saved_creatures = foe_scans.saved_creatures
+        foe_newly_saved_creatures = np.zeros_like(self.empty_array_saved_creatures)
         foe_scan_count = int(self.get_turn_input())
         for i in range(foe_scan_count):
             creature = self.game_assets.get(asset_type=AssetType.CREATURE, idt=int(self.get_turn_input()))
             creature_color, creature_kind = (creature.color, creature.kind)
             if update_saved_scans(foe_saved_creatures, creature_color, creature_kind):
-                self.newly_saved_creatures[creature_color, creature_kind] += self.foe_owner
-        update_trophies(owner=self.my_owner, saved_creatures=my_saved_creatures, newly_saved_creatures=self.newly_saved_creatures, creatures_win_by=creatures_win_by, colors_win_by=colors_win_by, kinds_win_by=kinds_win_by)
-        update_trophies(owner=self.foe_owner, saved_creatures=foe_saved_creatures, newly_saved_creatures=self.newly_saved_creatures, creatures_win_by=creatures_win_by, colors_win_by=colors_win_by, kinds_win_by=kinds_win_by)
+                foe_newly_saved_creatures[creature_color, creature_kind] = self.foe_owner
+        update_trophies_for_all(my_saved_creatures=my_saved_creatures, foe_saved_creatures=foe_saved_creatures, my_newly_saved_creatures=my_newly_saved_creatures, foe_newly_saved_creatures=foe_newly_saved_creatures, trophies=self.game_assets.get(AssetType.TROPHIES, 42))
         my_drone_count = int(self.get_turn_input())
         self.my_drones_idt_play_order = []
         for i in range(my_drone_count):

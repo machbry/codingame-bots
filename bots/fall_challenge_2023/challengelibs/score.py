@@ -34,6 +34,55 @@ def update_trophies(owner: int, saved_creatures: np.ndarray, newly_saved_creatur
     kinds_win_by[completed_kinds & kinds_trophies_available] = owner
 
 
+def update_trophies_for_all(my_saved_creatures: np.ndarray, foe_saved_creatures: np.ndarray,
+                            my_newly_saved_creatures: np.ndarray, foe_newly_saved_creatures: np.ndarray,
+                            trophies: Trophies, activate_colors=ACTIVATE_COLORS, activate_kinds=ACTIVATE_KINDS,
+                            score_for_full_color=SCORE_FOR_FULL_COLOR, score_for_full_kind=SCORE_FOR_FULL_KIND,
+                            my_owner=MY_OWNER, foe_owner=FOE_OWNER):
+
+    # TROPHIES FOR CREATURES
+    creatures_win_by = trophies.creatures_win_by
+    creatures_trophies_available = creatures_win_by == 0
+
+    my_newly_completed_creatures = my_newly_saved_creatures == MY_OWNER
+    foe_newly_completed_creatures = foe_newly_saved_creatures == FOE_OWNER
+
+    creatures_win_by[creatures_trophies_available & my_newly_completed_creatures] += MY_OWNER
+    creatures_win_by[creatures_trophies_available & foe_newly_completed_creatures] += FOE_OWNER
+
+    # TROPHIES FOR COLORS
+    colors_win_by = trophies.colors_win_by
+    colors_trophies_available = colors_win_by == 0
+
+    my_completed_colors = my_saved_creatures.dot(activate_colors) == score_for_full_color
+    foe_completed_colors = foe_saved_creatures.dot(activate_colors) == score_for_full_color
+
+    my_already_completed_colors = (my_saved_creatures - my_newly_saved_creatures).dot(activate_colors) == score_for_full_color
+    foe_already_completed_colors = (foe_saved_creatures - foe_newly_saved_creatures).dot(activate_colors) == score_for_full_color
+
+    my_newly_completed_colors = my_completed_colors & ~my_already_completed_colors
+    foe_newly_completed_colors = foe_completed_colors & ~foe_already_completed_colors
+
+    colors_win_by[colors_trophies_available & my_newly_completed_colors] += MY_OWNER
+    colors_win_by[colors_trophies_available & foe_newly_completed_colors] += FOE_OWNER
+
+    # TROPHIES FOR KINDS
+    kinds_win_by = trophies.kinds_win_by
+    kinds_trophies_available = kinds_win_by == 0
+
+    my_completed_kinds = activate_kinds.dot(my_saved_creatures) == score_for_full_kind
+    foe_completed_kinds = activate_kinds.dot(foe_saved_creatures) == score_for_full_kind
+
+    my_already_completed_kinds = activate_kinds.dot(my_saved_creatures - my_newly_saved_creatures) == score_for_full_kind
+    foe_already_completed_kinds = activate_kinds.dot(foe_saved_creatures - foe_newly_saved_creatures) == score_for_full_kind
+
+    my_newly_completed_kinds = my_completed_kinds & ~my_already_completed_kinds
+    foe_newly_completed_kinds = foe_completed_kinds & ~foe_already_completed_kinds
+
+    kinds_win_by[kinds_trophies_available & my_newly_completed_kinds] += MY_OWNER
+    kinds_win_by[kinds_trophies_available & foe_newly_completed_kinds] += FOE_OWNER
+
+
 def compute_score(owner: int, saved_creatures: np.ndarray, creatures_win_by: np.ndarray,
                   colors_win_by: np.ndarray, kinds_win_by: np.ndarray, score_by_kind=SCORE_BY_KIND,
                   activate_colors=ACTIVATE_COLORS, activate_kinds=ACTIVATE_KINDS,

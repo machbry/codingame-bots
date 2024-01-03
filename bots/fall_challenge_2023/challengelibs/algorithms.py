@@ -30,14 +30,12 @@ def save_points(my_drones: Dict[int, MyDrone], owners_scores: Dict[int, Score], 
     extra_score_if_all_my_drones_save = owners_extra_score_with_all_unsaved_creatures[my_owner].total
 
     # foe_score_base_max + foe_score_bonus_max < my_base_score + my_bonus_score + extra_base_to_win + extra_bonus_to_win
-    # my_base_score + extra_base_to_win = foe_score_base_max = my_score_base_max
-    # extra_base_to_win = my_score_base_max - my_base_score
 
     if extra_score_if_all_my_drones_save >= extra_score_to_win:
         for drone in my_drones.values():
             if len(drone.unsaved_creatures_idt) > 0:
                 actions[drone.idt] = Action(target=Point(drone.x, 499),
-                                            comment=f"SAVE {extra_score_if_all_my_drones_save} ({extra_score_to_win})")
+                                            comment=f"SAVE {drone.extra_score_with_unsaved_creatures:.0f}/{extra_score_if_all_my_drones_save:.0f}/{extra_score_to_win:.0f}")
 
     else:
         ordered_my_drones_with_most_extra_score = order_assets(my_drones.values(),
@@ -47,7 +45,7 @@ def save_points(my_drones: Dict[int, MyDrone], owners_scores: Dict[int, Score], 
             drone_extra_score = drone.extra_score_with_unsaved_creatures
             if drone_extra_score >= 20 or drone_extra_score >= extra_score_to_win:
                 actions[drone.idt] = Action(target=Point(drone.x, 499),
-                                            comment=f"SAVE {drone.extra_score_with_unsaved_creatures} ({extra_score_to_win})")
+                                            comment=f"SAVE {drone.extra_score_with_unsaved_creatures:.0f}/{extra_score_if_all_my_drones_save:.0f}/{extra_score_to_win:.0f}")
 
     return actions
 
@@ -111,7 +109,7 @@ def just_do_something(my_drones: Dict[int, MyDrone], creatures: Dict[int, Creatu
     for drone_idt, drone in my_drones.items():
         if drone.extra_score_with_unsaved_creatures > 0:
             actions[drone.idt] = Action(target=Point(drone.x, 499),
-                                        comment=f"SAVE {drone.extra_score_with_unsaved_creatures}")
+                                        comment=f"SAVE {drone.extra_score_with_unsaved_creatures:.0f}")
         else:
             drone_target = order_assets(creatures.values(), on_attr='foe_extra_score', ascending=False)[
                 nb_find_actions]
