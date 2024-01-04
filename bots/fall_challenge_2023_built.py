@@ -1,9 +1,9 @@
-import sys
 import numpy as np
 import math
+import sys
 from enum import Enum
-from dataclasses import asdict, field, dataclass
-from typing import Callable, Dict, Tuple, List, Set, Any, Union
+from dataclasses import dataclass, asdict, field
+from typing import Any, Callable, List, Set, Tuple, Dict, Union
 
 class Point:
 
@@ -391,20 +391,26 @@ def use_light_to_find_a_target(drone: Drone, target: Creature, hash_map_norm2=HA
             return True
     return False
 
-def save_points(my_drones: Dict[int, MyDrone], owners_scores: Dict[int, Score], owners_max_possible_score: Dict[int, Score], owners_extra_score_with_all_unsaved_creatures: Dict[int, Score], my_owner=MY_OWNER, foe_owner=FOE_OWNER):
+def save_points(my_drones: Dict[int, MyDrone], owners_scores_computed: Dict[int, Score], owners_max_possible_score: Dict[int, Score], owners_extra_score_with_all_unsaved_creatures: Dict[int, Score], owners_bonus_score_left: Dict[int, Dict[str, int]], my_owner=MY_OWNER, foe_owner=FOE_OWNER):
     actions = {}
-    extra_score_to_win = owners_max_possible_score[foe_owner].total - owners_scores[my_owner].total + 1
+    L = owners_max_possible_score[my_owner].total
+    M = owners_max_possible_score[my_owner].base + owners_scores_computed[my_owner].bonus + owners_bonus_score_left[my_owner]['unshared']
+    F = owners_max_possible_score[foe_owner].base + owners_scores_computed[foe_owner].bonus + owners_bonus_score_left[foe_owner]['unshared']
+    S = owners_bonus_score_left[my_owner]['shared']
+    X = (S + F - M) / 2 + 1
+    my_base_score_left = owners_max_possible_score[my_owner].base - owners_scores_computed[my_owner].base
+    my_extra_score_to_win = my_base_score_left + owners_bonus_score_left[my_owner]['unshared'] + X - owners_scores_computed[my_owner].total
     extra_score_if_all_my_drones_save = owners_extra_score_with_all_unsaved_creatures[my_owner].total
-    if extra_score_if_all_my_drones_save >= extra_score_to_win:
+    if extra_score_if_all_my_drones_save >= my_extra_score_to_win:
         for drone in my_drones.values():
             if len(drone.unsaved_creatures_idt) > 0:
-                actions[drone.idt] = Action(target=Point(drone.x, 499), comment=f'SAVE {drone.extra_score_with_unsaved_creatures:.0f}/{extra_score_if_all_my_drones_save:.0f}/{extra_score_to_win:.0f}')
+                actions[drone.idt] = Action(target=Point(drone.x, 499), comment=f'SAVE {drone.extra_score_with_unsaved_creatures:.0f}/{extra_score_if_all_my_drones_save:.0f}/{my_extra_score_to_win:.0f}/{L:.0f}')
     else:
         ordered_my_drones_with_most_extra_score = order_assets(my_drones.values(), on_attr='extra_score_with_unsaved_creatures', ascending=False)
         for drone in ordered_my_drones_with_most_extra_score:
             drone_extra_score = drone.extra_score_with_unsaved_creatures
-            if drone_extra_score >= 20 or drone_extra_score >= extra_score_to_win:
-                actions[drone.idt] = Action(target=Point(drone.x, 499), comment=f'SAVE {drone.extra_score_with_unsaved_creatures:.0f}/{extra_score_if_all_my_drones_save:.0f}/{extra_score_to_win:.0f}')
+            if drone_extra_score >= 20 or drone_extra_score >= my_extra_score_to_win:
+                actions[drone.idt] = Action(target=Point(drone.x, 499), comment=f'SAVE {drone.extra_score_with_unsaved_creatures:.0f}/{extra_score_if_all_my_drones_save:.0f}/{my_extra_score_to_win:.0f}/{L:.0f}')
     return actions
 
 def find_valuable_target(my_drones: Dict[int, MyDrone], creatures: Dict[int, Creature]):
@@ -523,7 +529,7 @@ def update_trophies(owner: int, saved_creatures: np.ndarray, newly_saved_creatur
     kinds_trophies_available = kinds_win_by == 0
     kinds_win_by[completed_kinds & kinds_trophies_available] = owner
 
-def update_trophies_for_all(my_saved_creatures: np.ndarray, foe_saved_creatures: np.ndarray, my_newly_saved_creatures: np.ndarray, foe_newly_saved_creatures: np.ndarray, trophies: Trophies, activate_colors=ACTIVATE_COLORS, activate_kinds=ACTIVATE_KINDS, score_for_full_color=SCORE_FOR_FULL_COLOR, score_for_full_kind=SCORE_FOR_FULL_KIND, my_owner=MY_OWNER, foe_owner=FOE_OWNER):
+def update_trophies_for_all(my_saved_creatures: np.ndarray, foe_saved_creatures: np.ndarray, my_newly_saved_creatures: np.ndarray, foe_newly_saved_creatures: np.ndarray, trophies: Trophies, activate_colors=ACTIVATE_COLORS, activate_kinds=ACTIVATE_KINDS, score_for_full_color=SCORE_FOR_FULL_COLOR, score_for_full_kind=SCORE_FOR_FULL_KIND):
     creatures_win_by = trophies.creatures_win_by
     creatures_trophies_available = creatures_win_by == 0
     my_newly_completed_creatures = my_newly_saved_creatures == MY_OWNER
@@ -553,22 +559,16 @@ def update_trophies_for_all(my_saved_creatures: np.ndarray, foe_saved_creatures:
 
 def compute_score(owner: int, saved_creatures: np.ndarray, creatures_win_by: np.ndarray, colors_win_by: np.ndarray, kinds_win_by: np.ndarray, score_by_kind=SCORE_BY_KIND, activate_colors=ACTIVATE_COLORS, activate_kinds=ACTIVATE_KINDS, score_for_full_color=SCORE_FOR_FULL_COLOR, score_for_full_kind=SCORE_FOR_FULL_KIND):
     score = Score()
-    creatures_activated = saved_creatures.dot(score_by_kind)
     bonus_saved_creatures = np.zeros_like(saved_creatures)
     bonus_saved_creatures[creatures_win_by == owner] = 1
-    bonus_creatures_activated = bonus_saved_creatures.dot(score_by_kind)
     colors_activated = saved_creatures.dot(activate_colors)
-    completed_colors = colors_activated == score_for_full_color
-    owned_colors_trophies = colors_win_by == owner
     kinds_activated = activate_kinds.dot(saved_creatures)
-    completed_kinds = kinds_activated == score_for_full_kind
-    owned_kinds_trophies = kinds_win_by == owner
-    score.base_creatures = creatures_activated.sum()
-    score.bonus_creatures = bonus_creatures_activated.sum()
-    score.base_colors = colors_activated[completed_colors].sum()
-    score.bonus_colors = score_for_full_color * colors_win_by[owned_colors_trophies].size
-    score.base_kinds = kinds_activated[completed_kinds].sum()
-    score.bonus_kinds = score_for_full_kind * kinds_win_by[owned_kinds_trophies].size
+    score.base_creatures = saved_creatures.dot(score_by_kind).sum()
+    score.bonus_creatures = bonus_saved_creatures.dot(score_by_kind).sum()
+    score.base_colors = colors_activated[colors_activated == score_for_full_color].sum()
+    score.bonus_colors = score_for_full_color * colors_win_by[colors_win_by == owner].size
+    score.base_kinds = kinds_activated[kinds_activated == score_for_full_kind].sum()
+    score.bonus_kinds = score_for_full_kind * kinds_win_by[kinds_win_by == owner].size
     return score
 
 class ScoreSimulation:
@@ -606,7 +606,7 @@ class ScoreSimulation:
             self.do_simulation()
         return {'owners_saved_creatures': self.owners_saved_creatures, 'creatures_win_by': self.creatures_win_by, 'colors_win_by': self.colors_win_by, 'kinds_win_by': self.kinds_win_by}
 
-def evaluate_extra_scores_for_multiple_scenarios(creatures: Dict[int, Creature], my_drones: Dict[int, MyDrone], foe_drones: Dict[int, FoeDrone], scans: Dict[int, Scans], trophies: Trophies, current_owners_scores: Dict[int, Score], my_owner=MY_OWNER, foe_owner=FOE_OWNER, owners=OWNERS, monster_kind=Kind.MONSTER.value):
+def evaluate_extra_scores_for_multiple_scenarios(creatures: Dict[int, Creature], my_drones: Dict[int, MyDrone], foe_drones: Dict[int, FoeDrone], scans: Dict[int, Scans], trophies: Trophies, current_owners_scores: Dict[int, Score], my_owner=MY_OWNER, foe_owner=FOE_OWNER, owners=OWNERS, monster_kind=Kind.MONSTER.value, score_by_kind=SCORE_BY_KIND, score_for_full_color=SCORE_FOR_FULL_COLOR, score_for_full_kind=SCORE_FOR_FULL_KIND):
     all_drones = [*my_drones.values(), *foe_drones.values()]
     my_drones_from_top_to_bottom = order_assets(my_drones.values(), 'y')
     foe_drones_from_top_to_bottom = order_assets(foe_drones.values(), 'y')
@@ -615,6 +615,7 @@ def evaluate_extra_scores_for_multiple_scenarios(creatures: Dict[int, Creature],
         creature.extra_scores = {owner: 0 for owner in owners}
     owners_extra_score_with_all_unsaved_creatures = {owner: Score() for owner in owners}
     owners_max_possible_score = {owner: Score() for owner in owners}
+    owners_bonus_score_left = {owner: {'shared': 0, 'unshared': 0} for owner in owners}
     unsaved_creatures_idt = {}
     for owner, ordered_drones in [(my_owner, my_drones_from_top_to_bottom), (foe_owner, foe_drones_from_top_to_bottom)]:
         unsaved_creatures_idt[owner] = set()
@@ -642,7 +643,7 @@ def evaluate_extra_scores_for_multiple_scenarios(creatures: Dict[int, Creature],
     owners_saved_creatures = {owner: scans[owner].saved_creatures for owner in owners}
     score_simulation = ScoreSimulation(simulation_scenario=simulation_scenario, owners_saved_creatures=owners_saved_creatures, creatures_win_by=trophies.creatures_win_by, colors_win_by=trophies.colors_win_by, kinds_win_by=trophies.kinds_win_by)
     new_owners_scores = {owner: score_simulation.compute_new_score()[owner].total for owner in owners}
-    new_state = score_simulation.scans_and_trophies_after_simulation()
+    state_after_saving_current_scans = score_simulation.scans_and_trophies_after_simulation()
     creatures_left_to_saved = {owner: [] for owner in owners}
     for creature in creatures.values():
         for owner in owners:
@@ -654,17 +655,32 @@ def evaluate_extra_scores_for_multiple_scenarios(creatures: Dict[int, Creature],
             else:
                 creatures_left_to_saved[owner].append(creature)
                 if not creature_scanned_but_not_saved_by_owner:
-                    score_simulation = ScoreSimulation(simulation_scenario=[(owner, [creature])], **new_state)
+                    score_simulation = ScoreSimulation(simulation_scenario=[(owner, [creature])], **state_after_saving_current_scans)
                     new_owner_score = score_simulation.compute_new_score()[owner].total
                     creature_extra_score = new_owner_score - new_owners_scores[owner]
                     creature.extra_scores[owner] = creature_extra_score
+    state_after_winning_max_possible = {}
+    creatures_left_to_win = {}
+    colors_left_to_win = {}
+    kinds_left_to_win = {}
     for owner in owners:
         score_simulation = ScoreSimulation(simulation_scenario=[(owner, creatures_left_to_saved[owner])], owners_saved_creatures={owner: scans[owner].saved_creatures}, creatures_win_by=trophies.creatures_win_by, colors_win_by=trophies.colors_win_by, kinds_win_by=trophies.kinds_win_by)
         owners_max_possible_score[owner] = score_simulation.compute_new_score()[owner]
-    return (owners_extra_score_with_all_unsaved_creatures, owners_max_possible_score)
+        state_after_winning_max_possible[owner] = score_simulation.scans_and_trophies_after_simulation()
+        creatures_left_to_win[owner] = (state_after_winning_max_possible[owner]['creatures_win_by'] == owner) & (trophies.creatures_win_by != owner)
+        colors_left_to_win[owner] = (state_after_winning_max_possible[owner]['colors_win_by'] == owner) & (trophies.colors_win_by != owner)
+        kinds_left_to_win[owner] = (state_after_winning_max_possible[owner]['kinds_win_by'] == owner) & (trophies.kinds_win_by != owner)
+    shared_creatures_left = (creatures_left_to_win[MY_OWNER] & creatures_left_to_win[FOE_OWNER]).astype(int)
+    shared_colors_left = colors_left_to_win[MY_OWNER] & colors_left_to_win[FOE_OWNER]
+    shared_kinds_left = kinds_left_to_win[MY_OWNER] & kinds_left_to_win[FOE_OWNER]
+    bonus_shared_left = shared_creatures_left.dot(score_by_kind).sum() + score_for_full_color * shared_colors_left.size + score_for_full_kind * shared_kinds_left.size
+    for owner in owners:
+        owners_bonus_score_left[owner]['shared'] = bonus_shared_left
+        owners_bonus_score_left[owner]['unshared'] = owners_max_possible_score[owner].bonus - bonus_shared_left - current_owners_scores[owner].bonus
+    return (owners_extra_score_with_all_unsaved_creatures, owners_max_possible_score, owners_bonus_score_left)
 
 class GameLoop:
-    __slots__ = ('init_inputs', 'nb_turns', 'turns_inputs', 'game_assets', 'empty_array_saved_creatures', 'max_number_of_radar_blips_used', 'max_speed_per_kind', 'corners', 'my_owner', 'foe_owner', 'owners', 'owners_scores', 'owners_scores_computed', 'owners_extra_score_with_all_unsaved_creatures', 'owners_max_possible_score', 'my_drones_idt_play_order', 'monsters')
+    __slots__ = ('init_inputs', 'nb_turns', 'turns_inputs', 'game_assets', 'empty_array_saved_creatures', 'max_number_of_radar_blips_used', 'max_speed_per_kind', 'corners', 'my_owner', 'foe_owner', 'owners', 'owners_scores', 'owners_scores_computed', 'owners_extra_score_with_all_unsaved_creatures', 'owners_max_possible_score', 'owners_bonus_score_left', 'my_drones_idt_play_order', 'monsters')
     RUNNING = True
     LOG = True
     RESET_TURNS_INPUTS = True
@@ -685,6 +701,7 @@ class GameLoop:
         self.owners_scores_computed: Dict[int, Score] = {}
         self.owners_extra_score_with_all_unsaved_creatures: Dict[int, Score] = {}
         self.owners_max_possible_score: Dict[int, Score] = {}
+        self.owners_bonus_score_left: Dict[int, Dict[str, int]] = {}
         self.my_drones_idt_play_order: List[int] = []
         self.monsters: List[Creature] = []
         creature_count = int(self.get_init_input())
@@ -839,11 +856,11 @@ class GameLoop:
             trophies = self.game_assets.get(AssetType.TROPHIES, 42)
             for owner in self.owners:
                 self.owners_scores_computed[owner] = compute_score(owner=owner, saved_creatures=scans[owner].saved_creatures, creatures_win_by=trophies.creatures_win_by, colors_win_by=trophies.colors_win_by, kinds_win_by=trophies.kinds_win_by)
-            self.owners_extra_score_with_all_unsaved_creatures, self.owners_max_possible_score = evaluate_extra_scores_for_multiple_scenarios(creatures=creatures, my_drones=my_drones, foe_drones=foe_drones, scans=scans, trophies=trophies, current_owners_scores=self.owners_scores_computed)
+            self.owners_extra_score_with_all_unsaved_creatures, self.owners_max_possible_score, self.owners_bonus_score_left = evaluate_extra_scores_for_multiple_scenarios(creatures=creatures, my_drones=my_drones, foe_drones=foe_drones, scans=scans, trophies=trophies, current_owners_scores=self.owners_scores_computed)
             evaluate_positions_of_creatures(creatures=creatures, radar_blips=radar_blips, my_drones=my_drones, nb_turns=self.nb_turns)
             evaluate_monsters_to_avoid(my_drones=my_drones, monsters=self.monsters, nb_turns=self.nb_turns)
             default_action = Action(move=False, light=False)
-            save_actions = save_points(my_drones=my_drones, owners_scores=self.owners_scores_computed, owners_max_possible_score=self.owners_max_possible_score, owners_extra_score_with_all_unsaved_creatures=self.owners_extra_score_with_all_unsaved_creatures)
+            save_actions = save_points(my_drones=my_drones, owners_scores_computed=self.owners_scores_computed, owners_max_possible_score=self.owners_max_possible_score, owners_extra_score_with_all_unsaved_creatures=self.owners_extra_score_with_all_unsaved_creatures, owners_bonus_score_left=self.owners_bonus_score_left)
             find_actions = find_valuable_target(my_drones=my_drones, creatures=creatures)
             just_do_something_actions = {}
             if len(save_actions) < 2 and len(find_actions) < 2:

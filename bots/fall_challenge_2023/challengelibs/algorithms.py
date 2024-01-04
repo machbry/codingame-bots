@@ -23,20 +23,28 @@ def use_light_to_find_a_target(drone: Drone, target: Creature, hash_map_norm2=HA
 
 
 def save_points(my_drones: Dict[int, MyDrone], owners_scores_computed: Dict[int, Score], owners_max_possible_score: Dict[int, Score],
-                owners_extra_score_with_all_unsaved_creatures: Dict[int, Score], my_owner=MY_OWNER, foe_owner=FOE_OWNER):
+                owners_extra_score_with_all_unsaved_creatures: Dict[int, Score], owners_bonus_score_left: Dict[int, Dict[str, int]],
+                my_owner=MY_OWNER, foe_owner=FOE_OWNER):
     actions = {}
 
-    extra_score_to_win = owners_max_possible_score[foe_owner].total - owners_scores_computed[my_owner].total + 1  # TODO : bonus scores are shared
+    L = owners_max_possible_score[my_owner].total
+    M = owners_max_possible_score[my_owner].base + owners_scores_computed[my_owner].bonus + owners_bonus_score_left[my_owner]["unshared"]
+    F = owners_max_possible_score[foe_owner].base + owners_scores_computed[foe_owner].bonus + owners_bonus_score_left[foe_owner]["unshared"]
+    S = owners_bonus_score_left[my_owner]["shared"]
+    # L > M + X > F + Y
+    # X + Y = S
+    X = (S + F - M) / 2 + 1
+
+    my_base_score_left = owners_max_possible_score[my_owner].base - owners_scores_computed[my_owner].base
+    my_extra_score_to_win = my_base_score_left + owners_bonus_score_left[my_owner]["unshared"] + X - owners_scores_computed[my_owner].total
+
     extra_score_if_all_my_drones_save = owners_extra_score_with_all_unsaved_creatures[my_owner].total
 
-    # hypothèse : extra_base_to_win = my_base_max - my_base (??)
-    # hypothèse : extra_bonus_to_win is fully shared => foe_left_bonus = my_left_bonus - extra_bonus_to_win (??)
-
-    if extra_score_if_all_my_drones_save >= extra_score_to_win:
+    if extra_score_if_all_my_drones_save >= my_extra_score_to_win:
         for drone in my_drones.values():
             if len(drone.unsaved_creatures_idt) > 0:
                 actions[drone.idt] = Action(target=Point(drone.x, 499),
-                                            comment=f"SAVE {drone.extra_score_with_unsaved_creatures:.0f}/{extra_score_if_all_my_drones_save:.0f}/{extra_score_to_win:.0f}")
+                                            comment=f"SAVE {drone.extra_score_with_unsaved_creatures:.0f}/{extra_score_if_all_my_drones_save:.0f}/{my_extra_score_to_win:.0f}/{L:.0f}")
 
     else:
         ordered_my_drones_with_most_extra_score = order_assets(my_drones.values(),
@@ -44,9 +52,9 @@ def save_points(my_drones: Dict[int, MyDrone], owners_scores_computed: Dict[int,
                                                                ascending=False)
         for drone in ordered_my_drones_with_most_extra_score:
             drone_extra_score = drone.extra_score_with_unsaved_creatures
-            if drone_extra_score >= 20 or drone_extra_score >= extra_score_to_win:
+            if drone_extra_score >= 20 or drone_extra_score >= my_extra_score_to_win:
                 actions[drone.idt] = Action(target=Point(drone.x, 499),
-                                            comment=f"SAVE {drone.extra_score_with_unsaved_creatures:.0f}/{extra_score_if_all_my_drones_save:.0f}/{extra_score_to_win:.0f}")
+                                            comment=f"SAVE {drone.extra_score_with_unsaved_creatures:.0f}/{extra_score_if_all_my_drones_save:.0f}/{my_extra_score_to_win:.0f}/{L:.0f}")
 
     return actions
 

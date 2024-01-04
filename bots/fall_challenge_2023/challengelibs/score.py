@@ -89,28 +89,19 @@ def compute_score(owner: int, saved_creatures: np.ndarray, creatures_win_by: np.
 
     score = Score()
 
-    creatures_activated = saved_creatures.dot(score_by_kind)
-
     bonus_saved_creatures = np.zeros_like(saved_creatures)
     bonus_saved_creatures[creatures_win_by == owner] = 1
-    bonus_creatures_activated = bonus_saved_creatures.dot(score_by_kind)
-
     colors_activated = saved_creatures.dot(activate_colors)
-    completed_colors = colors_activated == score_for_full_color
-    owned_colors_trophies = colors_win_by == owner
-
     kinds_activated = activate_kinds.dot(saved_creatures)
-    completed_kinds = kinds_activated == score_for_full_kind
-    owned_kinds_trophies = kinds_win_by == owner
 
-    score.base_creatures = creatures_activated.sum()
-    score.bonus_creatures = bonus_creatures_activated.sum()
+    score.base_creatures = saved_creatures.dot(score_by_kind).sum()
+    score.bonus_creatures = bonus_saved_creatures.dot(score_by_kind).sum()
 
-    score.base_colors = colors_activated[completed_colors].sum()
-    score.bonus_colors = score_for_full_color * colors_win_by[owned_colors_trophies].size
+    score.base_colors = colors_activated[colors_activated == score_for_full_color].sum()
+    score.bonus_colors = score_for_full_color * colors_win_by[colors_win_by == owner].size
 
-    score.base_kinds = kinds_activated[completed_kinds].sum()
-    score.bonus_kinds = score_for_full_kind * kinds_win_by[owned_kinds_trophies].size
+    score.base_kinds = kinds_activated[kinds_activated == score_for_full_kind].sum()
+    score.bonus_kinds = score_for_full_kind * kinds_win_by[kinds_win_by == owner].size
 
     return score
 
@@ -177,7 +168,9 @@ def evaluate_extra_scores_for_multiple_scenarios(creatures: Dict[int, Creature],
                                                  foe_drones: Dict[int, FoeDrone], scans: Dict[int, Scans],
                                                  trophies: Trophies, current_owners_scores: Dict[int, Score],
                                                  my_owner=MY_OWNER, foe_owner=FOE_OWNER, owners=OWNERS,
-                                                 monster_kind=Kind.MONSTER.value):
+                                                 monster_kind=Kind.MONSTER.value, score_by_kind=SCORE_BY_KIND,
+                                                 score_for_full_color=SCORE_FOR_FULL_COLOR,
+                                                 score_for_full_kind=SCORE_FOR_FULL_KIND):
 
     all_drones = [*my_drones.values(), *foe_drones.values()]
     my_drones_from_top_to_bottom = order_assets(my_drones.values(), 'y')
@@ -190,6 +183,8 @@ def evaluate_extra_scores_for_multiple_scenarios(creatures: Dict[int, Creature],
 
     owners_extra_score_with_all_unsaved_creatures = {owner: Score() for owner in owners}
     owners_max_possible_score = {owner: Score() for owner in owners}
+    owners_bonus_score_left = {owner: {"shared": 0,
+                                       "unshared": 0} for owner in owners}
 
     # REMOVE DUPLICATES IN UNSAVED CREATURES FOR EACH OWNER (THE TOP DRONE KEEPS IT)
     unsaved_creatures_idt = {}
@@ -247,7 +242,7 @@ def evaluate_extra_scores_for_multiple_scenarios(creatures: Dict[int, Creature],
 
     new_owners_scores = {owner: score_simulation.compute_new_score()[owner].total for owner in owners}
 
-    new_state = score_simulation.scans_and_trophies_after_simulation()
+    state_after_saving_current_scans = score_simulation.scans_and_trophies_after_simulation()
 
     creatures_left_to_saved = {owner: [] for owner in owners}
     for creature in creatures.values():
@@ -261,7 +256,7 @@ def evaluate_extra_scores_for_multiple_scenarios(creatures: Dict[int, Creature],
                 creatures_left_to_saved[owner].append(creature)
                 if not creature_scanned_but_not_saved_by_owner:
                     score_simulation = ScoreSimulation(simulation_scenario=[(owner, [creature])],
-                                                       **new_state)
+                                                       **state_after_saving_current_scans)
 
                     new_owner_score = score_simulation.compute_new_score()[owner].total
 
@@ -269,7 +264,11 @@ def evaluate_extra_scores_for_multiple_scenarios(creatures: Dict[int, Creature],
 
                     creature.extra_scores[owner] = creature_extra_score
 
-    # EVALUATE MAX POSSIBLE SCORES FOR EACH OWNER
+    # EVALUATE MAX POSSIBLE SCORES FOR EACH OWNER AND SHARED / UNSHARED BONUS LEFT TO WIN
+    state_after_winning_max_possible = {}
+    creatures_left_to_win = {}
+    colors_left_to_win = {}
+    kinds_left_to_win = {}
     for owner in owners:
         score_simulation = ScoreSimulation(simulation_scenario=[(owner, creatures_left_to_saved[owner])],
                                            owners_saved_creatures={owner: scans[owner].saved_creatures},
@@ -279,4 +278,25 @@ def evaluate_extra_scores_for_multiple_scenarios(creatures: Dict[int, Creature],
 
         owners_max_possible_score[owner] = score_simulation.compute_new_score()[owner]
 
-    return owners_extra_score_with_all_unsaved_creatures, owners_max_possible_score
+        state_after_winning_max_possible[owner] = score_simulation.scans_and_trophies_after_simulation()
+
+        creatures_left_to_win[owner] = (state_after_winning_max_possible[owner]['creatures_win_by'] == owner) & \
+                                       (trophies.creatures_win_by != owner)
+        colors_left_to_win[owner] = (state_after_winning_max_possible[owner]['colors_win_by'] == owner) & \
+                                    (trophies.colors_win_by != owner)
+        kinds_left_to_win[owner] = (state_after_winning_max_possible[owner]['kinds_win_by'] == owner) & \
+                                   (trophies.kinds_win_by != owner)
+
+    shared_creatures_left = (creatures_left_to_win[MY_OWNER] & creatures_left_to_win[FOE_OWNER]).astype(int)
+    shared_colors_left = (colors_left_to_win[MY_OWNER] & colors_left_to_win[FOE_OWNER])
+    shared_kinds_left = (kinds_left_to_win[MY_OWNER] & kinds_left_to_win[FOE_OWNER])
+
+    bonus_shared_left = (shared_creatures_left.dot(score_by_kind).sum() + score_for_full_color * shared_colors_left.size
+                         + score_for_full_kind * shared_kinds_left.size)
+
+    for owner in owners:
+        owners_bonus_score_left[owner]["shared"] = bonus_shared_left
+        owners_bonus_score_left[owner]["unshared"] = (owners_max_possible_score[owner].bonus - bonus_shared_left
+                                                      - current_owners_scores[owner].bonus)
+
+    return owners_extra_score_with_all_unsaved_creatures, owners_max_possible_score, owners_bonus_score_left

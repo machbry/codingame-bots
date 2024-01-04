@@ -21,7 +21,7 @@ class GameLoop:
     "init_inputs", "nb_turns", "turns_inputs", "game_assets", "empty_array_saved_creatures",
     "max_number_of_radar_blips_used", "max_speed_per_kind", "corners", "my_owner", "foe_owner", "owners",
     "owners_scores", "owners_scores_computed", "owners_extra_score_with_all_unsaved_creatures", "owners_max_possible_score",
-    "my_drones_idt_play_order", "monsters")
+    "owners_bonus_score_left", "my_drones_idt_play_order", "monsters")
     RUNNING = True
     LOG = True
     RESET_TURNS_INPUTS = True
@@ -44,6 +44,7 @@ class GameLoop:
         self.owners_scores_computed: Dict[int, Score] = {}
         self.owners_extra_score_with_all_unsaved_creatures: Dict[int, Score] = {}
         self.owners_max_possible_score: Dict[int, Score] = {}
+        self.owners_bonus_score_left: Dict[int, Dict[str, int]] = {}
         self.my_drones_idt_play_order: List[int] = []
         self.monsters: List[Creature] = []
 
@@ -235,7 +236,7 @@ class GameLoop:
                                                                    kinds_win_by=trophies.kinds_win_by)
 
             # note : extra scores for creatures or drones are directly stored in these assets
-            self.owners_extra_score_with_all_unsaved_creatures, self.owners_max_possible_score = (
+            self.owners_extra_score_with_all_unsaved_creatures, self.owners_max_possible_score, self.owners_bonus_score_left = (
                 evaluate_extra_scores_for_multiple_scenarios(creatures=creatures, my_drones=my_drones,
                                                              foe_drones=foe_drones, scans=scans,
                                                              trophies=trophies,
@@ -250,7 +251,8 @@ class GameLoop:
 
             save_actions = save_points(my_drones=my_drones, owners_scores_computed=self.owners_scores_computed,
                                        owners_max_possible_score=self.owners_max_possible_score,
-                                       owners_extra_score_with_all_unsaved_creatures=self.owners_extra_score_with_all_unsaved_creatures)
+                                       owners_extra_score_with_all_unsaved_creatures=self.owners_extra_score_with_all_unsaved_creatures,
+                                       owners_bonus_score_left=self.owners_bonus_score_left)
 
             find_actions = find_valuable_target(my_drones=my_drones, creatures=creatures)
 
