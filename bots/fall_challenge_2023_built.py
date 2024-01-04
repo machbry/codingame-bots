@@ -1,9 +1,9 @@
 import numpy as np
-import math
 import sys
+import math
 from enum import Enum
-from dataclasses import dataclass, asdict, field
-from typing import Any, Callable, List, Set, Tuple, Dict, Union
+from dataclasses import field, asdict, dataclass
+from typing import Set, List, Any, Callable, Tuple, Union, Dict
 
 class Point:
 
@@ -397,9 +397,9 @@ def save_points(my_drones: Dict[int, MyDrone], owners_scores_computed: Dict[int,
     M = owners_max_possible_score[my_owner].base + owners_scores_computed[my_owner].bonus + owners_bonus_score_left[my_owner]['unshared']
     F = owners_max_possible_score[foe_owner].base + owners_scores_computed[foe_owner].bonus + owners_bonus_score_left[foe_owner]['unshared']
     S = owners_bonus_score_left[my_owner]['shared']
-    X = (S + F - M) / 2 + 1
-    my_base_score_left = owners_max_possible_score[my_owner].base - owners_scores_computed[my_owner].base
-    my_extra_score_to_win = my_base_score_left + owners_bonus_score_left[my_owner]['unshared'] + X - owners_scores_computed[my_owner].total
+    X = (S + F - M) / 2
+    Y = S - X
+    my_extra_score_to_win = owners_max_possible_score[foe_owner].base + owners_bonus_score_left[foe_owner]['unshared'] + Y - owners_scores_computed[my_owner].total + 1
     extra_score_if_all_my_drones_save = owners_extra_score_with_all_unsaved_creatures[my_owner].total
     if extra_score_if_all_my_drones_save >= my_extra_score_to_win:
         for drone in my_drones.values():
