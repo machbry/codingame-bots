@@ -31,7 +31,7 @@ def save_points(my_drones: Dict[int, MyDrone], owners_scores_computed: Dict[int,
     M = owners_max_possible_score[my_owner].base + owners_scores_computed[my_owner].bonus + owners_bonus_score_left[my_owner]["unshared"]
     F = owners_max_possible_score[foe_owner].base + owners_scores_computed[foe_owner].bonus + owners_bonus_score_left[foe_owner]["unshared"]
     S = owners_bonus_score_left[my_owner]["shared"]
-    # L > M + X > F + Y
+    # M + X > F + Y
     # X + Y = S
     X = (S + F - M) / 2
     Y = S - X

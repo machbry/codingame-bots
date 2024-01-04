@@ -1,9 +1,9 @@
-import numpy as np
 import sys
+import numpy as np
 import math
 from enum import Enum
-from dataclasses import field, asdict, dataclass
-from typing import Set, List, Any, Callable, Tuple, Union, Dict
+from dataclasses import dataclass, field, asdict
+from typing import Any, List, Set, Union, Tuple, Callable, Dict
 
 class Point:
 
