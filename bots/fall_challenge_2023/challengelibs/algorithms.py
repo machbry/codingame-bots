@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Union
 import math
 
 import numpy as np
@@ -7,7 +7,9 @@ from botlibs.trigonometry import Vector, Point
 from bots.fall_challenge_2023.challengelibs.act import Action
 from bots.fall_challenge_2023.challengelibs.asset import Drone, Creature, MyDrone, Asset, Score
 from bots.fall_challenge_2023.challengelibs.map import is_next_position_safe, get_drone_next_position_with_target
-from bots.fall_challenge_2023.singletons import HASH_MAP_NORM2, AUGMENTED_LIGHT_RADIUS2, MY_OWNER, FOE_OWNER, ROTATE_2D_MATRIX
+from bots.fall_challenge_2023.singletons import HASH_MAP_NORM2, AUGMENTED_LIGHT_RADIUS2, MY_OWNER, FOE_OWNER, \
+    ROTATE_2D_MATRIX, Kind, LIMIT_DISTANCE_FROM_EDGE_TO_DENY, X_MAX, SCARE_FROM_DISTANCE, LIMIT_DISTANCE_TO_DENY2, \
+    DRONE_MAX_SPEED
 
 
 def use_light_to_find_a_target(drone: Drone, target: Creature, hash_map_norm2=HASH_MAP_NORM2,
@@ -22,15 +24,19 @@ def use_light_to_find_a_target(drone: Drone, target: Creature, hash_map_norm2=HA
     return False
 
 
-def save_points(my_drones: Dict[int, MyDrone], owners_scores_computed: Dict[int, Score], owners_max_possible_score: Dict[int, Score],
-                owners_extra_score_with_all_unsaved_creatures: Dict[int, Score], owners_bonus_score_left: Dict[int, Dict[str, int]],
+def save_points(my_drones: Dict[int, MyDrone], owners_scores_computed: Dict[int, Score],
+                owners_max_possible_score: Dict[int, Score],
+                owners_extra_score_with_all_unsaved_creatures: Dict[int, Score],
+                owners_bonus_score_left: Dict[int, Dict[str, int]],
                 my_owner=MY_OWNER, foe_owner=FOE_OWNER):
     actions = {}
 
     my_total_max_score = owners_max_possible_score[my_owner].total
 
-    my_max_possible_unshared = owners_max_possible_score[my_owner].base + owners_scores_computed[my_owner].bonus + owners_bonus_score_left[my_owner]["unshared"]  # M
-    foe_max_possible_unshared = owners_max_possible_score[foe_owner].base + owners_scores_computed[foe_owner].bonus + owners_bonus_score_left[foe_owner]["unshared"]  # F
+    my_max_possible_unshared = owners_max_possible_score[my_owner].base + owners_scores_computed[my_owner].bonus + \
+                               owners_bonus_score_left[my_owner]["unshared"]  # M
+    foe_max_possible_unshared = owners_max_possible_score[foe_owner].base + owners_scores_computed[foe_owner].bonus + \
+                                owners_bonus_score_left[foe_owner]["unshared"]  # F
     bonus_shared_left = owners_bonus_score_left[my_owner]["shared"]  # S
     # M + X > F + Y = F + S - X
     # X + Y = S
@@ -111,7 +117,34 @@ def find_valuable_target(my_drones: Dict[int, MyDrone], creatures: Dict[int, Cre
     return actions
 
 
-def just_do_something(my_drones: Dict[int, MyDrone], creatures: Dict[int, Creature]):
+def deny_valuable_fish_for_foe(my_drones: Dict[int, MyDrone], creatures: Dict[int, Creature], nb_turns: int,
+                               hash_map_norm2=HASH_MAP_NORM2, monster_kind=Kind.MONSTER.value, x_max=X_MAX,
+                               x_center=X_MAX/2, limit_distance_from_edge=LIMIT_DISTANCE_FROM_EDGE_TO_DENY,
+                               scare_from=SCARE_FROM_DISTANCE, limit_distance_to_deny=LIMIT_DISTANCE_TO_DENY2):
+    actions = {}
+
+    fishes_close_to_edge = [creature for creature in creatures.values()
+                            if ((nb_turns - creature.last_turn_visible <= 3) if creature.last_turn_visible else False)
+                            and (creature.kind != monster_kind) and (creature.foe_extra_score > 0) and
+                            (creature.next_x < limit_distance_from_edge or x_max - creature.next_x < limit_distance_from_edge)]
+
+    if len(fishes_close_to_edge) > 0:
+        fishes_with_most_extra_for_foe: List[Creature] = order_assets(fishes_close_to_edge, on_attr='foe_extra_score',
+                                                                      ascending=False)
+
+        for fish in fishes_with_most_extra_for_foe:
+            closest_drone = sorted(my_drones.values(), key=lambda drone: hash_map_norm2[fish.next_position - drone.position])[0]
+            if hash_map_norm2[fish.next_position - closest_drone.position] < limit_distance_to_deny:
+                edge_direction = 1 if fish.next_x > x_center else -1
+                if not actions.get(closest_drone.idt):
+                    target = fish.next_position - edge_direction * Vector(scare_from, 0)
+                    actions[closest_drone.idt] = Action(target=target, comment=f"DENY {fish.log()}")
+
+    return actions
+
+
+def just_do_something(my_drones: Dict[int, MyDrone], creatures: Dict[int, Creature], x_center=X_MAX/2,
+                      scare_from=SCARE_FROM_DISTANCE):
     actions = {}
 
     nb_find_actions = 0
@@ -123,15 +156,15 @@ def just_do_something(my_drones: Dict[int, MyDrone], creatures: Dict[int, Creatu
             drone_target = order_assets(creatures.values(), on_attr='foe_extra_score', ascending=False)[
                 nb_find_actions]
             nb_find_actions += 1
-            actions[drone.idt] = Action(target=drone_target, light=True,
-                                        comment=f"FIND {drone_target.log()}")
+            edge_direction = 1 if drone_target.next_x > x_center else -1
+            target = drone_target.next_position - edge_direction * Vector(scare_from, 0)
+            actions[drone_idt] = Action(target=target, light=True, comment=f"DENY {drone_target.log()}")
 
     return actions
 
 
 def avoid_monsters(drone: MyDrone, aimed_action: Action, default_action: Action, hash_map_norm2=HASH_MAP_NORM2,
-                   rotate_matrix=ROTATE_2D_MATRIX, theta_increment=math.pi/8):
-
+                   rotate_matrix=ROTATE_2D_MATRIX, theta_increment=math.pi / 16, drone_max_speed=DRONE_MAX_SPEED):
     safe_action = aimed_action
     drone_has_to_avoid = drone.has_to_avoid
 
@@ -146,21 +179,22 @@ def avoid_monsters(drone: MyDrone, aimed_action: Action, default_action: Action,
 
     if len(drone_has_to_avoid) > 0:
         speed_wanted = Vector(drone.vx, drone.vy)
+        speeds_to_try = [speed_wanted, (drone_max_speed / speed_wanted.norm) * speed_wanted, (1/2) * speed_wanted]
+        for speed in speeds_to_try:
+            thetas = [theta for theta in np.arange(theta_increment, math.pi + theta_increment, theta_increment)]
+            for theta in thetas:
+                next_positions_to_try = [drone.position + round(rotate_matrix.rotate_vector(speed, theta)),
+                                         drone.position + round(rotate_matrix.rotate_vector(speed, -theta))]
 
-        thetas = [theta for theta in np.arange(theta_increment, math.pi + theta_increment, theta_increment)]
-        for theta in thetas:
-            next_positions_to_try = [drone.position + round(rotate_matrix.rotate_vector(speed_wanted, theta)),
-                                     drone.position + round(rotate_matrix.rotate_vector(speed_wanted, -theta))]
+                next_positions_to_try = sorted(next_positions_to_try, key=lambda p: hash_map_norm2[target_position - p])
 
-            next_positions_to_try = sorted(next_positions_to_try, key=lambda p: hash_map_norm2[target_position - p])
-
-            for next_position in next_positions_to_try:
-                if is_next_position_safe(drone, next_position):
-                    safe_action.target = next_position
-                    return safe_action
+                for next_position in next_positions_to_try:
+                    if is_next_position_safe(drone, next_position):
+                        safe_action.target = next_position
+                        return safe_action
 
     return default_action
 
 
-def order_assets(assets: List[Asset], on_attr: str, ascending: bool = True):
+def order_assets(assets: List[Union[Asset, Creature, Drone, MyDrone]], on_attr: str, ascending: bool = True) -> List[Union[Asset, Creature, Drone, MyDrone]]:
     return sorted(assets, key=lambda asset: getattr(asset, on_attr), reverse=not ascending)

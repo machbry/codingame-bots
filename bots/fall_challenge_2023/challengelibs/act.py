@@ -12,6 +12,7 @@ class Action:
     target: Union[Point, Unit] = MAP_CENTER
     light: bool = False
     comment: Union[int, str] = None
+    value: int = 0  # TODO : give value to action for better prioritization ?
 
     def __repr__(self):
         instruction = f"MOVE {int(self.target.x)} {int(self.target.y)}" if self.move else "WAIT"

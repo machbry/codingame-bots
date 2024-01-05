@@ -2,8 +2,8 @@ import numpy as np
 import math
 import sys
 from enum import Enum
-from dataclasses import field, asdict, dataclass
-from typing import List, Set, Union, Dict, Callable, Any, Tuple
+from dataclasses import asdict, dataclass, field
+from typing import Dict, Set, List, Callable, Tuple, Any, Union
 
 class Point:
 
@@ -134,7 +134,11 @@ AUGMENTED_LIGHT_RADIUS2 = HASH_MAP_NORM2[Vector(0, 2000)]
 EMERGENCY_RADIUS2 = HASH_MAP_NORM2[Vector(0, 500)]
 DRONE_MAX_SPEED = HASH_MAP_NORM[Vector(0, 600)]
 SAFE_RADIUS_FROM_MONSTERS2 = HASH_MAP_NORM2[Vector(0, 500 + 540 + 600)]
+FRIGHTEN_RADIUS_FROM_DRONE = HASH_MAP_NORM[Vector(0, 1400)]
 MAX_NUMBER_OF_RADAR_BLIPS_USED = 3
+LIMIT_DISTANCE_FROM_EDGE_TO_DENY = HASH_MAP_NORM[Vector(1500, 0)]
+SCARE_FROM_DISTANCE = HASH_MAP_NORM[Vector(790, 0)]
+LIMIT_DISTANCE_TO_DENY2 = HASH_MAP_NORM2[Vector(1500, 0)]
 
 @dataclass(slots=True)
 class Score:
@@ -203,7 +207,7 @@ class Unit(Asset):
         return Point(self.next_x, self.next_y)
 
     def log(self):
-        return f'{self.idt}'
+        return f'{self.idt} / {self.x} / {self.y}'
 
 @dataclass(slots=True)
 class Creature(Unit):
@@ -270,6 +274,7 @@ class Action:
     target: Union[Point, Unit] = MAP_CENTER
     light: bool = False
     comment: Union[int, str] = None
+    value: int = 0
 
     def __repr__(self):
         instruction = f'MOVE {int(self.target.x)} {int(self.target.y)}' if self.move else 'WAIT'
@@ -448,7 +453,21 @@ def find_valuable_target(my_drones: Dict[int, MyDrone], creatures: Dict[int, Cre
             actions[drone_right_idt] = Action(target=right_target, light=light, comment=f'FIND {right_target.log()}')
     return actions
 
-def just_do_something(my_drones: Dict[int, MyDrone], creatures: Dict[int, Creature]):
+def deny_valuable_fish_for_foe(my_drones: Dict[int, MyDrone], creatures: Dict[int, Creature], nb_turns: int, hash_map_norm2=HASH_MAP_NORM2, monster_kind=Kind.MONSTER.value, x_max=X_MAX, x_center=X_MAX / 2, limit_distance_from_edge=LIMIT_DISTANCE_FROM_EDGE_TO_DENY, scare_from=SCARE_FROM_DISTANCE, limit_distance_to_deny=LIMIT_DISTANCE_TO_DENY2):
+    actions = {}
+    fishes_close_to_edge = [creature for creature in creatures.values() if (nb_turns - creature.last_turn_visible <= 3 if creature.last_turn_visible else False) and creature.kind != monster_kind and (creature.foe_extra_score > 0) and (creature.next_x < limit_distance_from_edge or x_max - creature.next_x < limit_distance_from_edge)]
+    if len(fishes_close_to_edge) > 0:
+        fishes_with_most_extra_for_foe: List[Creature] = order_assets(fishes_close_to_edge, on_attr='foe_extra_score', ascending=False)
+        for fish in fishes_with_most_extra_for_foe:
+            closest_drone = sorted(my_drones.values(), key=lambda drone: hash_map_norm2[fish.next_position - drone.position])[0]
+            if hash_map_norm2[fish.next_position - closest_drone.position] < limit_distance_to_deny:
+                edge_direction = 1 if fish.next_x > x_center else -1
+                if not actions.get(closest_drone.idt):
+                    target = fish.next_position - edge_direction * Vector(scare_from, 0)
+                    actions[closest_drone.idt] = Action(target=target, comment=f'DENY {fish.log()}')
+    return actions
+
+def just_do_something(my_drones: Dict[int, MyDrone], creatures: Dict[int, Creature], x_center=X_MAX / 2, scare_from=SCARE_FROM_DISTANCE):
     actions = {}
     nb_find_actions = 0
     for drone_idt, drone in my_drones.items():
@@ -457,10 +476,12 @@ def just_do_something(my_drones: Dict[int, MyDrone], creatures: Dict[int, Creatu
         else:
             drone_target = order_assets(creatures.values(), on_attr='foe_extra_score', ascending=False)[nb_find_actions]
             nb_find_actions += 1
-            actions[drone.idt] = Action(target=drone_target, light=True, comment=f'FIND {drone_target.log()}')
+            edge_direction = 1 if drone_target.next_x > x_center else -1
+            target = drone_target.next_position - edge_direction * Vector(scare_from, 0)
+            actions[drone_idt] = Action(target=target, light=True, comment=f'DENY {drone_target.log()}')
     return actions
 
-def avoid_monsters(drone: MyDrone, aimed_action: Action, default_action: Action, hash_map_norm2=HASH_MAP_NORM2, rotate_matrix=ROTATE_2D_MATRIX, theta_increment=math.pi / 8):
+def avoid_monsters(drone: MyDrone, aimed_action: Action, default_action: Action, hash_map_norm2=HASH_MAP_NORM2, rotate_matrix=ROTATE_2D_MATRIX, theta_increment=math.pi / 16, drone_max_speed=DRONE_MAX_SPEED):
     safe_action = aimed_action
     drone_has_to_avoid = drone.has_to_avoid
     if len(drone.has_to_avoid) == 0:
@@ -471,17 +492,19 @@ def avoid_monsters(drone: MyDrone, aimed_action: Action, default_action: Action,
         return safe_action
     if len(drone_has_to_avoid) > 0:
         speed_wanted = Vector(drone.vx, drone.vy)
-        thetas = [theta for theta in np.arange(theta_increment, math.pi + theta_increment, theta_increment)]
-        for theta in thetas:
-            next_positions_to_try = [drone.position + round(rotate_matrix.rotate_vector(speed_wanted, theta)), drone.position + round(rotate_matrix.rotate_vector(speed_wanted, -theta))]
-            next_positions_to_try = sorted(next_positions_to_try, key=lambda p: hash_map_norm2[target_position - p])
-            for next_position in next_positions_to_try:
-                if is_next_position_safe(drone, next_position):
-                    safe_action.target = next_position
-                    return safe_action
+        speeds_to_try = [speed_wanted, drone_max_speed / speed_wanted.norm * speed_wanted, 1 / 2 * speed_wanted]
+        for speed in speeds_to_try:
+            thetas = [theta for theta in np.arange(theta_increment, math.pi + theta_increment, theta_increment)]
+            for theta in thetas:
+                next_positions_to_try = [drone.position + round(rotate_matrix.rotate_vector(speed, theta)), drone.position + round(rotate_matrix.rotate_vector(speed, -theta))]
+                next_positions_to_try = sorted(next_positions_to_try, key=lambda p: hash_map_norm2[target_position - p])
+                for next_position in next_positions_to_try:
+                    if is_next_position_safe(drone, next_position):
+                        safe_action.target = next_position
+                        return safe_action
     return default_action
 
-def order_assets(assets: List[Asset], on_attr: str, ascending: bool=True):
+def order_assets(assets: List[Union[Asset, Creature, Drone, MyDrone]], on_attr: str, ascending: bool=True) -> List[Union[Asset, Creature, Drone, MyDrone]]:
     return sorted(assets, key=lambda asset: getattr(asset, on_attr), reverse=not ascending)
 
 class AssetType(Enum):
@@ -861,14 +884,16 @@ class GameLoop:
             evaluate_monsters_to_avoid(my_drones=my_drones, monsters=self.monsters, nb_turns=self.nb_turns)
             default_action = Action(move=False, light=False)
             save_actions = save_points(my_drones=my_drones, owners_scores_computed=self.owners_scores_computed, owners_max_possible_score=self.owners_max_possible_score, owners_extra_score_with_all_unsaved_creatures=self.owners_extra_score_with_all_unsaved_creatures, owners_bonus_score_left=self.owners_bonus_score_left)
+            deny_actions = deny_valuable_fish_for_foe(my_drones=my_drones, creatures=creatures, nb_turns=self.nb_turns)
             find_actions = find_valuable_target(my_drones=my_drones, creatures=creatures)
             just_do_something_actions = {}
-            if len(save_actions) < 2 and len(find_actions) < 2:
+            if len(deny_actions) < 2 and len(save_actions) < 2 and (len(find_actions) < 2):
                 just_do_something_actions = just_do_something(my_drones=my_drones, creatures=creatures)
-            actions_priorities = [save_actions, find_actions, just_do_something_actions]
+            actions_priorities = [deny_actions, save_actions, find_actions, just_do_something_actions]
             my_drones_action = choose_action_for_drones(my_drones=my_drones, actions_priorities=actions_priorities, default_action=default_action)
             for drone_idt in self.my_drones_idt_play_order:
                 my_drone = my_drones[drone_idt]
                 safe_action = avoid_monsters(my_drone, my_drones_action[drone_idt], default_action)
+                my_drone.light_on = safe_action.light
                 print(safe_action)
 GameLoop().start()
