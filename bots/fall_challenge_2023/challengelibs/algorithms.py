@@ -34,11 +34,8 @@ def save_points(my_drones: Dict[int, MyDrone], owners_scores_computed: Dict[int,
     bonus_shared_left = owners_bonus_score_left[my_owner]["shared"]  # S
     # M + X > F + Y = F + S - X
     # X + Y = S
-    # owners_max_possible_score[foe_owner].total = F + S
     X = min(max((bonus_shared_left + foe_max_possible_unshared - my_max_possible_unshared) / 2, 0), bonus_shared_left)
-    Y = bonus_shared_left - X
-
-    my_extra_score_to_win = foe_max_possible_unshared + Y - owners_scores_computed[my_owner].total + 1
+    my_extra_score_to_win = my_max_possible_unshared + X - owners_scores_computed[my_owner].total + 1
 
     extra_score_if_all_my_drones_save = owners_extra_score_with_all_unsaved_creatures[my_owner].total
 
