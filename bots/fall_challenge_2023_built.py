@@ -1,9 +1,9 @@
-import sys
 import numpy as np
+import sys
 import math
 from enum import Enum
-from dataclasses import dataclass, field, asdict
-from typing import Any, List, Set, Union, Tuple, Callable, Dict
+from dataclasses import asdict, field, dataclass
+from typing import Callable, Tuple, Dict, Union, Any, Set, List
 
 class Point:
 
@@ -393,24 +393,24 @@ def use_light_to_find_a_target(drone: Drone, target: Creature, hash_map_norm2=HA
 
 def save_points(my_drones: Dict[int, MyDrone], owners_scores_computed: Dict[int, Score], owners_max_possible_score: Dict[int, Score], owners_extra_score_with_all_unsaved_creatures: Dict[int, Score], owners_bonus_score_left: Dict[int, Dict[str, int]], my_owner=MY_OWNER, foe_owner=FOE_OWNER):
     actions = {}
-    L = owners_max_possible_score[my_owner].total
-    M = owners_max_possible_score[my_owner].base + owners_scores_computed[my_owner].bonus + owners_bonus_score_left[my_owner]['unshared']
-    F = owners_max_possible_score[foe_owner].base + owners_scores_computed[foe_owner].bonus + owners_bonus_score_left[foe_owner]['unshared']
-    S = owners_bonus_score_left[my_owner]['shared']
-    X = (S + F - M) / 2
-    Y = S - X
-    my_extra_score_to_win = owners_max_possible_score[foe_owner].base + owners_bonus_score_left[foe_owner]['unshared'] + Y - owners_scores_computed[my_owner].total + 1
+    my_total_max_score = owners_max_possible_score[my_owner].total
+    my_max_possible_unshared = owners_max_possible_score[my_owner].base + owners_scores_computed[my_owner].bonus + owners_bonus_score_left[my_owner]['unshared']
+    foe_max_possible_unshared = owners_max_possible_score[foe_owner].base + owners_scores_computed[foe_owner].bonus + owners_bonus_score_left[foe_owner]['unshared']
+    bonus_shared_left = owners_bonus_score_left[my_owner]['shared']
+    X = min(max((bonus_shared_left + foe_max_possible_unshared - my_max_possible_unshared) / 2, 0), bonus_shared_left)
+    Y = bonus_shared_left - X
+    my_extra_score_to_win = foe_max_possible_unshared + Y - owners_scores_computed[my_owner].total + 1
     extra_score_if_all_my_drones_save = owners_extra_score_with_all_unsaved_creatures[my_owner].total
     if extra_score_if_all_my_drones_save >= my_extra_score_to_win:
         for drone in my_drones.values():
             if len(drone.unsaved_creatures_idt) > 0:
-                actions[drone.idt] = Action(target=Point(drone.x, 499), comment=f'SAVE {drone.extra_score_with_unsaved_creatures:.0f}/{extra_score_if_all_my_drones_save:.0f}/{my_extra_score_to_win:.0f}/{L:.0f}')
+                actions[drone.idt] = Action(target=Point(drone.x, 499), comment=f'SAVE {drone.extra_score_with_unsaved_creatures:.0f}/{extra_score_if_all_my_drones_save:.0f}/{my_extra_score_to_win:.0f}/{my_total_max_score:.0f}')
     else:
         ordered_my_drones_with_most_extra_score = order_assets(my_drones.values(), on_attr='extra_score_with_unsaved_creatures', ascending=False)
         for drone in ordered_my_drones_with_most_extra_score:
             drone_extra_score = drone.extra_score_with_unsaved_creatures
             if drone_extra_score >= 20 or drone_extra_score >= my_extra_score_to_win:
-                actions[drone.idt] = Action(target=Point(drone.x, 499), comment=f'SAVE {drone.extra_score_with_unsaved_creatures:.0f}/{extra_score_if_all_my_drones_save:.0f}/{my_extra_score_to_win:.0f}/{L:.0f}')
+                actions[drone.idt] = Action(target=Point(drone.x, 499), comment=f'SAVE {drone.extra_score_with_unsaved_creatures:.0f}/{extra_score_if_all_my_drones_save:.0f}/{my_extra_score_to_win:.0f}/{my_total_max_score:.0f}')
     return actions
 
 def find_valuable_target(my_drones: Dict[int, MyDrone], creatures: Dict[int, Creature]):
