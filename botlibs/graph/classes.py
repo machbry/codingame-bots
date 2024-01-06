@@ -19,7 +19,7 @@ class Edge:
     from_node: int
     to_node: int
     directed: bool = False
-    weight: float = 1
+    weight: int = 1
 
 
 class AdjacencyMatrix:
@@ -36,20 +36,20 @@ class AdjacencyMatrix:
     def __setitem__(self, key, value: int):
         self.array.__setitem__(key, value)
 
-    def update_edge(self, edge: Edge, value: int):
-        self[edge.from_node, edge.to_node] = value
+    def update_edge(self, edge: Edge, weight: int):
+        self[edge.from_node, edge.to_node] = weight
         if not edge.directed:
-            self[edge.to_node, edge.from_node] = value
+            self[edge.to_node, edge.from_node] = weight
 
     def add_edge(self, edge: Edge):
-        self.update_edge(edge, 1)
+        self.update_edge(edge, edge.weight)
 
     def remove_edge(self, edge: Edge):
         self.update_edge(edge, 0)
 
 
 class AdjacencyList:
-    def __init__(self, nodes_neighbors: Dict[int, Dict[int, float]]):
+    def __init__(self, nodes_neighbors: Dict[int, Dict[int, int]]):
         self.nodes_neighbors = nodes_neighbors
 
     @property
@@ -60,10 +60,10 @@ class AdjacencyList:
     def nodes_number(self) -> int:
         return len(self.nodes)
 
-    def __getitem__(self, node: int) -> Union[None, Dict[int, float]]:
+    def __getitem__(self, node: int) -> Union[None, Dict[int, int]]:
         return self.nodes_neighbors.get(node)
 
-    def __setitem__(self, node: int, value: Dict[int, float]):
+    def __setitem__(self, node: int, value: Dict[int, int]):
         self.nodes_neighbors[node] = value
 
     def add_edge(self, edge: Edge):
