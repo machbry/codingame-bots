@@ -203,6 +203,7 @@ def evaluate_extra_scores_for_multiple_scenarios(creatures: Dict[int, Creature],
         owner = drone.owner
         creatures_to_save = [creatures[creature_idt] for creature_idt in drone.eval_unsaved_creatures_idt]
         drone_extra_score = 0
+        drone_extra_bonus = 0
 
         if len(creatures_to_save) > 0:
             score_simulation = ScoreSimulation(simulation_scenario=[(owner, creatures_to_save)],
@@ -211,9 +212,12 @@ def evaluate_extra_scores_for_multiple_scenarios(creatures: Dict[int, Creature],
                                                colors_win_by=trophies.colors_win_by,
                                                kinds_win_by=trophies.kinds_win_by)
 
-            drone_extra_score = score_simulation.compute_new_score()[owner].total - current_owners_scores[owner].total
+            owner_new_score = score_simulation.compute_new_score()[owner]
+            drone_extra_score = owner_new_score.total - current_owners_scores[owner].total
+            drone_extra_bonus = owner_new_score.bonus - current_owners_scores[owner].bonus
 
         drone.extra_score_with_unsaved_creatures = drone_extra_score
+        drone.extra_bonus_with_unsaved_creatures = drone_extra_bonus
 
     # SIMULATE THAT ALL DRONES OF THE SAME OWNER GO SAVING
     for owner in owners:
@@ -291,8 +295,8 @@ def evaluate_extra_scores_for_multiple_scenarios(creatures: Dict[int, Creature],
     shared_colors_left = (colors_left_to_win[MY_OWNER] & colors_left_to_win[FOE_OWNER])
     shared_kinds_left = (kinds_left_to_win[MY_OWNER] & kinds_left_to_win[FOE_OWNER])
 
-    bonus_shared_left = (shared_creatures_left.dot(score_by_kind).sum() + score_for_full_color * shared_colors_left.size
-                         + score_for_full_kind * shared_kinds_left.size)
+    bonus_shared_left = (shared_creatures_left.dot(score_by_kind).sum() + score_for_full_color * shared_colors_left.sum()
+                         + score_for_full_kind * shared_kinds_left.sum())
 
     for owner in owners:
         owners_bonus_score_left[owner]["shared"] = bonus_shared_left

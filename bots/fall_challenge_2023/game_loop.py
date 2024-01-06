@@ -264,7 +264,7 @@ class GameLoop:
             if len(deny_actions) < 2 and len(save_actions) < 2 and len(find_actions) < 2:
                 just_do_something_actions = just_do_something(my_drones=my_drones, creatures=creatures)
 
-            actions_priorities = [deny_actions, save_actions, find_actions, just_do_something_actions]
+            actions_priorities = [save_actions, deny_actions, find_actions, just_do_something_actions]
             my_drones_action = choose_action_for_drones(my_drones=my_drones, actions_priorities=actions_priorities,
                                                         default_action=default_action)
 

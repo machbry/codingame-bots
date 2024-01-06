@@ -117,7 +117,9 @@ class Drone(Unit):
     unsaved_creatures_idt: Set[int] = field(default_factory=set)  # reset each turn
     eval_unsaved_creatures_idt: Set[int] = field(default_factory=set)
     extra_score_with_unsaved_creatures: int = 0
+    extra_bonus_with_unsaved_creatures: int = 0
     has_to_avoid: List[Creature] = field(default_factory=list)
+    saving: bool = False
 
 
 @dataclass(slots=True)
