@@ -6,7 +6,7 @@ from botlibs.graph.classes import Edge, AdjacencyMatrix, AdjacencyList
 
 
 def create_adjacency_matrix_from_edges(edges: Iterable[Edge], nodes_number: int) -> AdjacencyMatrix:
-    adjacency_matrix = AdjacencyMatrix(np.zeros((nodes_number, nodes_number), dtype=int))
+    adjacency_matrix = AdjacencyMatrix(np.zeros((nodes_number, nodes_number), dtype=float))
     for edge in edges:
         adjacency_matrix.add_edge(edge)
     return adjacency_matrix

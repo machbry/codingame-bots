@@ -7,7 +7,7 @@
 # https://en.wikipedia.org/wiki/Shortest_path_problem
 
 
-from typing import Dict, Set, Union, List
+from typing import Dict, Union, List
 from dataclasses import dataclass
 
 import numpy as np
@@ -19,7 +19,7 @@ class Edge:
     from_node: int
     to_node: int
     directed: bool = False
-    weight: int = 1
+    weight: float = 1
 
 
 class AdjacencyMatrix:
@@ -33,10 +33,10 @@ class AdjacencyMatrix:
     def __getitem__(self, key):
         return self.array.__getitem__(key)
 
-    def __setitem__(self, key, value: int):
+    def __setitem__(self, key, value: float):
         self.array.__setitem__(key, value)
 
-    def update_edge(self, edge: Edge, weight: int):
+    def update_edge(self, edge: Edge, weight: float):
         self[edge.from_node, edge.to_node] = weight
         if not edge.directed:
             self[edge.to_node, edge.from_node] = weight
@@ -49,7 +49,7 @@ class AdjacencyMatrix:
 
 
 class AdjacencyList:
-    def __init__(self, nodes_neighbors: Dict[int, Dict[int, int]]):
+    def __init__(self, nodes_neighbors: Dict[int, Dict[int, float]]):
         self.nodes_neighbors = nodes_neighbors
 
     @property
@@ -60,10 +60,10 @@ class AdjacencyList:
     def nodes_number(self) -> int:
         return len(self.nodes)
 
-    def __getitem__(self, node: int) -> Union[None, Dict[int, int]]:
+    def __getitem__(self, node: int) -> Union[None, Dict[int, float]]:
         return self.nodes_neighbors.get(node)
 
-    def __setitem__(self, node: int, value: Dict[int, int]):
+    def __setitem__(self, node: int, value: Dict[int, float]):
         self.nodes_neighbors[node] = value
 
     def add_edge(self, edge: Edge):
