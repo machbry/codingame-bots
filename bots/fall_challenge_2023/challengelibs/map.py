@@ -13,14 +13,16 @@ from bots.fall_challenge_2023.challengelibs.asset import Creature, RadarBlip, My
 
 
 def evaluate_positions_of_creatures(creatures: Dict[int, Creature], radar_blips: Dict[int, RadarBlip],
-                                    my_drones: Dict[int, MyDrone], nb_turns: int,
-                                    max_number_of_radar_blips_used=MAX_NUMBER_OF_RADAR_BLIPS_USED):
+                                    my_drones: Dict[int, MyDrone], nb_turns: int, hash_map_norm2=HASH_MAP_NORM2,
+                                    max_number_of_radar_blips_used=MAX_NUMBER_OF_RADAR_BLIPS_USED,
+                                    trust_distance_limit=2 * LIGHT_RADIUS2):
 
     # TODO : use zones lightened by drones to eliminates possible zones
     # TODO : add collisions with limits & others to projections
 
     for creature_idt, creature in creatures.items():
         if not creature.visible:
+            creature.trust_in_position = False
             possible_zones = [creature.habitat]
             for drone_idt, drone in my_drones.items():
                 radar_blip = radar_blips.get(hash((drone_idt, creature_idt)))
@@ -45,25 +47,31 @@ def evaluate_positions_of_creatures(creatures: Dict[int, Creature], radar_blips:
                     creature.y = current_y_projection
                     creature.next_x = current_x_projection + creature.vx
                     creature.next_y = current_y_projection + creature.vy
+                    creature.trust_in_position = True
                 else:
                     creature.x = creature.next_x = round((x_min + x_max) / 2)
                     creature.y = creature.next_y = round((y_min + y_max) / 2)
+                    if hash_map_norm2[Vector(x_max - x_min, y_max - y_min)] < trust_distance_limit:
+                        creature.trust_in_position = True
             else:
                 creature.x = creature.next_x = round((x_min + x_max) / 2)
                 creature.y = creature.next_y = round((y_min + y_max) / 2)
+                if hash_map_norm2[Vector(x_max - x_min, y_max - y_min)] < trust_distance_limit:
+                    creature.trust_in_position = True
 
         else:
+            creature.trust_in_position = True
             creature.next_x = creature.x + creature.vx
             creature.next_y = creature.y + creature.vy
 
 
-def evaluate_monsters_to_avoid(my_drones: Dict[int, MyDrone], monsters: List[Creature], nb_turns: int,
+def evaluate_monsters_to_avoid(my_drones: Dict[int, MyDrone], monsters: List[Creature],
                                hash_map_norm2=HASH_MAP_NORM2, safe_radius_from_monsters=SAFE_RADIUS_FROM_MONSTERS2):
     for drone in my_drones.values():
         drone.has_to_avoid = []
         for monster in monsters:
             if monster.last_turn_visible:
-                if nb_turns - monster.last_turn_visible <= 3:
+                if monster.trust_in_position:
                     if hash_map_norm2[monster.position - drone.position] <= safe_radius_from_monsters:
                         drone.has_to_avoid.append(monster)
 

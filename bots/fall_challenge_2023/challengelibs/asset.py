@@ -94,6 +94,7 @@ class Creature(Unit):
     escaped: bool = False
     extra_scores: Dict[int, int] = field(default_factory=dict)
     last_turn_visible: int = None
+    trust_in_position: bool = False
 
     @property
     def my_extra_score(self):

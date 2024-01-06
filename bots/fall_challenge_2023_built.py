@@ -1,11 +1,11 @@
-import sys
 import numpy as np
 import math
+import sys
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import dijkstra
 from enum import Enum
-from dataclasses import asdict, dataclass, field
-from typing import List, Tuple, Union, Set, Iterable, Callable, Any, Dict
+from dataclasses import dataclass, asdict, field
+from typing import Callable, Iterable, Set, List, Tuple, Dict, Union, Any
 
 class Point:
 
@@ -141,7 +141,7 @@ FRIGHTEN_RADIUS_FROM_DRONE = HASH_MAP_NORM[Vector(0, 1400)]
 MAX_NUMBER_OF_RADAR_BLIPS_USED = 3
 LIMIT_DISTANCE_FROM_EDGE_TO_DENY = HASH_MAP_NORM[Vector(1500, 0)]
 SCARE_FROM_DISTANCE = HASH_MAP_NORM[Vector(790, 0)]
-LIMIT_DISTANCE_TO_DENY2 = HASH_MAP_NORM2[Vector(1500, 0)]
+LIMIT_DISTANCE_TO_DENY2 = HASH_MAP_NORM2[Vector(2000, 0)]
 
 @dataclass(slots=True)
 class Score:
@@ -225,6 +225,7 @@ class Creature(Unit):
     escaped: bool = False
     extra_scores: Dict[int, int] = field(default_factory=dict)
     last_turn_visible: int = None
+    trust_in_position: bool = False
 
     @property
     def my_extra_score(self):
@@ -353,9 +354,10 @@ def create_adjacency_matrix_from_edges(edges: Iterable[Edge], nodes_number: int)
         adjacency_matrix.add_edge(edge)
     return adjacency_matrix
 
-def evaluate_positions_of_creatures(creatures: Dict[int, Creature], radar_blips: Dict[int, RadarBlip], my_drones: Dict[int, MyDrone], nb_turns: int, max_number_of_radar_blips_used=MAX_NUMBER_OF_RADAR_BLIPS_USED):
+def evaluate_positions_of_creatures(creatures: Dict[int, Creature], radar_blips: Dict[int, RadarBlip], my_drones: Dict[int, MyDrone], nb_turns: int, hash_map_norm2=HASH_MAP_NORM2, max_number_of_radar_blips_used=MAX_NUMBER_OF_RADAR_BLIPS_USED, trust_distance_limit=2 * LIGHT_RADIUS2):
     for creature_idt, creature in creatures.items():
         if not creature.visible:
+            creature.trust_in_position = False
             possible_zones = [creature.habitat]
             for drone_idt, drone in my_drones.items():
                 radar_blip = radar_blips.get(hash((drone_idt, creature_idt)))
@@ -378,22 +380,28 @@ def evaluate_positions_of_creatures(creatures: Dict[int, Creature], radar_blips:
                     creature.y = current_y_projection
                     creature.next_x = current_x_projection + creature.vx
                     creature.next_y = current_y_projection + creature.vy
+                    creature.trust_in_position = True
                 else:
                     creature.x = creature.next_x = round((x_min + x_max) / 2)
                     creature.y = creature.next_y = round((y_min + y_max) / 2)
+                    if hash_map_norm2[Vector(x_max - x_min, y_max - y_min)] < trust_distance_limit:
+                        creature.trust_in_position = True
             else:
                 creature.x = creature.next_x = round((x_min + x_max) / 2)
                 creature.y = creature.next_y = round((y_min + y_max) / 2)
+                if hash_map_norm2[Vector(x_max - x_min, y_max - y_min)] < trust_distance_limit:
+                    creature.trust_in_position = True
         else:
+            creature.trust_in_position = True
             creature.next_x = creature.x + creature.vx
             creature.next_y = creature.y + creature.vy
 
-def evaluate_monsters_to_avoid(my_drones: Dict[int, MyDrone], monsters: List[Creature], nb_turns: int, hash_map_norm2=HASH_MAP_NORM2, safe_radius_from_monsters=SAFE_RADIUS_FROM_MONSTERS2):
+def evaluate_monsters_to_avoid(my_drones: Dict[int, MyDrone], monsters: List[Creature], hash_map_norm2=HASH_MAP_NORM2, safe_radius_from_monsters=SAFE_RADIUS_FROM_MONSTERS2):
     for drone in my_drones.values():
         drone.has_to_avoid = []
         for monster in monsters:
             if monster.last_turn_visible:
-                if nb_turns - monster.last_turn_visible <= 3:
+                if monster.trust_in_position:
                     if hash_map_norm2[monster.position - drone.position] <= safe_radius_from_monsters:
                         drone.has_to_avoid.append(monster)
 
@@ -561,18 +569,21 @@ def find_valuable_target(my_drones: Dict[int, MyDrone], creatures: Dict[int, Cre
         actions[drone_right.idt] = Action(target=optimized_right_target, light=light, comment=f'FIND {right_target.log()} ({next_right_target.log()})')
     return actions
 
-def deny_valuable_fish_for_foe(my_drones: Dict[int, MyDrone], creatures: Dict[int, Creature], nb_turns: int, hash_map_norm2=HASH_MAP_NORM2, monster_kind=Kind.MONSTER.value, x_max=X_MAX, x_center=X_MAX / 2, limit_distance_from_edge=LIMIT_DISTANCE_FROM_EDGE_TO_DENY, scare_from=SCARE_FROM_DISTANCE, limit_distance_to_deny=LIMIT_DISTANCE_TO_DENY2):
+def deny_valuable_fish_for_foe(my_drones: Dict[int, MyDrone], creatures: Dict[int, Creature], foe_drones: Dict[int, FoeDrone], hash_map_norm2=HASH_MAP_NORM2, monster_kind=Kind.MONSTER.value, x_max=X_MAX, x_center=X_MAX / 2, limit_distance_from_edge=LIMIT_DISTANCE_FROM_EDGE_TO_DENY, scare_from=SCARE_FROM_DISTANCE, limit_distance_to_deny=LIMIT_DISTANCE_TO_DENY2):
     actions = {}
-    fishes_close_to_edge = [creature for creature in creatures.values() if (nb_turns - creature.last_turn_visible <= 3 if creature.last_turn_visible else False) and creature.kind != monster_kind and (creature.foe_extra_score > 0) and (creature.next_x < limit_distance_from_edge or x_max - creature.next_x < limit_distance_from_edge)]
+    fishes_close_to_edge = [creature for creature in creatures.values() if creature.trust_in_position and creature.kind != monster_kind and (creature.foe_extra_score > 0) and (creature.next_x < limit_distance_from_edge or x_max - creature.next_x < limit_distance_from_edge)]
     if len(fishes_close_to_edge) > 0:
         fishes_with_most_extra_for_foe: List[Creature] = order_assets(fishes_close_to_edge, on_attr='foe_extra_score', ascending=False)
         for fish in fishes_with_most_extra_for_foe:
-            closest_drone = sorted(my_drones.values(), key=lambda drone: hash_map_norm2[fish.next_position - drone.position])[0]
-            if hash_map_norm2[fish.next_position - closest_drone.position] < limit_distance_to_deny:
-                edge_direction = 1 if fish.next_x > x_center else -1
-                if not actions.get(closest_drone.idt):
-                    target = fish.next_position - edge_direction * Vector(scare_from, 0)
-                    actions[closest_drone.idt] = Action(target=target, comment=f'DENY {fish.log()}')
+            closest_my_drone = sorted(my_drones.values(), key=lambda drone: hash_map_norm2[fish.position - drone.position])[0]
+            my_distance_to_fish = hash_map_norm2[fish.position - closest_my_drone.position]
+            if my_distance_to_fish < limit_distance_to_deny:
+                closest_foe_drone = sorted(foe_drones.values(), key=lambda drone: hash_map_norm2[fish.position - drone.position])[0]
+                if my_distance_to_fish < hash_map_norm2[fish.position - closest_foe_drone.position]:
+                    edge_direction = 1 if fish.next_x > x_center else -1
+                    if not actions.get(closest_my_drone.idt):
+                        target = fish.next_position - edge_direction * Vector(scare_from, 0)
+                        actions[closest_my_drone.idt] = Action(target=target, comment=f'DENY {fish.log()}')
     return actions
 
 def just_do_something(my_drones: Dict[int, MyDrone], creatures: Dict[int, Creature], x_center=X_MAX / 2, scare_from=SCARE_FROM_DISTANCE):
@@ -990,10 +1001,10 @@ class GameLoop:
                 self.owners_scores_computed[owner] = compute_score(owner=owner, saved_creatures=scans[owner].saved_creatures, creatures_win_by=trophies.creatures_win_by, colors_win_by=trophies.colors_win_by, kinds_win_by=trophies.kinds_win_by)
             self.owners_extra_score_with_all_unsaved_creatures, self.owners_max_possible_score, self.owners_bonus_score_left = evaluate_extra_scores_for_multiple_scenarios(creatures=creatures, my_drones=my_drones, foe_drones=foe_drones, scans=scans, trophies=trophies, current_owners_scores=self.owners_scores_computed)
             evaluate_positions_of_creatures(creatures=creatures, radar_blips=radar_blips, my_drones=my_drones, nb_turns=self.nb_turns)
-            evaluate_monsters_to_avoid(my_drones=my_drones, monsters=self.monsters, nb_turns=self.nb_turns)
+            evaluate_monsters_to_avoid(my_drones=my_drones, monsters=self.monsters)
             default_action = Action(move=False, light=False)
             save_actions = save_points(my_drones=my_drones, owners_scores_computed=self.owners_scores_computed, owners_max_possible_score=self.owners_max_possible_score, owners_extra_score_with_all_unsaved_creatures=self.owners_extra_score_with_all_unsaved_creatures, owners_bonus_score_left=self.owners_bonus_score_left)
-            deny_actions = deny_valuable_fish_for_foe(my_drones=my_drones, creatures=creatures, nb_turns=self.nb_turns)
+            deny_actions = deny_valuable_fish_for_foe(my_drones=my_drones, creatures=creatures, foe_drones=foe_drones)
             find_actions = find_valuable_target(my_drones=my_drones, creatures=creatures, total_units_count=self.total_units_count)
             just_do_something_actions = {}
             if len(deny_actions) < 2 and len(save_actions) < 2 and (len(find_actions) < 2):

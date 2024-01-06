@@ -247,7 +247,7 @@ class GameLoop:
             evaluate_positions_of_creatures(creatures=creatures, radar_blips=radar_blips,
                                             my_drones=my_drones, nb_turns=self.nb_turns)
 
-            evaluate_monsters_to_avoid(my_drones=my_drones, monsters=self.monsters, nb_turns=self.nb_turns)
+            evaluate_monsters_to_avoid(my_drones=my_drones, monsters=self.monsters)
 
             default_action = Action(move=False, light=False)
 
@@ -256,7 +256,7 @@ class GameLoop:
                                        owners_extra_score_with_all_unsaved_creatures=self.owners_extra_score_with_all_unsaved_creatures,
                                        owners_bonus_score_left=self.owners_bonus_score_left)
 
-            deny_actions = deny_valuable_fish_for_foe(my_drones=my_drones, creatures=creatures, nb_turns=self.nb_turns)
+            deny_actions = deny_valuable_fish_for_foe(my_drones=my_drones, creatures=creatures, foe_drones=foe_drones)
 
             find_actions = find_valuable_target(my_drones=my_drones, creatures=creatures, total_units_count=self.total_units_count)
 

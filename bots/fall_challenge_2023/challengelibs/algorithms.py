@@ -5,7 +5,7 @@ import numpy as np
 
 from botlibs.trigonometry import Vector, Point
 from bots.fall_challenge_2023.challengelibs.act import Action
-from bots.fall_challenge_2023.challengelibs.asset import Drone, Creature, MyDrone, Asset, Score
+from bots.fall_challenge_2023.challengelibs.asset import Drone, Creature, MyDrone, Asset, Score, FoeDrone
 from bots.fall_challenge_2023.challengelibs.map import is_next_position_safe, get_drone_next_position_with_target, \
     optimized_next_target, optimize_path_with_targets
 from bots.fall_challenge_2023.singletons import HASH_MAP_NORM2, AUGMENTED_LIGHT_RADIUS2, MY_OWNER, FOE_OWNER, \
@@ -137,15 +137,15 @@ def find_valuable_target(my_drones: Dict[int, MyDrone], creatures: Dict[int, Cre
     return actions
 
 
-def deny_valuable_fish_for_foe(my_drones: Dict[int, MyDrone], creatures: Dict[int, Creature], nb_turns: int,
-                               hash_map_norm2=HASH_MAP_NORM2, monster_kind=Kind.MONSTER.value, x_max=X_MAX,
-                               x_center=X_MAX/2, limit_distance_from_edge=LIMIT_DISTANCE_FROM_EDGE_TO_DENY,
+def deny_valuable_fish_for_foe(my_drones: Dict[int, MyDrone], creatures: Dict[int, Creature],
+                               foe_drones: Dict[int, FoeDrone], hash_map_norm2=HASH_MAP_NORM2,
+                               monster_kind=Kind.MONSTER.value, x_max=X_MAX, x_center=X_MAX/2,
+                               limit_distance_from_edge=LIMIT_DISTANCE_FROM_EDGE_TO_DENY,
                                scare_from=SCARE_FROM_DISTANCE, limit_distance_to_deny=LIMIT_DISTANCE_TO_DENY2):
     actions = {}
 
     fishes_close_to_edge = [creature for creature in creatures.values()
-                            if ((nb_turns - creature.last_turn_visible <= 3) if creature.last_turn_visible else False)
-                            and (creature.kind != monster_kind) and (creature.foe_extra_score > 0) and
+                            if creature.trust_in_position and (creature.kind != monster_kind) and (creature.foe_extra_score > 0) and
                             (creature.next_x < limit_distance_from_edge or x_max - creature.next_x < limit_distance_from_edge)]
 
     if len(fishes_close_to_edge) > 0:
@@ -153,12 +153,15 @@ def deny_valuable_fish_for_foe(my_drones: Dict[int, MyDrone], creatures: Dict[in
                                                                       ascending=False)
 
         for fish in fishes_with_most_extra_for_foe:
-            closest_drone = sorted(my_drones.values(), key=lambda drone: hash_map_norm2[fish.next_position - drone.position])[0]
-            if hash_map_norm2[fish.next_position - closest_drone.position] < limit_distance_to_deny:
-                edge_direction = 1 if fish.next_x > x_center else -1
-                if not actions.get(closest_drone.idt):
-                    target = fish.next_position - edge_direction * Vector(scare_from, 0)
-                    actions[closest_drone.idt] = Action(target=target, comment=f"DENY {fish.log()}")
+            closest_my_drone = sorted(my_drones.values(), key=lambda drone: hash_map_norm2[fish.position - drone.position])[0]
+            my_distance_to_fish = hash_map_norm2[fish.position - closest_my_drone.position]
+            if my_distance_to_fish < limit_distance_to_deny:
+                closest_foe_drone = sorted(foe_drones.values(), key=lambda drone: hash_map_norm2[fish.position - drone.position])[0]
+                if my_distance_to_fish < hash_map_norm2[fish.position - closest_foe_drone.position]:
+                    edge_direction = 1 if fish.next_x > x_center else -1
+                    if not actions.get(closest_my_drone.idt):
+                        target = fish.next_position - edge_direction * Vector(scare_from, 0)
+                        actions[closest_my_drone.idt] = Action(target=target, comment=f"DENY {fish.log()}")
 
     return actions
 
