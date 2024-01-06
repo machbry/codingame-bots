@@ -6,7 +6,8 @@ import numpy as np
 from botlibs.trigonometry import Vector, Point
 from bots.fall_challenge_2023.challengelibs.act import Action
 from bots.fall_challenge_2023.challengelibs.asset import Drone, Creature, MyDrone, Asset, Score
-from bots.fall_challenge_2023.challengelibs.map import is_next_position_safe, get_drone_next_position_with_target
+from bots.fall_challenge_2023.challengelibs.map import is_next_position_safe, get_drone_next_position_with_target, \
+    optimized_next_target, optimize_path_with_targets
 from bots.fall_challenge_2023.singletons import HASH_MAP_NORM2, AUGMENTED_LIGHT_RADIUS2, MY_OWNER, FOE_OWNER, \
     ROTATE_2D_MATRIX, Kind, LIMIT_DISTANCE_FROM_EDGE_TO_DENY, X_MAX, SCARE_FROM_DISTANCE, LIMIT_DISTANCE_TO_DENY2, \
     DRONE_MAX_SPEED
@@ -65,7 +66,8 @@ def save_points(my_drones: Dict[int, MyDrone], owners_scores_computed: Dict[int,
     return actions
 
 
-def find_valuable_target(my_drones: Dict[int, MyDrone], creatures: Dict[int, Creature]):
+def find_valuable_target(my_drones: Dict[int, MyDrone], creatures: Dict[int, Creature], total_units_count: int,
+                         hash_map_norm2=HASH_MAP_NORM2):
     actions = {}
 
     ordered_creatures_with_most_extra_score = order_assets(creatures.values(), on_attr='my_extra_score',
@@ -76,43 +78,61 @@ def find_valuable_target(my_drones: Dict[int, MyDrone], creatures: Dict[int, Cre
 
     if nb_creatures_with_extra_score == 1:
         drone_target = ordered_creatures_with_most_extra_score[0]
-        for drone_idt, drone in my_drones.items():
-            light = use_light_to_find_a_target(drone, drone_target)
-            actions[drone_idt] = Action(target=drone_target, light=light,
-                                        comment=f"FIND {drone_target.log()}")
+        closest_drone = sorted(my_drones.values(), key=lambda drone: hash_map_norm2[drone_target.next_position - drone.position])[0]
+        light = use_light_to_find_a_target(closest_drone, drone_target)
+        actions[closest_drone.idt] = Action(target=drone_target.next_position, light=light,
+                                            comment=f"FIND {drone_target.log()}")
 
     elif nb_creatures_with_extra_score > 1:
-        x_median = np.median([creature.x for creature in creatures_with_extra_score])
+        creatures_x = [creature.x for creature in creatures_with_extra_score]
+        x_min = np.min(creatures_x)
+        x_median = np.median(creatures_x)
+        x_max = np.max(creatures_x)
+
+        if x_median == x_min or x_median == x_max:
+            x_median = (x_max + x_min) / 2
 
         creatures_with_extra_score_left = [creature for creature in creatures_with_extra_score if
-                                           creature.x <= x_median]
+                                           creature.x < x_median]
         creatures_with_extra_score_right = [creature for creature in creatures_with_extra_score if
                                             creature.x > x_median]
+        creatures_with_extra_score_median = [creature for creature in creatures_with_extra_score if
+                                             creature.x == x_median]
+
+        for creature in creatures_with_extra_score_median:
+            nb_creatures_on_the_left = len(creatures_with_extra_score_left)
+            nb_creatures_on_the_right = len(creatures_with_extra_score_right)
+            if nb_creatures_on_the_left <= nb_creatures_on_the_right:
+                creatures_with_extra_score_left.append(creature)
+            else:
+                creatures_with_extra_score_right.append(creature)
 
         left_target = creatures_with_extra_score_left[0]
-        if len(creatures_with_extra_score_right) == 0:
-            right_target = creatures_with_extra_score_left[1]
-            if left_target.x > right_target.x:
-                left_target = creatures_with_extra_score_left[1]
-                right_target = creatures_with_extra_score_left[0]
-        else:
-            right_target = creatures_with_extra_score_right[0]
+        right_target = creatures_with_extra_score_right[0]
 
         my_drones_from_left_to_right = order_assets(my_drones.values(), 'x')
-        drone_left_idt = my_drones_from_left_to_right[0].idt
-        drone_right_idt = my_drones_from_left_to_right[-1].idt
+        drone_left = my_drones_from_left_to_right[0]
+        drone_right = my_drones_from_left_to_right[-1]
 
-        drone_left = my_drones.get(drone_left_idt)
-        if drone_left is not None:
-            light = use_light_to_find_a_target(drone_left, left_target)
-            actions[drone_left_idt] = Action(target=left_target, light=light,
-                                             comment=f"FIND {left_target.log()}")
+        next_left_target = creatures[optimized_next_target(drone=drone_left, drone_target=left_target,
+                                                           creatures_connected_to_drone=creatures_with_extra_score_left,
+                                                           total_units_count=total_units_count)]
 
-        drone_right = my_drones.get(drone_right_idt)
-        if drone_right is not None:
-            light = use_light_to_find_a_target(drone_right, right_target)
-            actions[drone_right_idt] = Action(target=right_target, light=light,
-                                              comment=f"FIND {right_target.log()}")
+        next_right_target = creatures[optimized_next_target(drone=drone_right, drone_target=right_target,
+                                                            creatures_connected_to_drone=creatures_with_extra_score_right,
+                                                            total_units_count=total_units_count)]
+
+        optimized_left_target = optimize_path_with_targets(drone=drone_left, first_target=next_left_target,
+                                                           final_target=left_target)
+        light = use_light_to_find_a_target(drone_left, next_left_target)
+        actions[drone_left.idt] = Action(target=optimized_left_target, light=light,
+                                         comment=f"FIND {left_target.log()} ({next_left_target.log()})")
+
+        optimized_right_target = optimize_path_with_targets(drone=drone_right, first_target=next_right_target,
+                                                            final_target=right_target)
+        light = use_light_to_find_a_target(drone_right, next_right_target)
+        actions[drone_right.idt] = Action(target=optimized_right_target, light=light,
+                                          comment=f"FIND {right_target.log()} ({next_right_target.log()})")
 
     return actions
 

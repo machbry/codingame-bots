@@ -1,9 +1,11 @@
+import sys
 import numpy as np
 import math
-import sys
+from scipy.sparse import csr_matrix
+from scipy.sparse.csgraph import dijkstra
 from enum import Enum
 from dataclasses import asdict, dataclass, field
-from typing import Dict, Set, List, Callable, Tuple, Any, Union
+from typing import List, Tuple, Union, Set, Iterable, Callable, Any, Dict
 
 class Point:
 
@@ -106,6 +108,7 @@ Y_MIN = 0
 X_MAX = 10000
 Y_MAX = 10000
 MAP_CENTER = Point(X_MAX / 2, Y_MAX / 2)
+D_MAX = HASH_MAP_NORM[Vector(X_MAX, Y_MAX)]
 CORNERS = {'TL': Point(X_MIN, Y_MIN), 'TR': Point(X_MAX, Y_MIN), 'BR': Point(X_MAX, Y_MAX), 'BL': Point(X_MIN, Y_MAX)}
 
 class Kind(Enum):
@@ -185,6 +188,10 @@ class Score:
 class Asset:
     idt: int
 
+    @property
+    def value(self):
+        return None
+
 @dataclass(slots=True)
 class Unit(Asset):
     x: int = None
@@ -207,7 +214,7 @@ class Unit(Asset):
         return Point(self.next_x, self.next_y)
 
     def log(self):
-        return f'{self.idt} / {self.x} / {self.y}'
+        return f'{self.idt}'
 
 @dataclass(slots=True)
 class Creature(Unit):
@@ -226,6 +233,10 @@ class Creature(Unit):
     @property
     def foe_extra_score(self):
         return self.extra_scores[FOE_OWNER]
+
+    @property
+    def value(self):
+        return self.my_extra_score
 
 @dataclass(slots=True)
 class Drone(Unit):
@@ -302,6 +313,45 @@ def choose_action_for_drones(my_drones: Dict[int, MyDrone], actions_priorities: 
             action_chosen = default_action
         my_drones_action[drone_idt] = action_chosen
     return my_drones_action
+
+@dataclass(frozen=True)
+class Edge:
+    from_node: int
+    to_node: int
+    directed: bool = False
+    weight: float = 1
+
+class AdjacencyMatrix:
+
+    def __init__(self, nodes_edges: np.ndarray):
+        self.array: np.ndarray = nodes_edges
+
+    @property
+    def sparce_matrix(self) -> csr_matrix:
+        return csr_matrix(self.array)
+
+    def __getitem__(self, key):
+        return self.array.__getitem__(key)
+
+    def __setitem__(self, key, value: float):
+        self.array.__setitem__(key, value)
+
+    def update_edge(self, edge: Edge, weight: float):
+        self[edge.from_node, edge.to_node] = weight
+        if not edge.directed:
+            self[edge.to_node, edge.from_node] = weight
+
+    def add_edge(self, edge: Edge):
+        self.update_edge(edge, edge.weight)
+
+    def remove_edge(self, edge: Edge):
+        self.update_edge(edge, 0)
+
+def create_adjacency_matrix_from_edges(edges: Iterable[Edge], nodes_number: int) -> AdjacencyMatrix:
+    adjacency_matrix = AdjacencyMatrix(np.zeros((nodes_number, nodes_number), dtype=float))
+    for edge in edges:
+        adjacency_matrix.add_edge(edge)
+    return adjacency_matrix
 
 def evaluate_positions_of_creatures(creatures: Dict[int, Creature], radar_blips: Dict[int, RadarBlip], my_drones: Dict[int, MyDrone], nb_turns: int, max_number_of_radar_blips_used=MAX_NUMBER_OF_RADAR_BLIPS_USED):
     for creature_idt, creature in creatures.items():
@@ -386,6 +436,57 @@ def is_next_position_safe(drone: MyDrone, next_position: Point, x_min=X_MIN, y_m
             is_safe = False
     return is_safe
 
+def connect_units(units_to_connect: List[Unit], total_units_count: int, min_dist=800 / D_MAX, hash_map_norm=HASH_MAP_NORM, d_max=D_MAX, max_score=96) -> Union[None, AdjacencyMatrix]:
+    nb_units_to_connect = len(units_to_connect)
+    if nb_units_to_connect == 0:
+        return None
+    edges = []
+    for i, unit in enumerate(units_to_connect):
+        unit_value = unit.value if unit.value else 0
+        nb_connected_neighbors = 0
+        neighbors = units_to_connect.copy()
+        neighbors.pop(i)
+        if len(neighbors) > 0:
+            ordered_neighbors = sorted(neighbors, key=lambda u: hash_map_norm[u.position - unit.position])
+            while nb_connected_neighbors < len(ordered_neighbors):
+                neighbor = ordered_neighbors[nb_connected_neighbors]
+                nb_connected_neighbors += 1
+                neighbor_value = neighbor.value
+                if neighbor_value:
+                    if neighbor_value > 0:
+                        dist = max(hash_map_norm[neighbor.position - unit.position] / d_max, min_dist)
+                        weight = dist / ((unit_value + neighbor_value) / max_score)
+                        edges.append(Edge(from_node=unit.idt, to_node=neighbor.idt, directed=True, weight=weight))
+    return create_adjacency_matrix_from_edges(edges=edges, nodes_number=total_units_count)
+
+def optimized_next_target(drone: MyDrone, drone_target: Creature, creatures_connected_to_drone: List[Creature], total_units_count: int):
+    adjacency_matrix = connect_units(units_to_connect=[drone, *creatures_connected_to_drone], total_units_count=total_units_count)
+    predecessors = dijkstra(adjacency_matrix.sparce_matrix, return_predecessors=True)[1]
+    predecessor_idt = drone_target.idt
+    while predecessor_idt != drone.idt:
+        next_target_idt = predecessor_idt
+        predecessor_idt = predecessors[drone.idt, next_target_idt]
+    return next_target_idt
+
+def optimize_path_with_targets(drone: MyDrone, first_target: Creature, final_target: Creature, hash_map_norm=HASH_MAP_NORM) -> Point:
+    vector_to_final_target = final_target.next_position - drone.position
+    vector_to_first_target = first_target.next_position - drone.position
+    cos = vector_to_final_target.dot(vector_to_first_target)
+    if cos > 0:
+        dist_to_final_target = hash_map_norm[vector_to_final_target]
+        dist_to_first_target = hash_map_norm[vector_to_final_target]
+        cos = min(cos / (dist_to_final_target * dist_to_first_target), 1)
+        sin = math.sqrt(1 - cos ** 2)
+        d_min = min(dist_to_first_target, dist_to_final_target)
+        max_deviation = int(round(sin * d_min))
+        if max_deviation > 1500:
+            return first_target.next_position
+        elif max_deviation > 750:
+            return drone.position + 1 / 2 * (vector_to_final_target + vector_to_first_target)
+        else:
+            return final_target.next_position
+    return first_target.next_position
+
 def use_light_to_find_a_target(drone: Drone, target: Creature, hash_map_norm2=HASH_MAP_NORM2, augmented_light_radius=AUGMENTED_LIGHT_RADIUS2):
     battery = drone.battery
     if battery >= 10 and drone.y > 4000:
@@ -418,39 +519,46 @@ def save_points(my_drones: Dict[int, MyDrone], owners_scores_computed: Dict[int,
                 actions[drone.idt] = Action(target=Point(drone.x, 499), comment=f'SAVE {drone.extra_score_with_unsaved_creatures:.0f}/{extra_score_if_all_my_drones_save:.0f}/{my_extra_score_to_win:.0f}/{my_total_max_score:.0f}')
     return actions
 
-def find_valuable_target(my_drones: Dict[int, MyDrone], creatures: Dict[int, Creature]):
+def find_valuable_target(my_drones: Dict[int, MyDrone], creatures: Dict[int, Creature], total_units_count: int, hash_map_norm2=HASH_MAP_NORM2):
     actions = {}
     ordered_creatures_with_most_extra_score = order_assets(creatures.values(), on_attr='my_extra_score', ascending=False)
     creatures_with_extra_score = [creature for creature in ordered_creatures_with_most_extra_score if creature.my_extra_score > 0]
     nb_creatures_with_extra_score = len(creatures_with_extra_score)
     if nb_creatures_with_extra_score == 1:
         drone_target = ordered_creatures_with_most_extra_score[0]
-        for drone_idt, drone in my_drones.items():
-            light = use_light_to_find_a_target(drone, drone_target)
-            actions[drone_idt] = Action(target=drone_target, light=light, comment=f'FIND {drone_target.log()}')
+        closest_drone = sorted(my_drones.values(), key=lambda drone: hash_map_norm2[drone_target.next_position - drone.position])[0]
+        light = use_light_to_find_a_target(closest_drone, drone_target)
+        actions[closest_drone.idt] = Action(target=drone_target.next_position, light=light, comment=f'FIND {drone_target.log()}')
     elif nb_creatures_with_extra_score > 1:
-        x_median = np.median([creature.x for creature in creatures_with_extra_score])
-        creatures_with_extra_score_left = [creature for creature in creatures_with_extra_score if creature.x <= x_median]
+        creatures_x = [creature.x for creature in creatures_with_extra_score]
+        x_min = np.min(creatures_x)
+        x_median = np.median(creatures_x)
+        x_max = np.max(creatures_x)
+        if x_median == x_min or x_median == x_max:
+            x_median = (x_max + x_min) / 2
+        creatures_with_extra_score_left = [creature for creature in creatures_with_extra_score if creature.x < x_median]
         creatures_with_extra_score_right = [creature for creature in creatures_with_extra_score if creature.x > x_median]
+        creatures_with_extra_score_median = [creature for creature in creatures_with_extra_score if creature.x == x_median]
+        for creature in creatures_with_extra_score_median:
+            nb_creatures_on_the_left = len(creatures_with_extra_score_left)
+            nb_creatures_on_the_right = len(creatures_with_extra_score_right)
+            if nb_creatures_on_the_left <= nb_creatures_on_the_right:
+                creatures_with_extra_score_left.append(creature)
+            else:
+                creatures_with_extra_score_right.append(creature)
         left_target = creatures_with_extra_score_left[0]
-        if len(creatures_with_extra_score_right) == 0:
-            right_target = creatures_with_extra_score_left[1]
-            if left_target.x > right_target.x:
-                left_target = creatures_with_extra_score_left[1]
-                right_target = creatures_with_extra_score_left[0]
-        else:
-            right_target = creatures_with_extra_score_right[0]
+        right_target = creatures_with_extra_score_right[0]
         my_drones_from_left_to_right = order_assets(my_drones.values(), 'x')
-        drone_left_idt = my_drones_from_left_to_right[0].idt
-        drone_right_idt = my_drones_from_left_to_right[-1].idt
-        drone_left = my_drones.get(drone_left_idt)
-        if drone_left is not None:
-            light = use_light_to_find_a_target(drone_left, left_target)
-            actions[drone_left_idt] = Action(target=left_target, light=light, comment=f'FIND {left_target.log()}')
-        drone_right = my_drones.get(drone_right_idt)
-        if drone_right is not None:
-            light = use_light_to_find_a_target(drone_right, right_target)
-            actions[drone_right_idt] = Action(target=right_target, light=light, comment=f'FIND {right_target.log()}')
+        drone_left = my_drones_from_left_to_right[0]
+        drone_right = my_drones_from_left_to_right[-1]
+        next_left_target = creatures[optimized_next_target(drone=drone_left, drone_target=left_target, creatures_connected_to_drone=creatures_with_extra_score_left, total_units_count=total_units_count)]
+        next_right_target = creatures[optimized_next_target(drone=drone_right, drone_target=right_target, creatures_connected_to_drone=creatures_with_extra_score_right, total_units_count=total_units_count)]
+        optimized_left_target = optimize_path_with_targets(drone=drone_left, first_target=next_left_target, final_target=left_target)
+        light = use_light_to_find_a_target(drone_left, next_left_target)
+        actions[drone_left.idt] = Action(target=optimized_left_target, light=light, comment=f'FIND {left_target.log()} ({next_left_target.log()})')
+        optimized_right_target = optimize_path_with_targets(drone=drone_right, first_target=next_right_target, final_target=right_target)
+        light = use_light_to_find_a_target(drone_right, next_right_target)
+        actions[drone_right.idt] = Action(target=optimized_right_target, light=light, comment=f'FIND {right_target.log()} ({next_right_target.log()})')
     return actions
 
 def deny_valuable_fish_for_foe(my_drones: Dict[int, MyDrone], creatures: Dict[int, Creature], nb_turns: int, hash_map_norm2=HASH_MAP_NORM2, monster_kind=Kind.MONSTER.value, x_max=X_MAX, x_center=X_MAX / 2, limit_distance_from_edge=LIMIT_DISTANCE_FROM_EDGE_TO_DENY, scare_from=SCARE_FROM_DISTANCE, limit_distance_to_deny=LIMIT_DISTANCE_TO_DENY2):
@@ -703,7 +811,7 @@ def evaluate_extra_scores_for_multiple_scenarios(creatures: Dict[int, Creature],
     return (owners_extra_score_with_all_unsaved_creatures, owners_max_possible_score, owners_bonus_score_left)
 
 class GameLoop:
-    __slots__ = ('init_inputs', 'nb_turns', 'turns_inputs', 'game_assets', 'empty_array_saved_creatures', 'max_number_of_radar_blips_used', 'max_speed_per_kind', 'corners', 'my_owner', 'foe_owner', 'owners', 'owners_scores', 'owners_scores_computed', 'owners_extra_score_with_all_unsaved_creatures', 'owners_max_possible_score', 'owners_bonus_score_left', 'my_drones_idt_play_order', 'monsters')
+    __slots__ = ('init_inputs', 'nb_turns', 'turns_inputs', 'game_assets', 'empty_array_saved_creatures', 'max_number_of_radar_blips_used', 'max_speed_per_kind', 'corners', 'my_owner', 'foe_owner', 'owners', 'owners_scores', 'owners_scores_computed', 'owners_extra_score_with_all_unsaved_creatures', 'owners_max_possible_score', 'owners_bonus_score_left', 'my_drones_idt_play_order', 'monsters', 'total_units_count')
     RUNNING = True
     LOG = True
     RESET_TURNS_INPUTS = True
@@ -744,6 +852,7 @@ class GameLoop:
         trophies.creatures_win_by = np.zeros_like(self.empty_array_saved_creatures)
         trophies.colors_win_by = np.zeros_like(COLORS)
         trophies.kinds_win_by = np.zeros_like(KINDS)
+        self.total_units_count = creature_count + 4
         if GameLoop.LOG:
             print(self.init_inputs, file=sys.stderr, flush=True)
 
@@ -885,7 +994,7 @@ class GameLoop:
             default_action = Action(move=False, light=False)
             save_actions = save_points(my_drones=my_drones, owners_scores_computed=self.owners_scores_computed, owners_max_possible_score=self.owners_max_possible_score, owners_extra_score_with_all_unsaved_creatures=self.owners_extra_score_with_all_unsaved_creatures, owners_bonus_score_left=self.owners_bonus_score_left)
             deny_actions = deny_valuable_fish_for_foe(my_drones=my_drones, creatures=creatures, nb_turns=self.nb_turns)
-            find_actions = find_valuable_target(my_drones=my_drones, creatures=creatures)
+            find_actions = find_valuable_target(my_drones=my_drones, creatures=creatures, total_units_count=self.total_units_count)
             just_do_something_actions = {}
             if len(deny_actions) < 2 and len(save_actions) < 2 and (len(find_actions) < 2):
                 just_do_something_actions = just_do_something(my_drones=my_drones, creatures=creatures)

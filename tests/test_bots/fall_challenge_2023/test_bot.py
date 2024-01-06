@@ -146,4 +146,4 @@ def test_perfs():
 
     print(f"init, start, update: {round(1000*sum(init_perfs)/L, 2)}ms, {round(1000*sum(start_perfs)/L, 2)}ms, {round(1000*sum(update_perfs)/L, 2)}ms (R = {R}, N = {N})")
 
-    # last results : 0.47ms, 3.01ms, 0.86ms (R = 10, N = 10)
+    # last results : 0.51ms, 3.61ms, 0.89ms (R = 10, N = 10)

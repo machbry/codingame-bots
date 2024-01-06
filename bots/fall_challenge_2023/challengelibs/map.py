@@ -1,12 +1,15 @@
-from typing import Dict, List
+from typing import Dict, List, Union
 import math
 
 import numpy as np
+from scipy.sparse.csgraph import dijkstra
 
+from botlibs.graph.classes import AdjacencyMatrix, Edge
+from botlibs.graph.create import create_adjacency_matrix_from_edges
 from botlibs.trigonometry import Vector, Point
 from bots.fall_challenge_2023.singletons import HASH_MAP_NORM2, MAX_NUMBER_OF_RADAR_BLIPS_USED, DRONE_MAX_SPEED, \
-    EMERGENCY_RADIUS2, SAFE_RADIUS_FROM_MONSTERS2, HASH_MAP_NORM, X_MIN, Y_MIN, X_MAX, Y_MAX
-from bots.fall_challenge_2023.challengelibs.asset import Creature, RadarBlip, MyDrone, Drone
+    EMERGENCY_RADIUS2, SAFE_RADIUS_FROM_MONSTERS2, HASH_MAP_NORM, X_MIN, Y_MIN, X_MAX, Y_MAX, D_MAX, LIGHT_RADIUS2
+from bots.fall_challenge_2023.challengelibs.asset import Creature, RadarBlip, MyDrone, Drone, Unit
 
 
 def evaluate_positions_of_creatures(creatures: Dict[int, Creature], radar_blips: Dict[int, RadarBlip],
@@ -126,3 +129,68 @@ def is_next_position_safe(drone: MyDrone, next_position: Point,
             is_safe = False
 
     return is_safe
+
+
+def connect_units(units_to_connect: List[Unit], total_units_count: int, min_dist=800/D_MAX,
+                  hash_map_norm=HASH_MAP_NORM, d_max=D_MAX, max_score=96) -> Union[None, AdjacencyMatrix]:
+
+    nb_units_to_connect = len(units_to_connect)
+    if nb_units_to_connect == 0:
+        return None
+
+    edges = []
+    for i, unit in enumerate(units_to_connect):
+        unit_value = unit.value if unit.value else 0
+        nb_connected_neighbors = 0
+        neighbors = units_to_connect.copy()
+        neighbors.pop(i)
+        if len(neighbors) > 0:
+            ordered_neighbors = sorted(neighbors, key=lambda u: hash_map_norm[u.position - unit.position])
+            while nb_connected_neighbors < len(ordered_neighbors):
+                neighbor = ordered_neighbors[nb_connected_neighbors]
+                nb_connected_neighbors += 1
+                neighbor_value = neighbor.value
+                if neighbor_value:
+                    if neighbor_value > 0:
+                        dist = max(hash_map_norm[neighbor.position - unit.position] / d_max, min_dist)
+                        weight = dist / ((unit_value + neighbor_value) / max_score)
+                        edges.append(Edge(from_node=unit.idt, to_node=neighbor.idt, directed=True, weight=weight))
+
+    return create_adjacency_matrix_from_edges(edges=edges, nodes_number=total_units_count)
+
+
+def optimized_next_target(drone: MyDrone, drone_target: Creature, creatures_connected_to_drone: List[Creature],
+                          total_units_count: int):
+    adjacency_matrix = connect_units(units_to_connect=[drone, *creatures_connected_to_drone],
+                                     total_units_count=total_units_count)
+    predecessors = dijkstra(adjacency_matrix.sparce_matrix, return_predecessors=True)[1]
+    predecessor_idt = drone_target.idt
+    while predecessor_idt != drone.idt:
+        next_target_idt = predecessor_idt
+        predecessor_idt = predecessors[drone.idt, next_target_idt]
+    return next_target_idt
+
+
+def optimize_path_with_targets(drone: MyDrone, first_target: Creature, final_target: Creature,
+                               hash_map_norm=HASH_MAP_NORM) -> Point:
+    vector_to_final_target = final_target.next_position - drone.position
+    vector_to_first_target = first_target.next_position - drone.position
+    cos = vector_to_final_target.dot(vector_to_first_target)
+
+    if cos > 0:
+        dist_to_final_target = hash_map_norm[vector_to_final_target]
+        dist_to_first_target = hash_map_norm[vector_to_final_target]
+
+        cos = min(cos / (dist_to_final_target * dist_to_first_target), 1)
+        sin = math.sqrt(1 - cos ** 2)
+
+        d_min = min(dist_to_first_target, dist_to_final_target)
+        max_deviation = int(round(sin * d_min))
+        if max_deviation > 1500:
+            return first_target.next_position
+        elif max_deviation > 750:
+            return drone.position + (1/2) * (vector_to_final_target + vector_to_first_target)
+        else:
+            return final_target.next_position
+
+    return first_target.next_position

@@ -21,7 +21,7 @@ class GameLoop:
     "init_inputs", "nb_turns", "turns_inputs", "game_assets", "empty_array_saved_creatures",
     "max_number_of_radar_blips_used", "max_speed_per_kind", "corners", "my_owner", "foe_owner", "owners",
     "owners_scores", "owners_scores_computed", "owners_extra_score_with_all_unsaved_creatures", "owners_max_possible_score",
-    "owners_bonus_score_left", "my_drones_idt_play_order", "monsters")
+    "owners_bonus_score_left", "my_drones_idt_play_order", "monsters", "total_units_count")
     RUNNING = True
     LOG = True
     RESET_TURNS_INPUTS = True
@@ -68,6 +68,8 @@ class GameLoop:
         trophies.creatures_win_by = np.zeros_like(self.empty_array_saved_creatures)
         trophies.colors_win_by = np.zeros_like(COLORS)
         trophies.kinds_win_by = np.zeros_like(KINDS)
+
+        self.total_units_count = creature_count + 4
 
         if GameLoop.LOG:
             print(self.init_inputs, file=sys.stderr, flush=True)
@@ -256,7 +258,7 @@ class GameLoop:
 
             deny_actions = deny_valuable_fish_for_foe(my_drones=my_drones, creatures=creatures, nb_turns=self.nb_turns)
 
-            find_actions = find_valuable_target(my_drones=my_drones, creatures=creatures)
+            find_actions = find_valuable_target(my_drones=my_drones, creatures=creatures, total_units_count=self.total_units_count)
 
             just_do_something_actions = {}
             if len(deny_actions) < 2 and len(save_actions) < 2 and len(find_actions) < 2:

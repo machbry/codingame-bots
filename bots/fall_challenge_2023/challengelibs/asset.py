@@ -55,6 +55,10 @@ class Score:
 class Asset:
     idt: int
 
+    @property
+    def value(self):
+        return None
+
 
 @dataclass(slots=True)
 class Unit(Asset):
@@ -78,7 +82,7 @@ class Unit(Asset):
         return Point(self.next_x, self.next_y)
 
     def log(self):
-        return f"{self.idt} / {self.x} / {self.y}"
+        return f"{self.idt}"
 
 
 @dataclass(slots=True)
@@ -98,6 +102,10 @@ class Creature(Unit):
     @property
     def foe_extra_score(self):
         return self.extra_scores[FOE_OWNER]
+
+    @property
+    def value(self):
+        return self.my_extra_score
 
 
 @dataclass(slots=True)

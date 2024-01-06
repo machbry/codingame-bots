@@ -18,6 +18,7 @@ Y_MIN = 0
 X_MAX = 10000
 Y_MAX = 10000
 MAP_CENTER = Point(X_MAX / 2, Y_MAX / 2)
+D_MAX = HASH_MAP_NORM[Vector(X_MAX, Y_MAX)]
 CORNERS = {"TL": Point(X_MIN, Y_MIN),
            "TR": Point(X_MAX, Y_MIN),
            "BR": Point(X_MAX, Y_MAX),
