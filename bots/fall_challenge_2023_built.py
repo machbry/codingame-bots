@@ -4,8 +4,8 @@ import math
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import dijkstra
 from enum import Enum
-from dataclasses import field, dataclass, asdict
-from typing import Callable, Union, Iterable, Any, List, Dict, Tuple, Set
+from dataclasses import dataclass, asdict, field
+from typing import Dict, Union, Any, List, Set, Iterable, Tuple, Callable
 
 class Point:
 
@@ -110,6 +110,12 @@ Y_MAX = 10000
 MAP_CENTER = Point(X_MAX / 2, Y_MAX / 2)
 D_MAX = HASH_MAP_NORM[Vector(X_MAX, Y_MAX)]
 CORNERS = {'TL': Point(X_MIN, Y_MIN), 'TR': Point(X_MAX, Y_MIN), 'BR': Point(X_MAX, Y_MAX), 'BL': Point(X_MIN, Y_MAX)}
+MAP_GRID_STEP = 400
+MAX_X_STEP = int(round(X_MAX / MAP_GRID_STEP))
+MAX_Y_STEP = int(round(Y_MAX / MAP_GRID_STEP))
+MAP_INDICES = np.indices((MAX_Y_STEP, MAX_X_STEP))[1][0]
+X_ONES = np.ones(shape=(1, MAP_GRID_STEP))
+Y_ONES = np.ones(shape=(MAP_GRID_STEP, 1))
 
 class Kind(Enum):
     MONSTER = -1
@@ -200,6 +206,7 @@ class Unit(Asset):
     vy: int = None
     next_x: int = None
     next_y: int = None
+    map_grid: np.ndarray = field(default_factory=lambda: np.zeros(shape=(MAX_Y_STEP, MAX_X_STEP)))
 
     @property
     def position(self):
@@ -226,6 +233,7 @@ class Creature(Unit):
     extra_scores: Dict[int, int] = field(default_factory=dict)
     last_turn_visible: int = None
     trust_in_position: bool = False
+    excluded_zones: List[List[int]] = field(default_factory=list)
 
     @property
     def my_extra_score(self):
@@ -356,11 +364,18 @@ def create_adjacency_matrix_from_edges(edges: Iterable[Edge], nodes_number: int)
         adjacency_matrix.add_edge(edge)
     return adjacency_matrix
 
-def evaluate_positions_of_creatures(creatures: Dict[int, Creature], radar_blips: Dict[int, RadarBlip], my_drones: Dict[int, MyDrone], nb_turns: int, hash_map_norm2=HASH_MAP_NORM2, max_number_of_radar_blips_used=MAX_NUMBER_OF_RADAR_BLIPS_USED, trust_distance_limit=2 * LIGHT_RADIUS2):
+def update_map_grid_zone_value(map_grid: np.ndarray, x_min: int=X_MIN, y_min: int=Y_MIN, x_max: int=X_MAX, y_max: int=Y_MAX, value: int=0, map_grip_step=MAP_GRID_STEP):
+    map_grid[int(np.floor(y_min / map_grip_step)):int(np.ceil(y_max / map_grip_step)), int(np.floor(x_min / map_grip_step)):int(np.ceil(x_max / map_grip_step))] = value
+
+def get_map_grid_value(map_grid: np.ndarray, x: int, y: int, map_grip_step=MAP_GRID_STEP):
+    return map_grid[int(np.floor(y / map_grip_step)), int(np.floor(x / map_grip_step))]
+
+def evaluate_positions_of_creatures(creatures: Dict[int, Creature], radar_blips: Dict[int, RadarBlip], my_drones: Dict[int, MyDrone], nb_turns: int, max_number_of_radar_blips_used=MAX_NUMBER_OF_RADAR_BLIPS_USED, trust_area_limit=4 * LIGHT_RADIUS2, x_min=X_MIN, y_min=Y_MIN, x_max=X_MAX, y_max=Y_MAX, normal_light_radius=800, agumented_light_radius=2000, map_indices=MAP_INDICES, x_ones=X_ONES, y_ones=Y_ONES, map_grip_step=MAP_GRID_STEP):
     for creature_idt, creature in creatures.items():
         if not creature.visible:
             creature.trust_in_position = False
             possible_zones = [creature.habitat]
+            creature.excluded_zones = []
             for drone_idt, drone in my_drones.items():
                 radar_blip = radar_blips.get(hash((drone_idt, creature_idt)))
                 if radar_blip is not None:
@@ -368,30 +383,68 @@ def evaluate_positions_of_creatures(creatures: Dict[int, Creature], radar_blips:
                     n = min(len(radar_blip_zones), max_number_of_radar_blips_used)
                     for i in range(0, n):
                         possible_zones.append(radar_blip_zones[-i - 1])
+                light_radius = agumented_light_radius if drone.light_on else normal_light_radius
+                x, y = (drone.x, drone.y)
+                light_x_min = max(x - light_radius, x_min)
+                light_y_min = max(y - light_radius, y_min)
+                light_x_max = min(x + light_radius, x_max)
+                light_y_max = min(y + light_radius, y_max)
+                creature.excluded_zones.append([light_x_min, light_y_min, light_x_max, light_y_max])
             intersection = np.array(possible_zones)
-            x_min = np.max(intersection[:, 0])
-            y_min = np.max(intersection[:, 1])
-            x_max = np.min(intersection[:, 2])
-            y_max = np.min(intersection[:, 3])
+            inter_x_min = np.max(intersection[:, 0])
+            inter_y_min = np.max(intersection[:, 1])
+            inter_x_max = np.min(intersection[:, 2])
+            inter_y_max = np.min(intersection[:, 3])
+            map_grid = creature.map_grid
+            map_grid.fill(0)
+            update_map_grid_zone_value(map_grid=map_grid, x_min=inter_x_min, y_min=inter_y_min, x_max=inter_x_max, y_max=inter_y_max, value=1)
+            excluded_zones_in_intersection = False
+            for excluded_zone in creature.excluded_zones:
+                ex_x_min = excluded_zone[0]
+                ex_y_min = excluded_zone[1]
+                ex_x_max = excluded_zone[2]
+                ex_y_max = excluded_zone[3]
+                if ex_x_min < inter_x_max and ex_y_min < inter_y_max or (ex_x_max > inter_x_min and ex_y_max > inter_y_min):
+                    excluded_zones_in_intersection = True
+                    update_map_grid_zone_value(map_grid=map_grid, x_min=ex_x_min, y_min=ex_y_min, x_max=ex_x_max, y_max=ex_y_max, value=0)
+            if excluded_zones_in_intersection:
+                try:
+                    x_bar = int(round(map_grip_step * x_ones.dot(map_grid).dot(map_indices)[0] / x_ones.dot(map_grid).sum()))
+                    y_bar = int(round(map_grip_step * map_indices.dot(map_grid.dot(y_ones))[0] / map_grid.dot(y_ones).sum()))
+                except ValueError:
+                    x_bar = int(round((inter_x_min + inter_x_max) / 2))
+                    y_bar = int(round((inter_y_min + inter_y_max) / 2))
+            else:
+                x_bar = int(round((inter_x_min + inter_x_max) / 2))
+                y_bar = int(round((inter_y_min + inter_y_max) / 2))
             if creature.last_turn_visible:
                 last_seen_turns = nb_turns - creature.last_turn_visible
                 current_x_projection = creature.x + last_seen_turns * creature.vx
                 current_y_projection = creature.y + last_seen_turns * creature.vy
-                if x_min <= current_x_projection <= x_max and y_min <= current_y_projection <= y_max:
-                    creature.x = current_x_projection
-                    creature.y = current_y_projection
-                    creature.next_x = current_x_projection + creature.vx
-                    creature.next_y = current_y_projection + creature.vy
-                    creature.trust_in_position = True
+                if inter_x_min <= current_x_projection <= inter_x_max and inter_y_min <= current_y_projection <= inter_y_max:
+                    if get_map_grid_value(map_grid, current_x_projection, current_y_projection) == 1:
+                        creature.x = current_x_projection
+                        creature.y = current_y_projection
+                        creature.next_x = current_x_projection + creature.vx
+                        creature.next_y = current_y_projection + creature.vy
+                        creature.trust_in_position = True
                 else:
-                    creature.x = creature.next_x = round((x_min + x_max) / 2)
-                    creature.y = creature.next_y = round((y_min + y_max) / 2)
-                    if hash_map_norm2[Vector(x_max - x_min, y_max - y_min)] < trust_distance_limit:
+                    creature.x = creature.next_x = x_bar
+                    creature.y = creature.next_y = y_bar
+                    if excluded_zones_in_intersection:
+                        creature_area = map_grid.sum() * map_grip_step ** 2
+                    else:
+                        creature_area = (inter_x_max - inter_x_min) * (inter_y_max - inter_y_min)
+                    if creature_area < trust_area_limit:
                         creature.trust_in_position = True
             else:
-                creature.x = creature.next_x = round((x_min + x_max) / 2)
-                creature.y = creature.next_y = round((y_min + y_max) / 2)
-                if hash_map_norm2[Vector(x_max - x_min, y_max - y_min)] < trust_distance_limit:
+                creature.x = creature.next_x = x_bar
+                creature.y = creature.next_y = y_bar
+                if excluded_zones_in_intersection:
+                    creature_area = map_grid.sum() * map_grip_step ** 2
+                else:
+                    creature_area = (inter_x_max - inter_x_min) * (inter_y_max - inter_y_min)
+                if creature_area < trust_area_limit:
                     creature.trust_in_position = True
         else:
             creature.trust_in_position = True
@@ -446,13 +499,12 @@ def is_next_position_safe(drone: MyDrone, next_position: Point, x_min=X_MIN, y_m
             is_safe = False
     return is_safe
 
-def connect_units(units_to_connect: List[Unit], total_units_count: int, min_dist=800 / D_MAX, hash_map_norm=HASH_MAP_NORM, d_max=D_MAX, max_score=96) -> Union[None, AdjacencyMatrix]:
+def connect_units(units_to_connect: List[Unit], total_units_count: int, min_dist=800 / D_MAX, hash_map_norm=HASH_MAP_NORM, d_max=D_MAX, max_value=96) -> Union[None, AdjacencyMatrix]:
     nb_units_to_connect = len(units_to_connect)
     if nb_units_to_connect == 0:
         return None
     edges = []
     for i, unit in enumerate(units_to_connect):
-        unit_value = unit.value if unit.value else 0
         nb_connected_neighbors = 0
         neighbors = units_to_connect.copy()
         neighbors.pop(i)
@@ -465,7 +517,7 @@ def connect_units(units_to_connect: List[Unit], total_units_count: int, min_dist
                 if neighbor_value:
                     if neighbor_value > 0:
                         dist = max(hash_map_norm[neighbor.position - unit.position] / d_max, min_dist)
-                        weight = dist / ((unit_value + neighbor_value) / max_score)
+                        weight = dist * (max_value - neighbor_value) / max_value
                         edges.append(Edge(from_node=unit.idt, to_node=neighbor.idt, directed=True, weight=weight))
     return create_adjacency_matrix_from_edges(edges=edges, nodes_number=total_units_count)
 
@@ -612,7 +664,7 @@ def just_do_something(my_drones: Dict[int, MyDrone], creatures: Dict[int, Creatu
             actions[drone_idt] = Action(target=target, light=True, comment=f'DENY {drone_target.log()}')
     return actions
 
-def avoid_monsters(drone: MyDrone, aimed_action: Action, default_action: Action, hash_map_norm2=HASH_MAP_NORM2, rotate_matrix=ROTATE_2D_MATRIX, theta_increment=math.pi / 16, drone_max_speed=DRONE_MAX_SPEED):
+def avoid_monsters(drone: MyDrone, aimed_action: Action, default_action: Action, hash_map_norm2=HASH_MAP_NORM2, rotate_matrix=ROTATE_2D_MATRIX, theta_increment=math.pi / 16, drone_max_speed=DRONE_MAX_SPEED, hash_map_norm=HASH_MAP_NORM):
     safe_action = aimed_action
     drone_has_to_avoid = drone.has_to_avoid
     if len(drone.has_to_avoid) == 0:
@@ -623,7 +675,9 @@ def avoid_monsters(drone: MyDrone, aimed_action: Action, default_action: Action,
         return safe_action
     if len(drone_has_to_avoid) > 0:
         speed_wanted = Vector(drone.vx, drone.vy)
-        speeds_to_try = [speed_wanted, drone_max_speed / speed_wanted.norm * speed_wanted, 1 / 2 * speed_wanted]
+        if hash_map_norm[speed_wanted] == 0:
+            speed_wanted = Vector(0, -drone_max_speed)
+        speeds_to_try = [speed_wanted, drone_max_speed / hash_map_norm[speed_wanted] * speed_wanted, 1 / 2 * speed_wanted]
         for speed in speeds_to_try:
             thetas = [theta for theta in np.arange(theta_increment, math.pi + theta_increment, theta_increment)]
             for theta in thetas:

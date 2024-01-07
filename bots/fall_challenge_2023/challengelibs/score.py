@@ -248,6 +248,7 @@ def evaluate_extra_scores_for_multiple_scenarios(creatures: Dict[int, Creature],
 
     state_after_saving_current_scans = score_simulation.scans_and_trophies_after_simulation()
 
+    # TODO : FOR FOE EVALUATE SCORE LOST IF SAVING ALL creatures_left_to_saved BUT ONE
     creatures_left_to_saved = {owner: [] for owner in owners}
     for creature in creatures.values():
         for owner in owners:

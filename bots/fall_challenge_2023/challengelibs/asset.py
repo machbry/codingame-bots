@@ -4,7 +4,7 @@ from typing import Set, List, Dict
 import numpy as np
 
 from botlibs.trigonometry import Point, Vector
-from bots.fall_challenge_2023.singletons import MY_OWNER, FOE_OWNER
+from bots.fall_challenge_2023.singletons import MY_OWNER, FOE_OWNER, MAX_Y_STEP, MAX_X_STEP
 
 
 @dataclass(slots=True)
@@ -68,6 +68,7 @@ class Unit(Asset):
     vy: int = None
     next_x: int = None
     next_y: int = None
+    map_grid: np.ndarray = field(default_factory=lambda: np.zeros(shape=(MAX_Y_STEP, MAX_X_STEP)))
 
     @property
     def position(self):
@@ -95,6 +96,7 @@ class Creature(Unit):
     extra_scores: Dict[int, int] = field(default_factory=dict)
     last_turn_visible: int = None
     trust_in_position: bool = False
+    excluded_zones: List[List[int]] = field(default_factory=list)
 
     @property
     def my_extra_score(self):

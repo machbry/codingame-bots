@@ -23,6 +23,12 @@ CORNERS = {"TL": Point(X_MIN, Y_MIN),
            "TR": Point(X_MAX, Y_MIN),
            "BR": Point(X_MAX, Y_MAX),
            "BL": Point(X_MIN, Y_MAX)}
+MAP_GRID_STEP = 400
+MAX_X_STEP = int(round(X_MAX / MAP_GRID_STEP))
+MAX_Y_STEP = int(round(Y_MAX / MAP_GRID_STEP))
+MAP_INDICES = np.indices((MAX_Y_STEP, MAX_X_STEP))[1][0]
+X_ONES = np.ones(shape=(1, MAP_GRID_STEP))
+Y_ONES = np.ones(shape=(MAP_GRID_STEP, 1))
 
 
 class Kind(Enum):

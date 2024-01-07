@@ -10,7 +10,7 @@ from bots.fall_challenge_2023.challengelibs.map import is_next_position_safe, ge
     optimized_next_target, optimize_path_with_targets
 from bots.fall_challenge_2023.singletons import HASH_MAP_NORM2, AUGMENTED_LIGHT_RADIUS2, MY_OWNER, FOE_OWNER, \
     ROTATE_2D_MATRIX, Kind, LIMIT_DISTANCE_FROM_EDGE_TO_DENY, X_MAX, SCARE_FROM_DISTANCE, LIMIT_DISTANCE_TO_DENY2, \
-    DRONE_MAX_SPEED
+    DRONE_MAX_SPEED, HASH_MAP_NORM
 
 
 def use_light_to_find_a_target(drone: Drone, target: Creature, hash_map_norm2=HASH_MAP_NORM2,
@@ -201,7 +201,8 @@ def just_do_something(my_drones: Dict[int, MyDrone], creatures: Dict[int, Creatu
 
 
 def avoid_monsters(drone: MyDrone, aimed_action: Action, default_action: Action, hash_map_norm2=HASH_MAP_NORM2,
-                   rotate_matrix=ROTATE_2D_MATRIX, theta_increment=math.pi / 16, drone_max_speed=DRONE_MAX_SPEED):
+                   rotate_matrix=ROTATE_2D_MATRIX, theta_increment=math.pi / 16, drone_max_speed=DRONE_MAX_SPEED,
+                   hash_map_norm=HASH_MAP_NORM):
     safe_action = aimed_action
     drone_has_to_avoid = drone.has_to_avoid
 
@@ -216,7 +217,10 @@ def avoid_monsters(drone: MyDrone, aimed_action: Action, default_action: Action,
 
     if len(drone_has_to_avoid) > 0:
         speed_wanted = Vector(drone.vx, drone.vy)
-        speeds_to_try = [speed_wanted, (drone_max_speed / speed_wanted.norm) * speed_wanted, (1/2) * speed_wanted]
+        if hash_map_norm[speed_wanted] == 0:
+            speed_wanted = Vector(0, -drone_max_speed)
+
+        speeds_to_try = [speed_wanted, (drone_max_speed / hash_map_norm[speed_wanted]) * speed_wanted, (1/2) * speed_wanted]
         for speed in speeds_to_try:
             thetas = [theta for theta in np.arange(theta_increment, math.pi + theta_increment, theta_increment)]
             for theta in thetas:
