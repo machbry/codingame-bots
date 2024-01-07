@@ -26,7 +26,7 @@ def get_map_grid_value(map_grid: np.ndarray, x: int, y: int, map_grip_step=MAP_G
 def evaluate_positions_of_creatures(creatures: Dict[int, Creature], radar_blips: Dict[int, RadarBlip],
                                     my_drones: Dict[int, MyDrone], nb_turns: int,
                                     max_number_of_radar_blips_used=MAX_NUMBER_OF_RADAR_BLIPS_USED,
-                                    trust_area_limit=4 * LIGHT_RADIUS2, x_min=X_MIN, y_min=Y_MIN, x_max=X_MAX,
+                                    trust_area_limit=LIGHT_RADIUS2, x_min=X_MIN, y_min=Y_MIN, x_max=X_MAX,
                                     y_max=Y_MAX, normal_light_radius=800, agumented_light_radius=2000,
                                     map_indices=MAP_INDICES, x_ones=X_ONES, y_ones=Y_ONES, map_grip_step=MAP_GRID_STEP):
 
@@ -36,7 +36,21 @@ def evaluate_positions_of_creatures(creatures: Dict[int, Creature], radar_blips:
         if not creature.visible:
             creature.trust_in_position = False
             possible_zones = [creature.habitat]
-            creature.excluded_zones = []  # TODO : update each turn / take in account foe last scans
+
+            current_excluded_zones = creature.excluded_zones.copy()
+            creature.excluded_zones = []
+            for current_excluded_zone in current_excluded_zones:  # TODO : take in account foe last scans
+                new_x_min = current_excluded_zone[0] + normal_light_radius/2
+                new_y_min = current_excluded_zone[1] + normal_light_radius/2
+                new_x_max = current_excluded_zone[2] - normal_light_radius/2
+                new_y_max = current_excluded_zone[3] - normal_light_radius/2
+
+                if new_x_min < new_x_max and new_y_min < new_y_max:
+                    creature.excluded_zones.append([new_x_min,
+                                                    new_y_min,
+                                                    new_x_max,
+                                                    new_y_max])
+
             for drone_idt, drone in my_drones.items():
                 radar_blip = radar_blips.get(hash((drone_idt, creature_idt)))
                 if radar_blip is not None:
@@ -123,6 +137,7 @@ def evaluate_positions_of_creatures(creatures: Dict[int, Creature], radar_blips:
 
         else:
             creature.trust_in_position = True
+            creature.excluded_zones = []
             creature.next_x = creature.x + creature.vx
             creature.next_y = creature.y + creature.vy
 
@@ -209,6 +224,7 @@ def connect_units(units_to_connect: List[Unit], total_units_count: int, min_dist
 
     edges = []
     for i, unit in enumerate(units_to_connect):
+        unit_value = unit.value if unit.value else 0
         nb_connected_neighbors = 0
         neighbors = units_to_connect.copy()
         neighbors.pop(i)
@@ -221,7 +237,7 @@ def connect_units(units_to_connect: List[Unit], total_units_count: int, min_dist
                 if neighbor_value:
                     if neighbor_value > 0:
                         dist = max(hash_map_norm[neighbor.position - unit.position] / d_max, min_dist)
-                        weight = dist * (max_value - neighbor_value) / max_value
+                        weight = dist / ((unit_value + neighbor_value) / max_value)
                         edges.append(Edge(from_node=unit.idt, to_node=neighbor.idt, directed=True, weight=weight))
 
     return create_adjacency_matrix_from_edges(edges=edges, nodes_number=total_units_count)
