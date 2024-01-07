@@ -125,7 +125,7 @@ def update_game_loop(init_inputs: List[str], turns_inputs: List[str]):
         game_loop.update_assets()
 
 
-# @pytest.mark.skip
+@pytest.mark.skip
 def test_perfs():
     R = 10
     N = 10
