@@ -159,7 +159,7 @@ def deny_valuable_fish_for_foe(my_drones: Dict[int, MyDrone], creatures: Dict[in
     actions = {}
 
     fishes_close_to_edge = [creature for creature in creatures.values()
-                            if creature.trust_in_position and (creature.kind != monster_kind) and (creature.foe_extra_score > 8) and
+                            if creature.trust_in_position and (creature.kind != monster_kind) and (creature.foe_extra_score > 0) and
                             (creature.next_x < limit_distance_from_edge or x_max - creature.next_x < limit_distance_from_edge)]
 
     if len(fishes_close_to_edge) > 0:

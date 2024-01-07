@@ -1,11 +1,11 @@
-import math
-import numpy as np
 import sys
+import numpy as np
+import math
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import dijkstra
 from enum import Enum
-from dataclasses import dataclass, field, asdict
-from typing import Dict, Set, Any, List, Tuple, Callable, Union, Iterable
+from dataclasses import asdict, field, dataclass
+from typing import Tuple, Union, Iterable, Callable, Any, List, Set, Dict
 
 class Point:
 
@@ -145,8 +145,8 @@ DRONE_MAX_SPEED = HASH_MAP_NORM[Vector(0, 600)]
 SAFE_RADIUS_FROM_MONSTERS2 = HASH_MAP_NORM2[Vector(0, 500 + 540 + 600)]
 FRIGHTEN_RADIUS_FROM_DRONE = HASH_MAP_NORM[Vector(0, 1400)]
 MAX_NUMBER_OF_RADAR_BLIPS_USED = 5
-LIMIT_DISTANCE_FROM_EDGE_TO_DENY = HASH_MAP_NORM[Vector(1600, 0)]
-SCARE_FROM_DISTANCE = HASH_MAP_NORM[Vector(400, 0)]
+LIMIT_DISTANCE_FROM_EDGE_TO_DENY = HASH_MAP_NORM[Vector(1500, 0)]
+SCARE_FROM_DISTANCE = HASH_MAP_NORM[Vector(750, 0)]
 LIMIT_DISTANCE_TO_DENY2 = HASH_MAP_NORM2[Vector(2000, 0)]
 
 @dataclass(slots=True)
@@ -645,7 +645,7 @@ def find_valuable_target(my_drones: Dict[int, MyDrone], creatures: Dict[int, Cre
 
 def deny_valuable_fish_for_foe(my_drones: Dict[int, MyDrone], creatures: Dict[int, Creature], foe_drones: Dict[int, FoeDrone], hash_map_norm2=HASH_MAP_NORM2, monster_kind=Kind.MONSTER.value, x_max=X_MAX, x_center=X_MAX / 2, limit_distance_from_edge=LIMIT_DISTANCE_FROM_EDGE_TO_DENY, scare_from=SCARE_FROM_DISTANCE, limit_distance_to_deny=LIMIT_DISTANCE_TO_DENY2):
     actions = {}
-    fishes_close_to_edge = [creature for creature in creatures.values() if creature.trust_in_position and creature.kind != monster_kind and (creature.foe_extra_score > 8) and (creature.next_x < limit_distance_from_edge or x_max - creature.next_x < limit_distance_from_edge)]
+    fishes_close_to_edge = [creature for creature in creatures.values() if creature.trust_in_position and creature.kind != monster_kind and (creature.foe_extra_score > 0) and (creature.next_x < limit_distance_from_edge or x_max - creature.next_x < limit_distance_from_edge)]
     if len(fishes_close_to_edge) > 0:
         fishes_with_most_extra_for_foe: List[Creature] = order_assets(fishes_close_to_edge, on_attr='foe_extra_score', ascending=False)
         for fish in fishes_with_most_extra_for_foe:
