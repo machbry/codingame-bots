@@ -38,9 +38,12 @@ def test_create_adjacency_list_from_edges(edges, nodes_number_expected):
 
 
 @pytest.mark.parametrize("adjacency_list, edge_to_remove, adjacency_list_expected", [
-    (AdjacencyList({0: {1, 2}, 1: {0, 3}, 2: {0, 3}, 3: {1, 2}}), Edge(1, 3), AdjacencyList({0: {1, 2}, 1: {0}, 2: {0, 3}, 3: {2}})),
-    (AdjacencyList({0: {1, 2}, 1: {0}, 2: {0, 3}, 3: {2}}), Edge(1, 3), AdjacencyList({0: {1, 2}, 1: {0}, 2: {0, 3}, 3: {2}})),
-    (AdjacencyList({0: {1, 2}, 1: {0}, 2: {0, 3}, 3: {2}}), Edge(1, 4), AdjacencyList({0: {1, 2}, 1: {0}, 2: {0, 3}, 3: {2}}))
+    (AdjacencyList({0: {1: 1, 2: 1}, 1: {0: 1, 3: 1}, 2: {0: 1, 3: 1}, 3: {1: 1, 2: 1}}), Edge(1, 3),
+     AdjacencyList({0: {1: 1, 2: 1}, 1: {0: 1}, 2: {0: 1, 3: 1}, 3: {2: 1}})),
+    (AdjacencyList({0: {1: 1, 2: 1}, 1: {0: 1}, 2: {0: 1, 3: 1}, 3: {2: 1}}), Edge(1, 3),
+     AdjacencyList({0: {1: 1, 2: 1}, 1: {0: 1}, 2: {0: 1, 3: 1}, 3: {2: 1}})),
+    (AdjacencyList({0: {1: 1, 2: 1}, 1: {0: 1}, 2: {0: 1, 3: 1}, 3: {2: 1}}), Edge(1, 4),
+     AdjacencyList({0: {1: 1, 2: 1}, 1: {0: 1}, 2: {0: 1, 3: 1}, 3: {2: 1}}))
 ])
 def test_adjacency_list_remove_edge(adjacency_list, edge_to_remove, adjacency_list_expected):
     adjacency_list.remove_edge(edge_to_remove)

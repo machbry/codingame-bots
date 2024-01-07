@@ -81,6 +81,9 @@ class UsedVisitor(ast.NodeVisitor):
             if isinstance(ast_node, ast.FunctionDef):
                 self.used_functions_and_classes.add(ast_node.name)
 
+    def visit_Name(self, node):
+        self.used_functions_and_classes.add(node.id)
+
 
 class UnusedRemover(ast.NodeTransformer):
     def __init__(self, used_functions_and_classes):
