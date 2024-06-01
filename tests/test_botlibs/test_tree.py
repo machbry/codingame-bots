@@ -3,7 +3,7 @@ from pathlib import Path
 import unittest
 
 from botlibs.tree import Tree
-from constants import TESTS_BOTLIBS_PATH
+from tests.constants import TESTS_BOTLIBS_PATH
 
 TESTS_TREE_PATH = TESTS_BOTLIBS_PATH / "Tree"
 

@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from builderlibs.fileutils import Node, Directory, File
-from constants import TESTS_DATA_PATH
+from tests.constants import TESTS_DATA_PATH
 
 
 @pytest.mark.parametrize("dirname", [

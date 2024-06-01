@@ -1,7 +1,7 @@
 import pytest
 
 from builderlibs.aggregater import LocalModuleReplacer
-from constants import TESTS_RES_PATH, TESTS_SHAREDLIBS_PATH, TESTS_DATA_PATH
+from tests.constants import TESTS_RES_PATH, TESTS_SHAREDLIBS_PATH, TESTS_DATA_PATH
 
 
 @pytest.fixture

@@ -5,7 +5,7 @@ from typing import Dict
 import pytest
 
 from builderlibs.dependencies import Module, LocalModule, Import, ImportFrom
-from constants import TESTS_RES_PATH
+from tests.constants import TESTS_RES_PATH
 
 BASE_PATH = Path(__file__).resolve()
 

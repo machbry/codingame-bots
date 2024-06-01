@@ -4,7 +4,7 @@ import pytest
 
 from builderlibs.fileutils import Directory, PythonFile
 from builderlibs.challenge import ChallengeStructure, ChallengeFolder
-from constants import TESTS_DATA_PATH
+from tests.constants import TESTS_DATA_PATH
 
 
 @pytest.mark.parametrize("name, parent, main_file_name, libs_name", [
