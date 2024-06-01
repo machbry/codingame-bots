@@ -4,7 +4,7 @@ import ast
 import pytest
 
 from builderlibs.challenge import ChallengeFolder
-from constants import TESTS_BOTS_PATH
+from tests.constants import TESTS_BOTS_PATH
 
 
 @pytest.fixture(scope="session")
