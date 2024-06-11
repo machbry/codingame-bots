@@ -1,9 +1,11 @@
 import sys
-from typing import List
+from typing import List, Dict
+
+from bots.summer_challenge_2024.mini_games import HurdleRace, MiniGame
 
 
 class GameLoop:
-    __slots__ = ("init_inputs", "nb_turns", "turns_inputs", "player_idx", "nb_games")
+    __slots__ = ("init_inputs", "nb_turns", "turns_inputs", "player_idx", "nb_mini_games", "mini_games")
     RUNNING = True
     LOG = True
     RESET_TURNS_INPUTS = True
@@ -14,7 +16,8 @@ class GameLoop:
         self.turns_inputs: List[str] = []
 
         self.player_idx = int(self.get_init_input())
-        self.nb_games = int(self.get_init_input())
+        self.nb_mini_games = int(self.get_init_input())
+        self.mini_games: Dict[int, MiniGame] = {}
 
         if GameLoop.LOG:
             self.print_init_logs()
@@ -33,17 +36,11 @@ class GameLoop:
         self.nb_turns += 1
 
         for i in range(3):
-            score_info = self.get_turn_input()
-        for i in range(self.nb_games):
-            inputs = self.get_turn_input().split()
-            gpu = inputs[0]
-            reg_0 = int(inputs[1])
-            reg_1 = int(inputs[2])
-            reg_2 = int(inputs[3])
-            reg_3 = int(inputs[4])
-            reg_4 = int(inputs[5])
-            reg_5 = int(inputs[6])
-            reg_6 = int(inputs[7])
+            global_score, nb_gold_medals, nb_silver_medals, nb_bronze_medals = (int(i) for i in
+                                                                                self.get_turn_input().split())
+
+        for i in range(self.nb_mini_games):
+            self.mini_games[i] = HurdleRace(inputs=self.get_turn_input().split(), player_idx=self.player_idx)
 
         if GameLoop.LOG:
             self.print_turn_logs()
@@ -61,4 +58,5 @@ class GameLoop:
         while GameLoop.RUNNING:
             self.update_assets()
 
-            print("LEFT")
+            for i in range(self.nb_mini_games):
+                self.mini_games[i].play()
