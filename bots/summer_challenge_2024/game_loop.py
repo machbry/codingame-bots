@@ -1,7 +1,9 @@
 import sys
 from typing import List, Dict
+import numpy as np
 
-from bots.summer_challenge_2024.mini_games import HurdleRace, MiniGame
+from bots.summer_challenge_2024.challengelibs.actions import Action
+from bots.summer_challenge_2024.challengelibs.mini_games import HurdleRace, MiniGame
 
 
 class GameLoop:
@@ -36,8 +38,7 @@ class GameLoop:
         self.nb_turns += 1
 
         for i in range(3):
-            global_score, nb_gold_medals, nb_silver_medals, nb_bronze_medals = (int(i) for i in
-                                                                                self.get_turn_input().split())
+            score_info = self.get_turn_input().split()
 
         for i in range(self.nb_mini_games):
             self.mini_games[i] = HurdleRace(inputs=self.get_turn_input().split(), player_idx=self.player_idx)
@@ -58,5 +59,37 @@ class GameLoop:
         while GameLoop.RUNNING:
             self.update_assets()
 
+            current_sections = []
             for i in range(self.nb_mini_games):
-                self.mini_games[i].play()
+                mini_game: HurdleRace = self.mini_games[i]
+
+                if mini_game.player_stunned_for == 0 and mini_game.gpu != "GAME_OVER":
+                    current_section = mini_game.safe_sections[0]
+                    if current_section == 0:
+                        try:
+                            next_section = mini_game.safe_sections[1]
+                            current_sections.append(next_section)
+                        except IndexError:
+                            pass
+                    else:
+                        current_sections.append(current_section)
+
+            if current_sections:
+                min_len = min(current_sections)
+
+                if min_len > 3:
+                    print(Action.RIGHT.value)
+                elif min_len == 3:
+                    print(Action.DOWN.value)
+                elif min_len == 2:
+                    print(Action.LEFT.value)
+                elif min_len == 1:
+                    if current_sections.count(1) >= current_sections.count(2):
+                        print(Action.UP.value)
+                    else:
+                        print(Action.LEFT.value)
+                else:
+                    print(Action.LEFT.value)
+            else:
+                print(Action.LEFT.value)
+

@@ -10,7 +10,7 @@ from bots.summer_challenge_2024.game_loop import GameLoop
 BOT_PACKAGE = "bots.summer_challenge_2024"
 GameLoop.LOG = False
 TEST_INPUTS = [
-    (['0', '1'], 1, ['0 0 0 0', '0 0 0 0', '0 0 0 0', '.....#....#...#....#....#..... 0 0 0 0 0 0 0']),
+    (['0', '4'], 1, ['0 0 0 0 0 0 0 0 0 0 0 0 0', '0 0 0 0 0 0 0 0 0 0 0 0 0', '0 0 0 0 0 0 0 0 0 0 0 0 0', '....#...#....#................ 0 0 0 0 0 0 0', '....#....#...#...#............ 0 0 0 0 0 0 0', '.....#....#...#...#....#...... 0 0 0 0 0 0 0', '.....#...#....#............... 0 0 0 0 0 0 0']),
 ]
 
 
@@ -70,4 +70,4 @@ def test_perfs():
     print(
         f"init, start, update: {round(1000 * sum(init_perfs) / L, 2)}ms, {round(1000 * sum(start_perfs) / L, 2)}ms, {round(1000 * sum(update_perfs) / L, 2)}ms (R = {R}, N = {N})")
 
-    # last results : init, start, update: 0.08ms, 0.14ms, 0.08ms (R = 10, N = 10)
+    # last results : init, start, update: 0.08ms, 0.13ms, 0.08ms (R = 10, N = 10)

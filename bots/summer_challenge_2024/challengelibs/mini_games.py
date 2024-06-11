@@ -14,9 +14,6 @@ class MiniGame:
         self.reg_6 = int(inputs[7])
         self.player_idx = player_idx
 
-    def play(self):
-        pass
-
 
 class HurdleRace(MiniGame):
 
@@ -24,19 +21,6 @@ class HurdleRace(MiniGame):
         super().__init__(inputs, player_idx)
 
         self.player_position = [self.reg_0, self.reg_1, self.reg_2][self.player_idx]
+        self.player_stunned_for = [self.reg_3, self.reg_4, self.reg_5][self.player_idx]
         self.safe_sections = [len(safe_section) for safe_section in
-                              self.gpu[self.player_position:len(self.gpu)].split('#')]
-
-    def play(self):
-        current_section = self.safe_sections[0]
-
-        if current_section == 1:
-            print("UP")
-        elif current_section == 2:
-            print("LEFT")
-        elif current_section == 3:
-            print("DOWN")
-        elif current_section > 3:
-            print("RIGHT")
-        else:
-            print("LEFT")
+                              self.gpu[self.player_position:30].split('#')]

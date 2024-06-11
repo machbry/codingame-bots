@@ -1,5 +1,14 @@
 import sys
+import numpy as np
+from enum import Enum
 from typing import List, Dict
+
+class Action(Enum):
+    UP = 'UP'
+    RIGHT = 'RIGHT'
+    DOWN = 'DOWN'
+    LEFT = 'LEFT'
+    PASS = 'PASS'
 
 class MiniGame:
 
@@ -14,28 +23,13 @@ class MiniGame:
         self.reg_6 = int(inputs[7])
         self.player_idx = player_idx
 
-    def play(self):
-        pass
-
 class HurdleRace(MiniGame):
 
     def __init__(self, inputs: List[str], player_idx: int):
         super().__init__(inputs, player_idx)
         self.player_position = [self.reg_0, self.reg_1, self.reg_2][self.player_idx]
-        self.safe_sections = [len(safe_section) for safe_section in self.gpu[self.player_position:len(self.gpu)].split('#')]
-
-    def play(self):
-        current_section = self.safe_sections[0]
-        if current_section == 1:
-            print('UP')
-        elif current_section == 2:
-            print('LEFT')
-        elif current_section == 3:
-            print('DOWN')
-        elif current_section > 3:
-            print('RIGHT')
-        else:
-            print('LEFT')
+        self.player_stunned_for = [self.reg_3, self.reg_4, self.reg_5][self.player_idx]
+        self.safe_sections = [len(safe_section) for safe_section in self.gpu[self.player_position:30].split('#')]
 
 class GameLoop:
     __slots__ = ('init_inputs', 'nb_turns', 'turns_inputs', 'player_idx', 'nb_mini_games', 'mini_games')
@@ -66,7 +60,7 @@ class GameLoop:
     def update_assets(self):
         self.nb_turns += 1
         for i in range(3):
-            global_score, nb_gold_medals, nb_silver_medals, nb_bronze_medals = (int(i) for i in self.get_turn_input().split())
+            score_info = self.get_turn_input().split()
         for i in range(self.nb_mini_games):
             self.mini_games[i] = HurdleRace(inputs=self.get_turn_input().split(), player_idx=self.player_idx)
         if GameLoop.LOG:
@@ -84,6 +78,34 @@ class GameLoop:
     def start(self):
         while GameLoop.RUNNING:
             self.update_assets()
+            current_sections = []
             for i in range(self.nb_mini_games):
-                self.mini_games[i].play()
+                mini_game: HurdleRace = self.mini_games[i]
+                if mini_game.player_stunned_for == 0 and mini_game.gpu != 'GAME_OVER':
+                    current_section = mini_game.safe_sections[0]
+                    if current_section == 0:
+                        try:
+                            next_section = mini_game.safe_sections[1]
+                            current_sections.append(next_section)
+                        except IndexError:
+                            pass
+                    else:
+                        current_sections.append(current_section)
+            if current_sections:
+                min_len = min(current_sections)
+                if min_len > 3:
+                    print(Action.RIGHT.value)
+                elif min_len == 3:
+                    print(Action.DOWN.value)
+                elif min_len == 2:
+                    print(Action.LEFT.value)
+                elif min_len == 1:
+                    if current_sections.count(1) >= current_sections.count(2):
+                        print(Action.UP.value)
+                    else:
+                        print(Action.LEFT.value)
+                else:
+                    print(Action.LEFT.value)
+            else:
+                print(Action.LEFT.value)
 GameLoop().start()
