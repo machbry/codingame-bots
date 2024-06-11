@@ -1,8 +1,9 @@
 import sys
 from typing import List
 
+
 class GameLoop:
-    __slots__ = ('init_inputs', 'nb_turns', 'turns_inputs', 'player_idx', 'nb_games')
+    __slots__ = ("init_inputs", "nb_turns", "turns_inputs", "player_idx", "nb_games")
     RUNNING = True
     LOG = True
     RESET_TURNS_INPUTS = True
@@ -11,8 +12,10 @@ class GameLoop:
         self.init_inputs: List[str] = []
         self.nb_turns: int = 0
         self.turns_inputs: List[str] = []
+
         self.player_idx = int(self.get_init_input())
         self.nb_games = int(self.get_init_input())
+
         if GameLoop.LOG:
             self.print_init_logs()
 
@@ -28,6 +31,7 @@ class GameLoop:
 
     def update_assets(self):
         self.nb_turns += 1
+
         for i in range(3):
             score_info = self.get_turn_input()
         for i in range(self.nb_games):
@@ -40,6 +44,7 @@ class GameLoop:
             reg_4 = int(inputs[5])
             reg_5 = int(inputs[6])
             reg_6 = int(inputs[7])
+
         if GameLoop.LOG:
             self.print_turn_logs()
 
@@ -55,5 +60,5 @@ class GameLoop:
     def start(self):
         while GameLoop.RUNNING:
             self.update_assets()
-            print('LEFT')
-GameLoop().start()
+
+            print("LEFT")
