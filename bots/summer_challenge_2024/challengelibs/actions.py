@@ -6,4 +6,3 @@ class Action(Enum):
     RIGHT = "RIGHT"
     DOWN = "DOWN"
     LEFT = "LEFT"
-    PASS = "PASS"

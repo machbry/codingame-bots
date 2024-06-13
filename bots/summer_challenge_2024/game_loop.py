@@ -59,37 +59,24 @@ class GameLoop:
         while GameLoop.RUNNING:
             self.update_assets()
 
-            current_sections = []
-            for i in range(self.nb_mini_games):
-                mini_game: HurdleRace = self.mini_games[i]
+            actions_evaluations = {}
+            for action in Action:
+                for mini_game in self.mini_games.values():
+                    action_evaluation = mini_game.evaluate_action(action)
+                    if not actions_evaluations.get(action):
+                        actions_evaluations[action] = 0
+                    actions_evaluations[action] += action_evaluation
 
-                if mini_game.player_stunned_for == 0 and mini_game.gpu != "GAME_OVER":
-                    current_section = mini_game.safe_sections[0]
-                    if current_section == 0:
-                        try:
-                            next_section = mini_game.safe_sections[1]
-                            current_sections.append(next_section)
-                        except IndexError:
-                            pass
-                    else:
-                        current_sections.append(current_section)
+            best_action = None
+            best_evaluation = None
 
-            if current_sections:
-                min_len = min(current_sections)
-
-                if min_len > 3:
-                    print(Action.RIGHT.value)
-                elif min_len == 3:
-                    print(Action.DOWN.value)
-                elif min_len == 2:
-                    print(Action.LEFT.value)
-                elif min_len == 1:
-                    if current_sections.count(1) >= current_sections.count(2):
-                        print(Action.UP.value)
-                    else:
-                        print(Action.LEFT.value)
+            for action, action_evaluation in actions_evaluations.items():
+                if not best_action:
+                    best_action = action
+                    best_evaluation = action_evaluation
                 else:
-                    print(Action.LEFT.value)
-            else:
-                print(Action.LEFT.value)
+                    if action_evaluation > best_evaluation:
+                        best_action = action
+                        best_evaluation = action_evaluation
 
+            print(best_action.value)

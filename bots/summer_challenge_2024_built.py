@@ -1,35 +1,45 @@
-import sys
 import numpy as np
+import sys
 from enum import Enum
-from typing import List, Dict
+from typing import Dict, List
 
 class Action(Enum):
     UP = 'UP'
     RIGHT = 'RIGHT'
     DOWN = 'DOWN'
     LEFT = 'LEFT'
-    PASS = 'PASS'
 
 class MiniGame:
 
     def __init__(self, inputs: List[str], player_idx: int):
         self.gpu = inputs[0]
-        self.reg_0 = int(inputs[1])
-        self.reg_1 = int(inputs[2])
-        self.reg_2 = int(inputs[3])
-        self.reg_3 = int(inputs[4])
-        self.reg_4 = int(inputs[5])
-        self.reg_5 = int(inputs[6])
-        self.reg_6 = int(inputs[7])
+        self.reg = np.array([int(inputs[1]), int(inputs[2]), int(inputs[3]), int(inputs[4]), int(inputs[5]), int(inputs[6]), int(inputs[7])])
         self.player_idx = player_idx
 
+    def evaluate_action(self, action: Action) -> int:
+        return 0
+
 class HurdleRace(MiniGame):
+    ACTIONS_MOVE = {Action.UP: 2, Action.LEFT: 1, Action.DOWN: 2, Action.RIGHT: 3}
 
     def __init__(self, inputs: List[str], player_idx: int):
         super().__init__(inputs, player_idx)
-        self.player_position = [self.reg_0, self.reg_1, self.reg_2][self.player_idx]
-        self.player_stunned_for = [self.reg_3, self.reg_4, self.reg_5][self.player_idx]
-        self.safe_sections = [len(safe_section) for safe_section in self.gpu[self.player_position:30].split('#')]
+        self.player_position = self.reg[self.player_idx]
+        self.player_stunned_for = self.reg[self.player_idx + 3]
+        self.remaining_sections = self.gpu[self.player_position:30]
+
+    def evaluate_action(self, action: Action) -> int:
+        move = self.ACTIONS_MOVE[action]
+        nb_remaining_sections = len(self.remaining_sections)
+        if nb_remaining_sections <= move:
+            return nb_remaining_sections
+        if self.remaining_sections[move] == '#':
+            return move - 6
+        if action in [Action.DOWN, Action.RIGHT]:
+            sections_crossed = self.remaining_sections[1:1 + move]
+            if '#' in sections_crossed:
+                return len(sections_crossed.split('#')[0]) - 5
+        return move
 
 class GameLoop:
     __slots__ = ('init_inputs', 'nb_turns', 'turns_inputs', 'player_idx', 'nb_mini_games', 'mini_games')
@@ -78,34 +88,21 @@ class GameLoop:
     def start(self):
         while GameLoop.RUNNING:
             self.update_assets()
-            current_sections = []
-            for i in range(self.nb_mini_games):
-                mini_game: HurdleRace = self.mini_games[i]
-                if mini_game.player_stunned_for == 0 and mini_game.gpu != 'GAME_OVER':
-                    current_section = mini_game.safe_sections[0]
-                    if current_section == 0:
-                        try:
-                            next_section = mini_game.safe_sections[1]
-                            current_sections.append(next_section)
-                        except IndexError:
-                            pass
-                    else:
-                        current_sections.append(current_section)
-            if current_sections:
-                min_len = min(current_sections)
-                if min_len > 3:
-                    print(Action.RIGHT.value)
-                elif min_len == 3:
-                    print(Action.DOWN.value)
-                elif min_len == 2:
-                    print(Action.LEFT.value)
-                elif min_len == 1:
-                    if current_sections.count(1) >= current_sections.count(2):
-                        print(Action.UP.value)
-                    else:
-                        print(Action.LEFT.value)
-                else:
-                    print(Action.LEFT.value)
-            else:
-                print(Action.LEFT.value)
+            actions_evaluations = {}
+            for action in Action:
+                for mini_game in self.mini_games.values():
+                    action_evaluation = mini_game.evaluate_action(action)
+                    if not actions_evaluations.get(action):
+                        actions_evaluations[action] = 0
+                    actions_evaluations[action] += action_evaluation
+            best_action = None
+            best_evaluation = None
+            for action, action_evaluation in actions_evaluations.items():
+                if not best_action:
+                    best_action = action
+                    best_evaluation = action_evaluation
+                elif action_evaluation > best_evaluation:
+                    best_action = action
+                    best_evaluation = action_evaluation
+            print(best_action.value)
 GameLoop().start()
