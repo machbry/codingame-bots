@@ -3,11 +3,12 @@ from typing import List
 import numpy as np
 
 from bots.summer_challenge_2024.challengelibs.actions import Action
+from bots.summer_challenge_2024.challengelibs.score_info import ScoreInfo
 
 
 class MiniGame:
 
-    def __init__(self, inputs: List[str], player_idx: int):
+    def __init__(self, inputs: List[str], player_idx: int, players_scores: List[ScoreInfo]):
         self.gpu = inputs[0]
         self.reg = np.array([int(inputs[1]),
                              int(inputs[2]),
@@ -17,8 +18,9 @@ class MiniGame:
                              int(inputs[6]),
                              int(inputs[7])])
         self.player_idx = player_idx
+        self.player_score = players_scores[player_idx]
 
-    def evaluate_action(self, action: Action) -> int:
+    def average_score_evolution_expected(self, action: Action) -> int:
         return 0
 
 
@@ -27,16 +29,17 @@ class HurdleRace(MiniGame):
                     Action.LEFT: 1,
                     Action.DOWN: 2,
                     Action.RIGHT: 3}
+    ESTIMATE_PENALTY_MOVE_WHEN_STUNNED = 6
 
-    def __init__(self, inputs: List[str], player_idx: int):
-        super().__init__(inputs, player_idx)
+    def __init__(self, inputs: List[str], player_idx: int, players_scores: List[ScoreInfo]):
+        super().__init__(inputs, player_idx, players_scores)
 
         self.player_position = self.reg[self.player_idx]
         self.player_stunned_for = self.reg[self.player_idx + 3]
 
-        self.remaining_sections = self.gpu[self.player_position:30]
+        self.remaining_sections = self.gpu[self.player_position:30]  # TODO : gpu = "GAME_OVER"
 
-    def evaluate_action(self, action: Action) -> int:
+    def average_score_evolution_expected(self, action: Action) -> int:
         move = self.ACTIONS_MOVE[action]
         nb_remaining_sections = len(self.remaining_sections)
 
@@ -44,11 +47,11 @@ class HurdleRace(MiniGame):
             return nb_remaining_sections
 
         if self.remaining_sections[move] == "#":
-            return move - 6
+            return move - self.ESTIMATE_PENALTY_MOVE_WHEN_STUNNED
 
         if action in [Action.DOWN, Action.RIGHT]:
-            sections_crossed = self.remaining_sections[1:1+move]
+            sections_crossed = self.remaining_sections[1:1 + move]
             if "#" in sections_crossed:
-                return len(sections_crossed.split("#")[0]) - 5
+                return len(sections_crossed.split("#")[0]) - self.ESTIMATE_PENALTY_MOVE_WHEN_STUNNED + 1
 
         return move

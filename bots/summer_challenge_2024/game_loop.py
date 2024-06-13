@@ -1,13 +1,14 @@
 import sys
 from typing import List, Dict
-import numpy as np
 
 from bots.summer_challenge_2024.challengelibs.actions import Action
 from bots.summer_challenge_2024.challengelibs.mini_games import HurdleRace, MiniGame
+from bots.summer_challenge_2024.challengelibs.score_info import ScoreInfo
 
 
 class GameLoop:
-    __slots__ = ("init_inputs", "nb_turns", "turns_inputs", "player_idx", "nb_mini_games", "mini_games")
+    __slots__ = ("init_inputs", "nb_turns", "turns_inputs", "player_idx", "nb_mini_games", "mini_games",
+                 "players_scores")
     RUNNING = True
     LOG = True
     RESET_TURNS_INPUTS = True
@@ -19,7 +20,8 @@ class GameLoop:
 
         self.player_idx = int(self.get_init_input())
         self.nb_mini_games = int(self.get_init_input())
-        self.mini_games: Dict[int, MiniGame] = {}
+        self.mini_games: List[MiniGame] = []
+        self.players_scores: List[ScoreInfo] = []
 
         if GameLoop.LOG:
             self.print_init_logs()
@@ -37,11 +39,11 @@ class GameLoop:
     def update_assets(self):
         self.nb_turns += 1
 
-        for i in range(3):
-            score_info = self.get_turn_input().split()
+        self.players_scores = [ScoreInfo(inputs=self.get_turn_input().split(), nb_mini_games=self.nb_mini_games)
+                               for i in range(3)]
 
-        for i in range(self.nb_mini_games):
-            self.mini_games[i] = HurdleRace(inputs=self.get_turn_input().split(), player_idx=self.player_idx)
+        self.mini_games = [HurdleRace(inputs=self.get_turn_input().split(), player_idx=self.player_idx,
+                                      players_scores=self.players_scores) for i in range(self.nb_mini_games)]
 
         if GameLoop.LOG:
             self.print_turn_logs()
@@ -59,24 +61,24 @@ class GameLoop:
         while GameLoop.RUNNING:
             self.update_assets()
 
-            actions_evaluations = {}
+            scores_evolutions = {}
             for action in Action:
-                for mini_game in self.mini_games.values():
-                    action_evaluation = mini_game.evaluate_action(action)
-                    if not actions_evaluations.get(action):
-                        actions_evaluations[action] = 0
-                    actions_evaluations[action] += action_evaluation
+                for mini_game in self.mini_games:
+                    score_evolution = mini_game.average_score_evolution_expected(action)
+                    if not scores_evolutions.get(action):
+                        scores_evolutions[action] = 0
+                    scores_evolutions[action] += score_evolution
 
             best_action = None
-            best_evaluation = None
+            best_score_evolution = None
 
-            for action, action_evaluation in actions_evaluations.items():
+            for action, score_evolution in scores_evolutions.items():
                 if not best_action:
                     best_action = action
-                    best_evaluation = action_evaluation
+                    best_score_evolution = score_evolution
                 else:
-                    if action_evaluation > best_evaluation:
+                    if score_evolution > best_score_evolution:
                         best_action = action
-                        best_evaluation = action_evaluation
+                        best_score_evolution = score_evolution
 
             print(best_action.value)
