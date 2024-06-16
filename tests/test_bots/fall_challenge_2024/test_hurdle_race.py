@@ -1,29 +1,50 @@
 import pytest
+import numpy as np
 
 from bots.summer_challenge_2024.challengelibs.actions import Action
 from bots.summer_challenge_2024.challengelibs.mini_games import HurdleRace
-from bots.summer_challenge_2024.challengelibs.score_info import ScoreInfo
 
 
-@pytest.mark.parametrize("turn_input, player_idx, action, result_expected", [
-    ("....#...#....#................ 2 0 0 0 0 0 0", 0, Action.UP, 2 - HurdleRace.ESTIMATE_PENALTY_MOVE_WHEN_STUNNED),
-    ("....#...#....#................ 2 0 0 0 0 0 0", 0, Action.LEFT, 1),
-    ("....#...#....#................ 2 0 0 0 0 0 0", 0, Action.DOWN, 2 - HurdleRace.ESTIMATE_PENALTY_MOVE_WHEN_STUNNED),
-    ("....#...#....#................ 2 0 0 0 0 0 0", 0, Action.RIGHT, 2 - HurdleRace.ESTIMATE_PENALTY_MOVE_WHEN_STUNNED),
-    ("....#...#....#................ 3 0 0 0 0 0 0", 0, Action.UP, 2),
-    ("....#...#....#................ 3 0 0 0 0 0 0", 0, Action.LEFT, 1 - HurdleRace.ESTIMATE_PENALTY_MOVE_WHEN_STUNNED),
-    ("....#...#....#................ 3 0 0 0 0 0 0", 0, Action.DOWN, 1 - HurdleRace.ESTIMATE_PENALTY_MOVE_WHEN_STUNNED),
-    ("....#...#....#................ 3 0 0 0 0 0 0", 0, Action.RIGHT, 1 - HurdleRace.ESTIMATE_PENALTY_MOVE_WHEN_STUNNED),
-    ("....#...#....#................ 4 0 0 0 0 0 0", 0, Action.UP, 2),
-    ("....#...#....#................ 4 0 0 0 0 0 0", 0, Action.LEFT, 1),
-    ("....#...#....#................ 4 0 0 0 0 0 0", 0, Action.DOWN, 2),
-    ("....#...#....#................ 4 0 0 0 0 0 0", 0, Action.RIGHT, 3),
+TEST_RACETRACK = "....#...#....#................"
+
+
+@pytest.mark.parametrize("turn_input, my_idx, action, reg_expected", [
+    (f"{TEST_RACETRACK} 2 0 0 0 0 0 0", 0, Action.UP, np.array([4, 0, 0, 3, 0, 0, 0])),
+    (f"{TEST_RACETRACK} 2 0 0 0 0 0 0", 0, Action.LEFT, np.array([3, 0, 0, 0, 0, 0, 0])),
+    (f"{TEST_RACETRACK} 2 0 0 0 0 0 0", 0, Action.DOWN, np.array([4, 0, 0, 3, 0, 0, 0])),
+    (f"{TEST_RACETRACK} 2 0 0 0 0 0 0", 0, Action.RIGHT, np.array([4, 0, 0, 3, 0, 0, 0])),
+    (f"{TEST_RACETRACK} 3 0 0 0 0 0 0", 0, Action.UP, np.array([5, 0, 0, 0, 0, 0, 0])),
+    (f"{TEST_RACETRACK} 3 0 0 0 0 0 0", 0, Action.LEFT, np.array([4, 0, 0, 3, 0, 0, 0])),
+    (f"{TEST_RACETRACK} 3 0 0 0 0 0 0", 0, Action.DOWN, np.array([4, 0, 0, 3, 0, 0, 0])),
+    (f"{TEST_RACETRACK} 3 0 0 0 0 0 0", 0, Action.RIGHT, np.array([4, 0, 0, 3, 0, 0, 0])),
+    (f"{TEST_RACETRACK} 4 0 0 0 0 0 0", 0, Action.UP, np.array([6, 0, 0, 0, 0, 0, 0])),
+    (f"{TEST_RACETRACK} 4 0 0 0 0 0 0", 0, Action.LEFT, np.array([5, 0, 0, 0, 0, 0, 0])),
+    (f"{TEST_RACETRACK} 4 0 0 0 0 0 0", 0, Action.DOWN, np.array([6, 0, 0, 0, 0, 0, 0])),
+    (f"{TEST_RACETRACK} 4 0 0 0 0 0 0", 0, Action.RIGHT, np.array([7, 0, 0, 0, 0, 0, 0])),
+    (f"{TEST_RACETRACK} 8 0 0 2 0 0 0", 0, Action.UP, np.array([8, 0, 0, 1, 0, 0, 0])),
+    (f"{TEST_RACETRACK} 28 0 0 0 0 0 0", 0, Action.DOWN, np.array([29, 0, 0, 0, 0, 0, 0])),
 ])
-def test_evaluate_action(turn_input, player_idx, action, result_expected):
-    score_info = ScoreInfo(inputs="126 0 2 1 0 3 0 2 1 0 1 0 2".split(), nb_mini_games=4)
+def test_next_gpu_reg_with_player_action(turn_input, my_idx, action, reg_expected):
+    mini_game = HurdleRace(inputs=turn_input.split(), my_idx=my_idx)
+    gpu = mini_game.gpu
 
-    mini_game = HurdleRace(inputs=turn_input.split(), player_idx=player_idx, players_scores=[score_info]*3)
+    next_gpu, next_reg = mini_game.next_gpu_reg_with_player_action(player_idx=my_idx, action=action, current_gpu=gpu,
+                                                                   current_reg=mini_game.reg)
 
-    result = mini_game.average_score_evolution_expected(action)
+    assert (next_reg == reg_expected).all()
 
-    assert result == result_expected
+
+@pytest.mark.parametrize("reg, players_mini_game_results_expected", [
+    (np.array([7, 2, 4, 0, 0, 0, 0]), [np.array([[1/3 + (7/29) * (2/3), 1/3 - (7/29) * (1/3), 1/3 - (7/29) * (1/3)]]),
+                                       np.array([[1/3 - (7/29) * (1/3), 1/3 - (7/29) * (1/3), 1/3 + (7/29) * (2/3)]]),
+                                       np.array([[1/3 - (7/29) * (1/3), 1/3 + (7/29) * (2/3), 1/3 - (7/29) * (1/3)]])])
+])
+def test_predict_players_mini_game_results_with_gpu_reg(reg, players_mini_game_results_expected):
+    mini_game = HurdleRace(inputs=f"{TEST_RACETRACK} 2 0 0 0 0 0 0".split(), my_idx=0)
+    gpu = mini_game.gpu
+
+    players_mini_game_results = mini_game.predict_players_mini_game_results_with_gpu_reg(gpu, reg)
+
+    for i, player_mini_game_results in enumerate(players_mini_game_results):
+        assert (player_mini_game_results == players_mini_game_results_expected[i]).all()
+

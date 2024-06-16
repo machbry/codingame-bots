@@ -1,0 +1,7 @@
+import numpy as np
+
+NB_PLAYERS = 3
+NB_MINI_GAMES = 4
+NB_MEDALS_COLORS = 3
+
+DEFAULT_MINI_GAMES_RESULTS = np.ones(shape=(NB_MINI_GAMES, NB_MEDALS_COLORS)) / 3

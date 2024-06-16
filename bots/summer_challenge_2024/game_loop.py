@@ -1,13 +1,16 @@
 import sys
-from typing import List, Dict
+from typing import List
+
+import numpy as np
 
 from bots.summer_challenge_2024.challengelibs.actions import Action
-from bots.summer_challenge_2024.challengelibs.mini_games import HurdleRace, MiniGame
-from bots.summer_challenge_2024.challengelibs.score_info import ScoreInfo
+from bots.summer_challenge_2024.challengelibs.mini_games import HurdleRace, MiniGame, Archery, Roller, ArtisticDiving
+from bots.summer_challenge_2024.challengelibs.score_info import PlayerScoreInfo
+from bots.summer_challenge_2024.singletons import NB_MINI_GAMES, NB_MEDALS_COLORS
 
 
 class GameLoop:
-    __slots__ = ("init_inputs", "nb_turns", "turns_inputs", "player_idx", "nb_mini_games", "mini_games",
+    __slots__ = ("init_inputs", "nb_turns", "turns_inputs", "my_idx", "nb_mini_games", "mini_games",
                  "players_scores")
     RUNNING = True
     LOG = True
@@ -18,10 +21,10 @@ class GameLoop:
         self.nb_turns: int = 0
         self.turns_inputs: List[str] = []
 
-        self.player_idx = int(self.get_init_input())
+        self.my_idx = int(self.get_init_input())
         self.nb_mini_games = int(self.get_init_input())
         self.mini_games: List[MiniGame] = []
-        self.players_scores: List[ScoreInfo] = []
+        self.players_scores: List[PlayerScoreInfo] = []
 
         if GameLoop.LOG:
             self.print_init_logs()
@@ -39,11 +42,12 @@ class GameLoop:
     def update_assets(self):
         self.nb_turns += 1
 
-        self.players_scores = [ScoreInfo(inputs=self.get_turn_input().split(), nb_mini_games=self.nb_mini_games)
-                               for i in range(3)]
+        self.players_scores = [PlayerScoreInfo(inputs=self.get_turn_input().split()) for i in range(3)]
 
-        self.mini_games = [HurdleRace(inputs=self.get_turn_input().split(), player_idx=self.player_idx,
-                                      players_scores=self.players_scores) for i in range(self.nb_mini_games)]
+        self.mini_games = [HurdleRace(inputs=self.get_turn_input().split(), my_idx=self.my_idx),
+                           Archery(inputs=self.get_turn_input().split(), my_idx=self.my_idx),
+                           Roller(inputs=self.get_turn_input().split(), my_idx=self.my_idx),
+                           ArtisticDiving(inputs=self.get_turn_input().split(), my_idx=self.my_idx)]
 
         if GameLoop.LOG:
             self.print_turn_logs()
@@ -61,24 +65,22 @@ class GameLoop:
         while GameLoop.RUNNING:
             self.update_assets()
 
-            scores_evolutions = {}
-            for action in Action:
-                for mini_game in self.mini_games:
-                    score_evolution = mini_game.average_score_evolution_expected(action)
-                    if not scores_evolutions.get(action):
-                        scores_evolutions[action] = 0
-                    scores_evolutions[action] += score_evolution
-
+            # TODO : create Simulator
             best_action = None
-            best_score_evolution = None
+            max_additional_score = None
 
-            for action, score_evolution in scores_evolutions.items():
+            for action in Action:
+                my_mini_games_results = np.zeros(shape=(NB_MINI_GAMES, NB_MEDALS_COLORS))
+                for i, mini_game in enumerate(self.mini_games):
+                    my_mini_game_results = mini_game.mini_game_results_after_player_action(self.my_idx, action)[self.my_idx]
+                    my_mini_games_results[i, :] = my_mini_game_results
+                additional_score = self.players_scores[self.my_idx].evaluate_additional_global_score(my_mini_games_results)
                 if not best_action:
                     best_action = action
-                    best_score_evolution = score_evolution
-                else:
-                    if score_evolution > best_score_evolution:
-                        best_action = action
-                        best_score_evolution = score_evolution
+                    max_additional_score = additional_score
+                elif additional_score > max_additional_score:
+                    best_action = action
+                    max_additional_score = additional_score
 
             print(best_action.value)
+
