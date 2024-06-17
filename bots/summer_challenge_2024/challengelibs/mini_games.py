@@ -1,4 +1,5 @@
 from typing import List, Tuple
+import random
 
 import numpy as np
 
@@ -8,21 +9,34 @@ from bots.summer_challenge_2024.singletons import NB_PLAYERS, DEFAULT_MINI_GAMES
 
 
 class MiniGame:
+    __slots__ = ("gpu", "reg", "my_idx")
 
-    def __init__(self, inputs: List[str], my_idx: int):
-        self.gpu = inputs[0]
-        self.reg = np.array([int(inputs[1]),
-                             int(inputs[2]),
-                             int(inputs[3]),
-                             int(inputs[4]),
-                             int(inputs[5]),
-                             int(inputs[6]),
-                             int(inputs[7])])
+    def __init__(self, inputs: List[str] = None, my_idx: int = None):
+        if inputs:
+            self.gpu = inputs[0]
+            self.reg = np.array([int(inputs[1]),
+                                 int(inputs[2]),
+                                 int(inputs[3]),
+                                 int(inputs[4]),
+                                 int(inputs[5]),
+                                 int(inputs[6]),
+                                 int(inputs[7])])
+
         self.my_idx = my_idx
+
+    def copy(self):
+        mini_game_copy = MiniGame()
+        mini_game_copy.gpu = self.gpu
+        mini_game_copy.reg = self.reg.copy()
+        mini_game_copy.my_idx = self.my_idx
+        return mini_game_copy
 
     def next_gpu_reg_with_player_action(self, player_idx: int, action: Action, current_gpu: str, current_reg: np.ndarray) \
             -> Tuple[str, np.ndarray]:
         return current_gpu, current_reg.copy()
+
+    def best_next_action_for_player(self, player_idx: int, current_gpu: str, current_reg: np.ndarray) -> Action:
+        return random.choice([action for action in Action])
 
     def predict_players_mini_game_results_with_gpu_reg(self, gpu: str, reg: np.ndarray) -> List[np.ndarray]:
         player_mini_games_results = []
@@ -32,30 +46,19 @@ class MiniGame:
 
         return player_mini_games_results
 
-    def mini_game_results_after_player_action(self, player_idx: int, action: Action) -> List[np.ndarray]:
-        current_gpu = self.gpu
-        current_reg = self.reg.copy()
-
-        for t in range(3):
-            for p in range(NB_PLAYERS):
-                if p == player_idx and t == 0:
-                    next_gpu, next_reg = self.next_gpu_reg_with_player_action(p, action, current_gpu, current_reg)
-                else:
-                    next_gpus_regs = [self.next_gpu_reg_with_player_action(p, a, current_gpu, current_reg) for a in Action]
-                    next_reg = sum([r for g, r in next_gpus_regs]) / len(Action)
-                    next_reg = next_reg.round(0).astype(int)
-                current_reg = next_reg.copy()
-            current_gpu = next_gpus_regs[0][0]
-            # TODO : prendre en compte collisions possibles pour le Roller
-
-        return self.predict_players_mini_game_results_with_gpu_reg(next_gpu, next_reg)
-
 
 class HurdleRace(MiniGame):
     ACTIONS_MOVE = {Action.UP: 2,
                     Action.LEFT: 1,
                     Action.DOWN: 2,
                     Action.RIGHT: 3}
+
+    def copy(self):
+        mini_game_copy = HurdleRace()
+        mini_game_copy.gpu = self.gpu
+        mini_game_copy.reg = self.reg.copy()
+        mini_game_copy.my_idx = self.my_idx
+        return mini_game_copy
 
     def next_gpu_reg_with_player_action(self, player_idx: int, action: Action, current_gpu: str, current_reg: np.ndarray) \
             -> Tuple[str, np.ndarray]:
@@ -100,6 +103,19 @@ class HurdleRace(MiniGame):
         next_reg[player_idx + NB_PLAYERS] = 0
         return next_gpu, next_reg
 
+    def best_next_action_for_player(self, player_idx: int, current_gpu: str, current_reg: np.ndarray) -> Action:
+        best_action = None
+        max_action_eval = None
+
+        for action in Action:
+            next_gpu, next_reg = self.next_gpu_reg_with_player_action(player_idx, action, current_gpu, current_reg)
+            action_eval = next_reg[player_idx] - next_reg[player_idx + NB_PLAYERS]
+            if not best_action or action_eval > max_action_eval:
+                best_action = action
+                max_action_eval = action_eval
+
+        return best_action
+
     def predict_players_mini_game_results_with_gpu_reg(self, gpu: str, reg: np.ndarray) -> List[np.ndarray]:
         players_mini_game_results = []
 
@@ -134,6 +150,13 @@ class Archery(MiniGame):
                       Action.DOWN: Vector(0, 1),
                       Action.RIGHT: Vector(1, 0)}
 
+    def copy(self):
+        mini_game_copy = Archery()
+        mini_game_copy.gpu = self.gpu
+        mini_game_copy.reg = self.reg.copy()
+        mini_game_copy.my_idx = self.my_idx
+        return mini_game_copy
+
     def next_gpu_reg_with_player_action(self, player_idx: int, action: Action, current_gpu: str, current_reg: np.ndarray) \
             -> Tuple[str, np.ndarray]:
         next_gpu = current_gpu
@@ -153,6 +176,19 @@ class Archery(MiniGame):
             next_gpu = "GAME_OVER"
 
         return next_gpu, next_reg
+
+    def best_next_action_for_player(self, player_idx: int, current_gpu: str, current_reg: np.ndarray) -> Action:
+        best_action = None
+        min_action_eval = None
+
+        for action in Action:
+            next_gpu, next_reg = self.next_gpu_reg_with_player_action(player_idx, action, current_gpu, current_reg)
+            action_eval = Vector(next_reg[2 * player_idx], next_reg[2 * player_idx + 1]).norm2
+            if not best_action or action_eval < min_action_eval:
+                best_action = action
+                min_action_eval = action_eval
+
+        return best_action
 
     def predict_players_mini_game_results_with_gpu_reg(self, gpu: str, reg: np.ndarray) -> List[np.ndarray]:
         players_mini_game_results = []
@@ -188,6 +224,18 @@ class Roller(MiniGame):
                       Action.LEFT: "L",
                       Action.DOWN: "D",
                       Action.RIGHT: "R"}
+
+    LETTERS_ACTION = {"U": Action.UP,
+                      "L": Action.LEFT,
+                      "D": Action.DOWN,
+                      "R": Action.RIGHT}
+
+    def copy(self):
+        mini_game_copy = Roller()
+        mini_game_copy.gpu = self.gpu
+        mini_game_copy.reg = self.reg.copy()
+        mini_game_copy.my_idx = self.my_idx
+        return mini_game_copy
 
     def next_gpu_reg_with_player_action(self, player_idx: int, action: Action, current_gpu: str, current_reg: np.ndarray) \
             -> Tuple[str, np.ndarray]:
@@ -235,6 +283,12 @@ class Roller(MiniGame):
 
         return next_gpu, next_reg
 
+    def best_next_action_for_player(self, player_idx: int, current_gpu: str, current_reg: np.ndarray) -> Action:
+        if current_gpu == "GAME_OVER":
+            return random.choice([action for action in Action])
+
+        return self.LETTERS_ACTION[current_gpu[1]]
+
     def predict_players_mini_game_results_with_gpu_reg(self, gpu: str, reg: np.ndarray) -> List[np.ndarray]:
         players_mini_game_results = []
 
@@ -269,6 +323,18 @@ class ArtisticDiving(MiniGame):
                       Action.DOWN: "D",
                       Action.RIGHT: "R"}
 
+    LETTERS_ACTION = {"U": Action.UP,
+                      "L": Action.LEFT,
+                      "D": Action.DOWN,
+                      "R": Action.RIGHT}
+
+    def copy(self):
+        mini_game_copy = ArtisticDiving()
+        mini_game_copy.gpu = self.gpu
+        mini_game_copy.reg = self.reg.copy()
+        mini_game_copy.my_idx = self.my_idx
+        return mini_game_copy
+
     def next_gpu_reg_with_player_action(self, player_idx: int, action: Action, current_gpu: str, current_reg: np.ndarray) \
             -> Tuple[str, np.ndarray]:
         next_gpu = current_gpu
@@ -292,6 +358,12 @@ class ArtisticDiving(MiniGame):
             next_gpu = "GAME_OVER"
 
         return next_gpu, next_reg
+
+    def best_next_action_for_player(self, player_idx: int, current_gpu: str, current_reg: np.ndarray) -> Action:
+        if current_gpu == "GAME_OVER":
+            return random.choice([action for action in Action])
+
+        return self.LETTERS_ACTION[current_gpu[0]]
 
     def predict_players_mini_game_results_with_gpu_reg(self, gpu: str, reg: np.ndarray) -> List[np.ndarray]:
         players_mini_game_results = []

@@ -26,3 +26,6 @@ class PlayerScoreInfo:
             new_global_score = new_global_score * new_mini_games_scores[i, 0]
 
         return new_global_score - self.global_score
+
+    def current_mini_game_score(self, mini_game_idx):
+        return self.medals_counter.dot(self.SCORE_ARRAY)[mini_game_idx, 0]
