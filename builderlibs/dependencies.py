@@ -41,7 +41,7 @@ class Module:
         return self._is_local
 
     def __eq__(self, other):
-        return (self._is_local and self.target == other.target) or (not self._is_local and self.name == other.name)
+        return (self._is_local and self.target == other.target) or (not self._is_local and self.name == other.ref)
 
 
 class LocalModule:
