@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class Attrs(Enum):
+class EntityAttrs(Enum):
     X = 0
     Y = 1
     TYPE = 2
@@ -10,9 +10,10 @@ class Attrs(Enum):
     ORGAN_DIR = 5
     ORGAN_PARENT_ID = 6
     ORGAN_ROOT_ID = 7
+    NODE = 8
 
 
-class Type(Enum):
+class EntityType(Enum):
     WALL = 0
     ROOT = 1
     BASIC = 2
