@@ -1,9 +1,9 @@
-import sys
 import numpy as np
+import sys
 from scipy.sparse import csr_matrix
 from dataclasses import field, dataclass
 from scipy.sparse.csgraph import dijkstra
-from typing import List, NamedTuple, Union, Dict
+from typing import Union, Dict, List, NamedTuple
 
 class Coordinates(NamedTuple):
     x: int
@@ -368,7 +368,7 @@ class GameLoop:
                         from_organ_direction = my_organ_chosen_entity.organ_dir
                         aligned = is_aligned(from_coord=from_organ_coordinates, from_direction=from_organ_direction, to_coord=self.grid.get_node_coordinates(next_node))
                         predecessor = predecessors[my_organ_chosen, target]
-                        while not aligned and predecessor != my_organ_chosen and (predecessor != -9999):
+                        while not (dist_matrix[next_node, target] > 1 and aligned) and predecessor != my_organ_chosen and (predecessor != -9999):
                             next_node = predecessor
                             aligned = is_aligned(from_coord=from_organ_coordinates, from_direction=from_organ_direction, to_coord=self.grid.get_node_coordinates(next_node))
                             predecessor = predecessors[my_organ_chosen, next_node]
@@ -395,6 +395,8 @@ class GameLoop:
                                 self.grid.disconnect_nodes(from_node=target, to_node=neighbour)
                         if grow_type == 'TENTACLE':
                             self.grid.connect_nodes(from_node=next_node, to_node=target, directed=True)
+                    if grow_type == 'BASIC' and self.my_A == 0 and (self.my_B > 0) and (self.my_C > 0):
+                        grow_type = 'TENTACLE'
                     action = Action(grow=grow, spore=spore, id=id, x=x, y=y, t=grow_type, direction=direction, message=f'{my_organ_chosen}/{next_node}/{target}')
                 else:
                     action = Action()

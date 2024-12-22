@@ -25,6 +25,7 @@ class Entities:
     proteins: dict[str, set[int]] = field(default_factory=dict)
     my_organs_by_root: dict[int, set[int]] = field(default_factory=dict)
     opp_organs: set[int] = field(default_factory=set)
+    # TODO : add harvested proteins per type
 
     def __getitem__(self, node):
         return self.nodes.__getitem__(node)
