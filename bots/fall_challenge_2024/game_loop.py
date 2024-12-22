@@ -136,40 +136,40 @@ class GameLoop:
                     dist_matrix=dist_matrix
                 )
 
-                if (target and self.create_new_root and self.my_A > 0 and self.my_B > 0 and
+                if ((target is not None) and self.create_new_root and self.my_A > 0 and self.my_B > 0 and
                         self.my_C > 0 and self.my_D > 0):
                     self.create_new_root = False
                     grow = False
                     spore = True
                     grow_type = None
 
-                if (target and distance_to_protein > self.my_A > 1 and self.my_B > 1 and
+                if ((target is not None) and distance_to_protein > self.my_A > 1 and self.my_B > 1 and
                         self.my_C > 0 and self.my_D > 1 and not spore):
                     grow_type = "SPORER"
                     self.create_new_root = True
 
-                if target and distance_to_protein == 2 and self.my_C > 0 and self.my_D > 0 and not spore:
+                if (target is not None) and distance_to_protein == 2 and self.my_C > 0 and self.my_D > 0 and not spore:
                     grow_type = "HARVESTER"
 
-                if not target:
+                if target is None:
                     my_organ_chosen, target, distance_to_opp_neighbour = choose_closest_organ_and_target(
                         my_organs=my_organs,
                         to_nodes=set(opp_organs_free_neighbours.keys()),
                         dist_matrix=dist_matrix
                     )
 
-                    if target and distance_to_opp_neighbour == 1 and self.my_B > 0 and self.my_C > 0:
+                    if (target is not None) and distance_to_opp_neighbour == 1 and self.my_B > 0 and self.my_C > 0:
                         grow_type = "TENTACLE"
 
-                if not target:
+                if target is None:
                     for my_organ in my_organs:
                         node_neighbours = list(self.grid.get_node_neighbours(my_organ))
                         if len(node_neighbours) > 0:
                             my_organ_chosen, target = my_organ, node_neighbours[0]
                             break
-                        # TODO : go to harvested proteins
+                        # TODO : connect harvested proteins
 
-                if target:
+                if target is not None:
                     my_organ_chosen_entity = self.entities[my_organ_chosen]
                     id = my_organ_chosen_entity.organ_id
                     next_node = target
@@ -235,5 +235,8 @@ class GameLoop:
                                     message=f"{my_organ_chosen}/{next_node}/{target}")
                 else:
                     action = Action()
+
+                if action.grow and action.id == 59:
+                    pass
 
                 print(action)

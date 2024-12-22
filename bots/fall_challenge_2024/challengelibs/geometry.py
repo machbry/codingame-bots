@@ -25,7 +25,7 @@ class NodeFrontier:
 
         existing_nodes = set()
         for node in all_nodes:
-            if node:
+            if node is not None:
                 existing_nodes.add(node)
 
         return existing_nodes

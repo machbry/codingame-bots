@@ -33,7 +33,7 @@ class Entities:
         if entity.t in ["A", "B", "C", "D"]:
             self.proteins[entity.t].add(entity.node)
         if entity.owner == 1:
-            if not self.my_organs_by_root.get(entity.organ_root_id):
+            if entity.organ_root_id not in self.my_organs_by_root:
                 self.my_organs_by_root[entity.organ_root_id] = set()
             self.my_organs_by_root[entity.organ_root_id].add(entity.node)
         if entity.owner == 0:

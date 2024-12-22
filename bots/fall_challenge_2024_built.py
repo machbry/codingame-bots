@@ -1,9 +1,9 @@
-import numpy as np
 import sys
+import numpy as np
 from scipy.sparse import csr_matrix
-from dataclasses import dataclass, field
+from dataclasses import field, dataclass
 from scipy.sparse.csgraph import dijkstra
-from typing import List, Union, Dict, NamedTuple
+from typing import List, NamedTuple, Union, Dict
 
 class Coordinates(NamedTuple):
     x: int
@@ -34,7 +34,7 @@ class Entities:
         if entity.t in ['A', 'B', 'C', 'D']:
             self.proteins[entity.t].add(entity.node)
         if entity.owner == 1:
-            if not self.my_organs_by_root.get(entity.organ_root_id):
+            if entity.organ_root_id not in self.my_organs_by_root:
                 self.my_organs_by_root[entity.organ_root_id] = set()
             self.my_organs_by_root[entity.organ_root_id].add(entity.node)
         if entity.owner == 0:
@@ -133,7 +133,7 @@ class NodeFrontier:
         all_nodes = [self.north, self.south, self.east, self.west]
         existing_nodes = set()
         for node in all_nodes:
-            if node:
+            if node is not None:
                 existing_nodes.add(node)
         return existing_nodes
 
@@ -334,27 +334,27 @@ class GameLoop:
                 grow_type = 'BASIC'
                 direction = None
                 my_organ_chosen, target, distance_to_protein = choose_closest_organ_and_target(my_organs=my_organs, to_nodes=proteins, dist_matrix=dist_matrix)
-                if target and self.create_new_root and (self.my_A > 0) and (self.my_B > 0) and (self.my_C > 0) and (self.my_D > 0):
+                if target is not None and self.create_new_root and (self.my_A > 0) and (self.my_B > 0) and (self.my_C > 0) and (self.my_D > 0):
                     self.create_new_root = False
                     grow = False
                     spore = True
                     grow_type = None
-                if target and distance_to_protein > self.my_A > 1 and (self.my_B > 1) and (self.my_C > 0) and (self.my_D > 1) and (not spore):
+                if target is not None and distance_to_protein > self.my_A > 1 and (self.my_B > 1) and (self.my_C > 0) and (self.my_D > 1) and (not spore):
                     grow_type = 'SPORER'
                     self.create_new_root = True
-                if target and distance_to_protein == 2 and (self.my_C > 0) and (self.my_D > 0) and (not spore):
+                if target is not None and distance_to_protein == 2 and (self.my_C > 0) and (self.my_D > 0) and (not spore):
                     grow_type = 'HARVESTER'
-                if not target:
+                if target is None:
                     my_organ_chosen, target, distance_to_opp_neighbour = choose_closest_organ_and_target(my_organs=my_organs, to_nodes=set(opp_organs_free_neighbours.keys()), dist_matrix=dist_matrix)
-                    if target and distance_to_opp_neighbour == 1 and (self.my_B > 0) and (self.my_C > 0):
+                    if target is not None and distance_to_opp_neighbour == 1 and (self.my_B > 0) and (self.my_C > 0):
                         grow_type = 'TENTACLE'
-                if not target:
+                if target is None:
                     for my_organ in my_organs:
                         node_neighbours = list(self.grid.get_node_neighbours(my_organ))
                         if len(node_neighbours) > 0:
                             my_organ_chosen, target = (my_organ, node_neighbours[0])
                             break
-                if target:
+                if target is not None:
                     my_organ_chosen_entity = self.entities[my_organ_chosen]
                     id = my_organ_chosen_entity.organ_id
                     next_node = target
@@ -398,5 +398,7 @@ class GameLoop:
                     action = Action(grow=grow, spore=spore, id=id, x=x, y=y, t=grow_type, direction=direction, message=f'{my_organ_chosen}/{next_node}/{target}')
                 else:
                     action = Action()
+                if action.grow and action.id == 59:
+                    pass
                 print(action)
 GameLoop().start()
