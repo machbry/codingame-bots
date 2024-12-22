@@ -10,7 +10,8 @@ from bots.fall_challenge_2024.challengelibs.logger import log
 
 class GameLoop:
     __slots__ = ("init_inputs", "nb_turns", "turns_inputs", "width", "height", "nb_entities", "entities",
-                 "my_protein_stock", "opp_protein_stock", "required_actions_count", "grid")
+                 "my_A", "my_B", "my_C", "my_D", "opp_protein_stock",
+                 "required_actions_count", "grid")
 
     RUNNING = True
     LOG = True
@@ -23,7 +24,7 @@ class GameLoop:
 
         self.width, self.height = [int(i) for i in self.get_init_input().split()]
         self.nb_entities: int = 0
-        self.my_protein_stock: list = []
+        self.my_A, self.my_B, self.my_C, self.my_D = 0, 0, 0, 0
         self.opp_protein_stock: list = []
         self.required_actions_count: int = 1
 
@@ -88,12 +89,12 @@ class GameLoop:
                     self.grid.disconnect_nodes(from_node=node,
                                                to_node=cardinal)
 
-                if t in ["ROOT", "BASIC", "HARVESTER"]:
+                if t in ["ROOT", "BASIC", "HARVESTER", "TENTACLE"]:
                     self.grid.disconnect_nodes(from_node=cardinal,
                                                to_node=node,
                                                directed=True)
 
-        self.my_protein_stock = [int(i) for i in self.get_turn_input().split()]
+        self.my_A, self.my_B, self.my_C, self.my_D = [int(i) for i in self.get_turn_input().split()]
         self.opp_protein_stock = [int(i) for i in self.get_turn_input().split()]
         self.required_actions_count = int(self.get_turn_input())
 
@@ -110,11 +111,10 @@ class GameLoop:
 
             my_organs = self.entities.my_organs
 
-            opp_organs_free_neighbours = set()
+            opp_organs_free_neighbours = {}
             for node in self.entities.opp_organs:
-                opp_organs_free_neighbours = opp_organs_free_neighbours.union(
-                    self.grid.get_node_neighbours(node)
-                )
+                for neighbour in self.grid.get_node_neighbours(node):
+                    opp_organs_free_neighbours[neighbour] = node
 
             dijkstra_algorithm = dijkstra(
                 self.grid.adjacency_matrix.sparce_matrix,
@@ -132,17 +132,18 @@ class GameLoop:
                     dist_matrix=dist_matrix
                 )
 
-                if target and distance_to_protein == 2 and self.my_protein_stock[2] > 0 and self.my_protein_stock[3] > 0:
+                if target and distance_to_protein == 2 and self.my_C > 0 and self.my_D > 0:
                     t = "HARVESTER"
 
                 if not target:
-                    my_organ_chosen, target, _ = choose_closest_organ_and_target(
+                    my_organ_chosen, target, distance_to_opp_neighbour = choose_closest_organ_and_target(
                         my_organs=my_organs,
-                        to_nodes=opp_organs_free_neighbours,
+                        to_nodes=set(opp_organs_free_neighbours.keys()),
                         dist_matrix=dist_matrix
                     )
 
-                    # TODO : attack if close
+                    if target and distance_to_opp_neighbour == 1 and self.my_B > 0 and self.my_C > 0:
+                        t = "TENTACLE"
 
                 if not target:
                     for my_organ in self.entities.my_organs:
@@ -150,6 +151,7 @@ class GameLoop:
                         if len(node_neighbours) > 0:
                             my_organ_chosen, target = my_organ, node_neighbours[0]
                             break
+                        # TODO : go to harvested proteins
 
                 if target:
                     my_organ_chosen_entity = self.entities[my_organ_chosen]
@@ -163,7 +165,10 @@ class GameLoop:
 
                     x, y = self.grid.get_node_coordinates(next_node)
 
-                    if t == "HARVESTER":
+                    if t == "TENTACLE":
+                        target = opp_organs_free_neighbours[target]
+
+                    if t in ["TENTACLE", "HARVESTER"]:
                         x_target, y_target = self.grid.get_node_coordinates(target)
                         if x < x_target and y == y_target:
                             direction = "E"
@@ -174,11 +179,18 @@ class GameLoop:
                         if x == x_target and y < y_target:
                             direction = "S"
 
-                        # TODO : possible bad side effects
-                        target_neighbours = self.grid.get_node_neighbours(target)
-                        for neighbour in target_neighbours:
-                            self.grid.disconnect_nodes(from_node=target,
-                                                       to_node=neighbour)
+                        if t == "HARVESTER":
+                            # TODO : possible bad side effects
+                            target_neighbours = self.grid.get_node_neighbours(target)
+                            for neighbour in target_neighbours:
+                                self.grid.disconnect_nodes(from_node=target,
+                                                           to_node=neighbour)
+
+                        if t == "TENTACLE":
+                            # TODO : target won't appear in opp_organs_free_neighbours
+                            self.grid.connect_nodes(from_node=next_node,
+                                                    to_node=target,
+                                                    directed=True)
 
                     action = Action(grow=True, id=id, x=x, y=y, t=t,
                                     direction=direction,
