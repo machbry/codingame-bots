@@ -1,10 +1,11 @@
-import sys
 from typing import List
 
 from scipy.sparse.csgraph import dijkstra
 
-from bots.fall_challenge_2024.challengelibs.assets import Grid, Entities, Coordinates, Entity
+from bots.fall_challenge_2024.challengelibs.assets import Entities, Coordinates, Entity
+from bots.fall_challenge_2024.challengelibs.geometry import Grid
 from bots.fall_challenge_2024.challengelibs.act import Action, choose_organ_and_target
+from bots.fall_challenge_2024.challengelibs.logger import log
 
 
 class GameLoop:
@@ -43,11 +44,11 @@ class GameLoop:
         return result
 
     def print_init_logs(self):
-        print(self.init_inputs, file=sys.stderr, flush=True)
+        log(self.init_inputs)
 
     def print_turn_logs(self):
-        print(self.nb_turns, file=sys.stderr, flush=True)
-        print(self.turns_inputs, file=sys.stderr, flush=True)
+        log(self.nb_turns)
+        log(self.turns_inputs)
         if GameLoop.RESET_TURNS_INPUTS:
             self.turns_inputs = []
 
@@ -81,14 +82,14 @@ class GameLoop:
 
             self.entities[node] = entity
 
-            node_neighbours = self.grid.get_node_neighbours(node)
-            for neighbour in node_neighbours:
+            cardinal_nodes = self.grid.get_node_frontier(node).cardinal_nodes
+            for cardinal in cardinal_nodes:
                 if t == "WALL":
                     self.grid.disconnect_nodes(from_node=node,
-                                               to_node=neighbour)
+                                               to_node=cardinal)
 
                 if t in ["ROOT", "BASIC", "HARVESTER"]:
-                    self.grid.disconnect_nodes(from_node=neighbour,
+                    self.grid.disconnect_nodes(from_node=cardinal,
                                                to_node=node,
                                                directed=True)
 
@@ -141,7 +142,7 @@ class GameLoop:
 
                 if not target:
                     for my_organ in self.entities.my_organs:
-                        node_neighbours = self.grid.get_node_neighbours(my_organ)
+                        node_neighbours = list(self.grid.get_node_neighbours(my_organ))
                         if len(node_neighbours) > 0:
                             my_organ_chosen, target = my_organ, node_neighbours[0]
                             break

@@ -1,10 +1,49 @@
-import numpy as np
 import sys
-from enum import Enum
+import numpy as np
 from scipy.sparse import csr_matrix
+from enum import Enum
 from dataclasses import field, dataclass
 from scipy.sparse.csgraph import dijkstra
-from typing import NamedTuple, Dict, List, Union
+from typing import NamedTuple, Union, Dict, List
+
+class Coordinates(NamedTuple):
+    x: int
+    y: int
+
+@dataclass
+class Entity:
+    node: int
+    coordinates: Coordinates
+    t: str = 'EMPTY'
+    owner: int = -1
+    organ_id: int = 0
+    organ_dir: str = 'X'
+    organ_parent_id: int = 0
+    organ_root_id: int = 0
+
+@dataclass
+class Entities:
+    nodes: dict[int, Entity] = field(default_factory=dict)
+    proteins: dict[str, set[int]] = field(default_factory=dict)
+    my_organs: set[int] = field(default_factory=set)
+    opp_organs: set[int] = field(default_factory=set)
+
+    def __getitem__(self, node):
+        return self.nodes.__getitem__(node)
+
+    def __setitem__(self, node, entity: Entity):
+        if entity.t in ['A', 'B', 'C', 'D']:
+            self.proteins[entity.t].add(entity.node)
+        if entity.owner == 1:
+            self.my_organs.add(entity.node)
+        if entity.owner == 0:
+            self.opp_organs.add(entity.node)
+        self.nodes.__setitem__(node, entity)
+
+    def new_turn(self):
+        self.proteins = {'A': set(), 'B': set(), 'C': set(), 'D': set()}
+        self.my_organs = set()
+        self.opp_organs = set()
 
 @dataclass(frozen=True)
 class Edge:
@@ -80,9 +119,27 @@ class AdjacencyList:
                 except KeyError:
                     pass
 
-class Coordinates(NamedTuple):
-    x: int
-    y: int
+@dataclass
+class NodeFrontier:
+    node: int
+    north: int = None
+    south: int = None
+    east: int = None
+    west: int = None
+
+    @property
+    def cardinal_nodes(self):
+        all_nodes = [self.north, self.south, self.east, self.west]
+        existing_nodes = set()
+        for node in all_nodes:
+            if node:
+                existing_nodes.add(node)
+        return existing_nodes
+
+class DistArrayCols(Enum):
+    FROM_NODE = 0
+    TO_NODE = 1
+    DISTANCE = 2
 
 @dataclass
 class Grid:
@@ -104,20 +161,10 @@ class Grid:
             self.nodes_matrix[x, y] = node
         self.adjacency_matrix = AdjacencyMatrix(np.zeros((self.nb_nodes, self.nb_nodes), dtype=int))
         self.adjacency_list = AdjacencyList({})
-        for node, node_coord in enumerate(self.nodes_coordinates):
-            x, y = node_coord
-            if y >= 1:
-                node_up = self.get_node(Coordinates(x, y - 1))
-                self.connect_nodes(from_node=node, to_node=node_up)
-            if x >= 1:
-                node_left = self.get_node(Coordinates(x - 1, y))
-                self.connect_nodes(from_node=node, to_node=node_left)
-            if x < self.width - 1:
-                node_right = self.get_node(Coordinates(x + 1, y))
-                self.connect_nodes(from_node=node, to_node=node_right)
-            if y < self.height - 1:
-                node_down = self.get_node(Coordinates(x, y + 1))
-                self.connect_nodes(from_node=node, to_node=node_down)
+        for node in range(self.nb_nodes):
+            cardinal_nodes = self.get_node_frontier(node).cardinal_nodes
+            for cardinal_node in cardinal_nodes:
+                self.connect_nodes(from_node=node, to_node=cardinal_node)
 
     def get_node(self, coordinates: Coordinates) -> int:
         x, y = coordinates
@@ -125,6 +172,23 @@ class Grid:
 
     def get_node_coordinates(self, node: int):
         return self.nodes_coordinates[node]
+
+    def get_node_frontier(self, node: int):
+        node_frontier = NodeFrontier(node)
+        x, y = self.get_node_coordinates(node)
+        if y >= 1:
+            node_north = self.get_node(Coordinates(x, y - 1))
+            node_frontier.north = node_north
+        if x >= 1:
+            node_west = self.get_node(Coordinates(x - 1, y))
+            node_frontier.west = node_west
+        if x < self.width - 1:
+            node_east = self.get_node(Coordinates(x + 1, y))
+            node_frontier.east = node_east
+        if y < self.height - 1:
+            node_south = self.get_node(Coordinates(x, y + 1))
+            node_frontier.south = node_south
+        return node_frontier
 
     def connect_nodes(self, from_node: int, to_node: int, directed: bool=False):
         edge = Edge(from_node=from_node, to_node=to_node, directed=directed, weight=1)
@@ -138,46 +202,6 @@ class Grid:
 
     def get_node_neighbours(self, node: int):
         return set(self.adjacency_list[node].keys())
-
-@dataclass
-class Entity:
-    node: int
-    coordinates: Coordinates
-    t: str = 'EMPTY'
-    owner: int = -1
-    organ_id: int = 0
-    organ_dir: str = 'X'
-    organ_parent_id: int = 0
-    organ_root_id: int = 0
-
-@dataclass
-class Entities:
-    nodes: dict[int, Entity] = field(default_factory=dict)
-    proteins: dict[str, set[int]] = field(default_factory=dict)
-    my_organs: set[int] = field(default_factory=set)
-    opp_organs: set[int] = field(default_factory=set)
-
-    def __getitem__(self, node):
-        return self.nodes.__getitem__(node)
-
-    def __setitem__(self, node, entity: Entity):
-        if entity.t in ['A', 'B', 'C', 'D']:
-            self.proteins[entity.t].add(entity.node)
-        if entity.owner == 1:
-            self.my_organs.add(entity.node)
-        if entity.owner == 0:
-            self.opp_organs.add(entity.node)
-        self.nodes.__setitem__(node, entity)
-
-    def new_turn(self):
-        self.proteins = {'A': set(), 'B': set(), 'C': set(), 'D': set()}
-        self.my_organs = set()
-        self.opp_organs = set()
-
-class DistArrayCols(Enum):
-    FROM_NODE = 0
-    TO_NODE = 1
-    DISTANCE = 2
 
 def compute_distances_array(from_node: int, to_nodes: set[int], predecessors: np.ndarray):
     distances_array = np.zeros(shape=(len(to_nodes), len(DistArrayCols)), dtype=float)
@@ -231,6 +255,9 @@ def choose_organ_and_target(my_organs: set[int], to_nodes: set[int], predecessor
             distance_to_target = int(distance_to_target)
     return (my_organ_chosen, target, distance_to_target)
 
+def log(message):
+    print(message, file=sys.stderr, flush=True)
+
 class GameLoop:
     __slots__ = ('init_inputs', 'nb_turns', 'turns_inputs', 'width', 'height', 'nb_entities', 'entities', 'my_protein_stock', 'opp_protein_stock', 'required_actions_count', 'grid')
     RUNNING = True
@@ -262,11 +289,11 @@ class GameLoop:
         return result
 
     def print_init_logs(self):
-        print(self.init_inputs, file=sys.stderr, flush=True)
+        log(self.init_inputs)
 
     def print_turn_logs(self):
-        print(self.nb_turns, file=sys.stderr, flush=True)
-        print(self.turns_inputs, file=sys.stderr, flush=True)
+        log(self.nb_turns)
+        log(self.turns_inputs)
         if GameLoop.RESET_TURNS_INPUTS:
             self.turns_inputs = []
 
@@ -286,12 +313,12 @@ class GameLoop:
             node = self.grid.get_node(coordinates)
             entity = Entity(node=node, coordinates=coordinates, t=t, owner=owner, organ_id=organ_id, organ_dir=organ_dir, organ_parent_id=organ_parent_id, organ_root_id=organ_root_id)
             self.entities[node] = entity
-            node_neighbours = self.grid.get_node_neighbours(node)
-            for neighbour in node_neighbours:
+            cardinal_nodes = self.grid.get_node_frontier(node).cardinal_nodes
+            for cardinal in cardinal_nodes:
                 if t == 'WALL':
-                    self.grid.disconnect_nodes(from_node=node, to_node=neighbour)
+                    self.grid.disconnect_nodes(from_node=node, to_node=cardinal)
                 if t in ['ROOT', 'BASIC', 'HARVESTER']:
-                    self.grid.disconnect_nodes(from_node=neighbour, to_node=node, directed=True)
+                    self.grid.disconnect_nodes(from_node=cardinal, to_node=node, directed=True)
         self.my_protein_stock = [int(i) for i in self.get_turn_input().split()]
         self.opp_protein_stock = [int(i) for i in self.get_turn_input().split()]
         self.required_actions_count = int(self.get_turn_input())
@@ -312,16 +339,14 @@ class GameLoop:
             for i in range(self.required_actions_count):
                 t = 'BASIC'
                 direction = None
-                test = 'OK'
                 my_organ_chosen, target, distance_to_protein = choose_organ_and_target(my_organs=my_organs, to_nodes=proteins, predecessors=predecessors)
                 if target and distance_to_protein == 2 and (self.my_protein_stock[2] > 0) and (self.my_protein_stock[3] > 0):
                     t = 'HARVESTER'
                 if not target:
                     my_organ_chosen, target, _ = choose_organ_and_target(my_organs=my_organs, to_nodes=opp_organs_free_neighbours, predecessors=predecessors)
                 if not target:
-                    test = 'NOK'
                     for my_organ in self.entities.my_organs:
-                        node_neighbours = self.grid.get_node_neighbours(my_organ)
+                        node_neighbours = list(self.grid.get_node_neighbours(my_organ))
                         if len(node_neighbours) > 0:
                             my_organ_chosen, target = (my_organ, node_neighbours[0])
                             break
@@ -347,7 +372,7 @@ class GameLoop:
                         target_neighbours = self.grid.get_node_neighbours(target)
                         for neighbour in target_neighbours:
                             self.grid.disconnect_nodes(from_node=target, to_node=neighbour)
-                    action = Action(grow=True, id=id, x=x, y=y, t=t, direction=direction, message=f'{my_organ_chosen}/{next_node}/{target}/{test}')
+                    action = Action(grow=True, id=id, x=x, y=y, t=t, direction=direction, message=f'{my_organ_chosen}/{next_node}/{target}')
                 else:
                     action = Action()
                 print(action)

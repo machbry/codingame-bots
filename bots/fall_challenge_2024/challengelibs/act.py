@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from bots.fall_challenge_2024.challengelibs.distances import compute_distances_array, DistArrayCols
+from bots.fall_challenge_2024.challengelibs.geometry import compute_distances_array, DistArrayCols
 
 
 @dataclass
