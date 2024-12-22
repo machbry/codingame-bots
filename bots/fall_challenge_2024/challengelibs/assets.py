@@ -23,7 +23,7 @@ class Entity:
 class Entities:
     nodes: dict[int, Entity] = field(default_factory=dict)
     proteins: dict[str, set[int]] = field(default_factory=dict)
-    my_organs: set[int] = field(default_factory=set)
+    my_organs_by_root: dict[int, set[int]] = field(default_factory=dict)
     opp_organs: set[int] = field(default_factory=set)
 
     def __getitem__(self, node):
@@ -33,7 +33,9 @@ class Entities:
         if entity.t in ["A", "B", "C", "D"]:
             self.proteins[entity.t].add(entity.node)
         if entity.owner == 1:
-            self.my_organs.add(entity.node)
+            if not self.my_organs_by_root.get(entity.organ_root_id):
+                self.my_organs_by_root[entity.organ_root_id] = set()
+            self.my_organs_by_root[entity.organ_root_id].add(entity.node)
         if entity.owner == 0:
             self.opp_organs.add(entity.node)
         self.nodes.__setitem__(node, entity)
@@ -45,5 +47,5 @@ class Entities:
             "C": set(),
             "D": set()
         }
-        self.my_organs = set()
+        self.my_organs_by_root = {}
         self.opp_organs = set()

@@ -6,6 +6,7 @@ import numpy as np
 @dataclass
 class Action:
     grow: bool = False
+    spore: bool = False
     id: int = 0
     x: int = 0
     y: int = 0
@@ -14,8 +15,11 @@ class Action:
     message: str = "OK"
 
     def __repr__(self):
-        if not self.grow:
+        if not self.grow and not self.spore:
             return "WAIT"
+
+        if self.spore:
+            return f"SPORE {self.id} {self.x} {self.y}"
 
         if not self.direction:
             return f"GROW {self.id} {self.x} {self.y} {self.t} {self.message}"

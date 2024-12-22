@@ -111,3 +111,16 @@ class Grid:
 
     def get_node_neighbours(self, node: int):
         return set(self.adjacency_list[node].keys())
+
+
+def is_aligned(from_coord: Coordinates, from_direction: str, to_coord: Coordinates):
+    if from_direction == "N":
+        return from_coord.x == to_coord.x and from_coord.y > to_coord.y
+    if from_direction == "S":
+        return from_coord.x == to_coord.x and from_coord.y < to_coord.y
+    if from_direction == "E":
+        return from_coord.y == to_coord.y and from_coord.x < to_coord.x
+    if from_direction == "W":
+        return from_coord.y == to_coord.y and from_coord.x > to_coord.x
+
+    return False

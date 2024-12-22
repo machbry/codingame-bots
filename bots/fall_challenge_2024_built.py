@@ -1,9 +1,9 @@
-import sys
 import numpy as np
+import sys
 from scipy.sparse import csr_matrix
-from dataclasses import field, dataclass
+from dataclasses import dataclass, field
 from scipy.sparse.csgraph import dijkstra
-from typing import NamedTuple, Dict, Union, List
+from typing import List, Union, Dict, NamedTuple
 
 class Coordinates(NamedTuple):
     x: int
@@ -24,7 +24,7 @@ class Entity:
 class Entities:
     nodes: dict[int, Entity] = field(default_factory=dict)
     proteins: dict[str, set[int]] = field(default_factory=dict)
-    my_organs: set[int] = field(default_factory=set)
+    my_organs_by_root: dict[int, set[int]] = field(default_factory=dict)
     opp_organs: set[int] = field(default_factory=set)
 
     def __getitem__(self, node):
@@ -34,14 +34,16 @@ class Entities:
         if entity.t in ['A', 'B', 'C', 'D']:
             self.proteins[entity.t].add(entity.node)
         if entity.owner == 1:
-            self.my_organs.add(entity.node)
+            if not self.my_organs_by_root.get(entity.organ_root_id):
+                self.my_organs_by_root[entity.organ_root_id] = set()
+            self.my_organs_by_root[entity.organ_root_id].add(entity.node)
         if entity.owner == 0:
             self.opp_organs.add(entity.node)
         self.nodes.__setitem__(node, entity)
 
     def new_turn(self):
         self.proteins = {'A': set(), 'B': set(), 'C': set(), 'D': set()}
-        self.my_organs = set()
+        self.my_organs_by_root = {}
         self.opp_organs = set()
 
 @dataclass(frozen=True)
@@ -197,9 +199,21 @@ class Grid:
     def get_node_neighbours(self, node: int):
         return set(self.adjacency_list[node].keys())
 
+def is_aligned(from_coord: Coordinates, from_direction: str, to_coord: Coordinates):
+    if from_direction == 'N':
+        return from_coord.x == to_coord.x and from_coord.y > to_coord.y
+    if from_direction == 'S':
+        return from_coord.x == to_coord.x and from_coord.y < to_coord.y
+    if from_direction == 'E':
+        return from_coord.y == to_coord.y and from_coord.x < to_coord.x
+    if from_direction == 'W':
+        return from_coord.y == to_coord.y and from_coord.x > to_coord.x
+    return False
+
 @dataclass
 class Action:
     grow: bool = False
+    spore: bool = False
     id: int = 0
     x: int = 0
     y: int = 0
@@ -208,8 +222,10 @@ class Action:
     message: str = 'OK'
 
     def __repr__(self):
-        if not self.grow:
+        if not self.grow and (not self.spore):
             return 'WAIT'
+        if self.spore:
+            return f'SPORE {self.id} {self.x} {self.y}'
         if not self.direction:
             return f'GROW {self.id} {self.x} {self.y} {self.t} {self.message}'
         return f'GROW {self.id} {self.x} {self.y} {self.t} {self.direction} {self.message}'
@@ -231,7 +247,7 @@ def log(message):
     print(message, file=sys.stderr, flush=True)
 
 class GameLoop:
-    __slots__ = ('init_inputs', 'nb_turns', 'turns_inputs', 'width', 'height', 'nb_entities', 'entities', 'my_A', 'my_B', 'my_C', 'my_D', 'opp_protein_stock', 'required_actions_count', 'grid')
+    __slots__ = ('init_inputs', 'nb_turns', 'turns_inputs', 'width', 'height', 'nb_entities', 'entities', 'my_A', 'my_B', 'my_C', 'my_D', 'opp_protein_stock', 'required_actions_count', 'grid', 'create_new_root')
     RUNNING = True
     LOG = True
     RESET_TURNS_INPUTS = True
@@ -247,6 +263,7 @@ class GameLoop:
         self.required_actions_count: int = 1
         self.grid = Grid(width=self.width, height=self.height)
         self.entities: Entities = Entities()
+        self.create_new_root: bool = False
         if GameLoop.LOG:
             self.print_init_logs()
 
@@ -289,7 +306,7 @@ class GameLoop:
             for cardinal in cardinal_nodes:
                 if t == 'WALL':
                     self.grid.disconnect_nodes(from_node=node, to_node=cardinal)
-                if t in ['ROOT', 'BASIC', 'HARVESTER', 'TENTACLE']:
+                if t in ['ROOT', 'BASIC', 'HARVESTER', 'TENTACLE', 'SPORER']:
                     self.grid.disconnect_nodes(from_node=cardinal, to_node=node, directed=True)
         self.my_A, self.my_B, self.my_C, self.my_D = [int(i) for i in self.get_turn_input().split()]
         self.opp_protein_stock = [int(i) for i in self.get_turn_input().split()]
@@ -303,7 +320,7 @@ class GameLoop:
             proteins = set()
             for nodes in self.entities.proteins.values():
                 proteins = proteins.union(nodes)
-            my_organs = self.entities.my_organs
+            my_organs_by_root = self.entities.my_organs_by_root
             opp_organs_free_neighbours = {}
             for node in self.entities.opp_organs:
                 for neighbour in self.grid.get_node_neighbours(node):
@@ -311,18 +328,28 @@ class GameLoop:
             dijkstra_algorithm = dijkstra(self.grid.adjacency_matrix.sparce_matrix, return_predecessors=True)
             dist_matrix = dijkstra_algorithm[0]
             predecessors = dijkstra_algorithm[1]
-            for i in range(self.required_actions_count):
-                t = 'BASIC'
+            for my_root_id, my_organs in my_organs_by_root.items():
+                grow = True
+                spore = False
+                grow_type = 'BASIC'
                 direction = None
                 my_organ_chosen, target, distance_to_protein = choose_closest_organ_and_target(my_organs=my_organs, to_nodes=proteins, dist_matrix=dist_matrix)
-                if target and distance_to_protein == 2 and (self.my_C > 0) and (self.my_D > 0):
-                    t = 'HARVESTER'
+                if target and self.create_new_root and (self.my_A > 0) and (self.my_B > 0) and (self.my_C > 0) and (self.my_D > 0):
+                    self.create_new_root = False
+                    grow = False
+                    spore = True
+                    grow_type = None
+                if target and distance_to_protein > self.my_A > 1 and (self.my_B > 1) and (self.my_C > 0) and (self.my_D > 1) and (not spore):
+                    grow_type = 'SPORER'
+                    self.create_new_root = True
+                if target and distance_to_protein == 2 and (self.my_C > 0) and (self.my_D > 0) and (not spore):
+                    grow_type = 'HARVESTER'
                 if not target:
                     my_organ_chosen, target, distance_to_opp_neighbour = choose_closest_organ_and_target(my_organs=my_organs, to_nodes=set(opp_organs_free_neighbours.keys()), dist_matrix=dist_matrix)
                     if target and distance_to_opp_neighbour == 1 and (self.my_B > 0) and (self.my_C > 0):
-                        t = 'TENTACLE'
+                        grow_type = 'TENTACLE'
                 if not target:
-                    for my_organ in self.entities.my_organs:
+                    for my_organ in my_organs:
                         node_neighbours = list(self.grid.get_node_neighbours(my_organ))
                         if len(node_neighbours) > 0:
                             my_organ_chosen, target = (my_organ, node_neighbours[0])
@@ -330,31 +357,45 @@ class GameLoop:
                 if target:
                     my_organ_chosen_entity = self.entities[my_organ_chosen]
                     id = my_organ_chosen_entity.organ_id
-                    predecessor = predecessors[my_organ_chosen, target]
                     next_node = target
-                    while predecessor != my_organ_chosen and predecessor != -9999:
-                        next_node = predecessor
-                        predecessor = predecessors[my_organ_chosen, next_node]
+                    if grow:
+                        predecessor = predecessors[my_organ_chosen, target]
+                        while predecessor != my_organ_chosen and predecessor != -9999:
+                            next_node = predecessor
+                            predecessor = predecessors[my_organ_chosen, next_node]
+                    if spore:
+                        from_organ_coordinates = my_organ_chosen_entity.coordinates
+                        from_organ_direction = my_organ_chosen_entity.organ_dir
+                        aligned = is_aligned(from_coord=from_organ_coordinates, from_direction=from_organ_direction, to_coord=self.grid.get_node_coordinates(next_node))
+                        predecessor = predecessors[my_organ_chosen, target]
+                        while not aligned and predecessor != my_organ_chosen and (predecessor != -9999):
+                            next_node = predecessor
+                            aligned = is_aligned(from_coord=from_organ_coordinates, from_direction=from_organ_direction, to_coord=self.grid.get_node_coordinates(next_node))
+                            predecessor = predecessors[my_organ_chosen, next_node]
                     x, y = self.grid.get_node_coordinates(next_node)
-                    if t == 'TENTACLE':
+                    if grow_type == 'TENTACLE':
                         target = opp_organs_free_neighbours[target]
-                    if t in ['TENTACLE', 'HARVESTER']:
+                    if grow_type == 'SPORER':
+                        target = predecessors[my_organ_chosen, target]
+                    if grow_type in ['TENTACLE', 'HARVESTER', 'SPORER']:
                         x_target, y_target = self.grid.get_node_coordinates(target)
-                        if x < x_target and y == y_target:
-                            direction = 'E'
-                        if x > x_target and y == y_target:
-                            direction = 'W'
-                        if x == x_target and y > y_target:
+                        diff_x = x_target - x
+                        diff_y = y_target - y
+                        if abs(diff_y) >= abs(diff_x):
                             direction = 'N'
-                        if x == x_target and y < y_target:
-                            direction = 'S'
-                        if t == 'HARVESTER':
+                            if diff_y > 0:
+                                direction = 'S'
+                        else:
+                            direction = 'W'
+                            if diff_x > 0:
+                                direction = 'E'
+                        if grow_type == 'HARVESTER':
                             target_neighbours = self.grid.get_node_neighbours(target)
                             for neighbour in target_neighbours:
                                 self.grid.disconnect_nodes(from_node=target, to_node=neighbour)
-                        if t == 'TENTACLE':
+                        if grow_type == 'TENTACLE':
                             self.grid.connect_nodes(from_node=next_node, to_node=target, directed=True)
-                    action = Action(grow=True, id=id, x=x, y=y, t=t, direction=direction, message=f'{my_organ_chosen}/{next_node}/{target}')
+                    action = Action(grow=grow, spore=spore, id=id, x=x, y=y, t=grow_type, direction=direction, message=f'{my_organ_chosen}/{next_node}/{target}')
                 else:
                     action = Action()
                 print(action)
