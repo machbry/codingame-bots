@@ -2,8 +2,6 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from bots.fall_challenge_2024.challengelibs.geometry import compute_distances_array, DistArrayCols
-
 
 @dataclass
 class Action:
@@ -25,33 +23,18 @@ class Action:
         return f"GROW {self.id} {self.x} {self.y} {self.t} {self.direction} {self.message}"
 
 
-def choose_organ_and_target(my_organs: set[int], to_nodes: set[int], predecessors: np.ndarray):
+def choose_closest_organ_and_target(my_organs: set[int], to_nodes: set[int], dist_matrix: np.ndarray):
     my_organ_chosen = None
     target = None
     distance_to_target = np.inf
 
-    if len(to_nodes) > 0:
-        distances_array_to_proteins = []
+    for to_node in to_nodes:
         for my_organ in my_organs:
-            distances_array_to_proteins.append(
-                compute_distances_array(from_node=my_organ,
-                                        to_nodes=to_nodes,
-                                        predecessors=predecessors)
-            )
+            distance = dist_matrix[my_organ, to_node]
 
-        distances_array_to_proteins = np.concatenate(
-            distances_array_to_proteins,
-            axis=0
-        )
-
-        array = distances_array_to_proteins[
-                    distances_array_to_proteins[:, DistArrayCols.DISTANCE.value].argsort()
-                ][0, :]
-
-        distance_to_target = array[DistArrayCols.DISTANCE.value]
-        if distance_to_target < np.inf:
-            my_organ_chosen = int(array[DistArrayCols.FROM_NODE.value])
-            target = int(array[DistArrayCols.TO_NODE.value])
-            distance_to_target = int(distance_to_target)
+            if distance < distance_to_target:
+                my_organ_chosen = my_organ
+                target = to_node
+                distance_to_target = int(distance)
 
     return my_organ_chosen, target, distance_to_target

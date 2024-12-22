@@ -4,7 +4,7 @@ from scipy.sparse.csgraph import dijkstra
 
 from bots.fall_challenge_2024.challengelibs.assets import Entities, Coordinates, Entity
 from bots.fall_challenge_2024.challengelibs.geometry import Grid
-from bots.fall_challenge_2024.challengelibs.act import Action, choose_organ_and_target
+from bots.fall_challenge_2024.challengelibs.act import Action, choose_closest_organ_and_target
 from bots.fall_challenge_2024.challengelibs.logger import log
 
 
@@ -116,29 +116,33 @@ class GameLoop:
                     self.grid.get_node_neighbours(node)
                 )
 
-            predecessors = dijkstra(
+            dijkstra_algorithm = dijkstra(
                 self.grid.adjacency_matrix.sparce_matrix,
-                return_predecessors=True)[1]
+                return_predecessors=True)
+            dist_matrix = dijkstra_algorithm[0]
+            predecessors = dijkstra_algorithm[1]
 
             for i in range(self.required_actions_count):
                 t = "BASIC"
                 direction = None
 
-                my_organ_chosen, target, distance_to_protein = choose_organ_and_target(
+                my_organ_chosen, target, distance_to_protein = choose_closest_organ_and_target(
                     my_organs=my_organs,
                     to_nodes=proteins,
-                    predecessors=predecessors
+                    dist_matrix=dist_matrix
                 )
 
                 if target and distance_to_protein == 2 and self.my_protein_stock[2] > 0 and self.my_protein_stock[3] > 0:
                     t = "HARVESTER"
 
                 if not target:
-                    my_organ_chosen, target, _ = choose_organ_and_target(
+                    my_organ_chosen, target, _ = choose_closest_organ_and_target(
                         my_organs=my_organs,
                         to_nodes=opp_organs_free_neighbours,
-                        predecessors=predecessors
+                        dist_matrix=dist_matrix
                     )
+
+                    # TODO : attack if close
 
                 if not target:
                     for my_organ in self.entities.my_organs:

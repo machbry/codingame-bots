@@ -1,10 +1,10 @@
-import sys
 import numpy as np
+import sys
 from scipy.sparse import csr_matrix
 from enum import Enum
 from dataclasses import field, dataclass
 from scipy.sparse.csgraph import dijkstra
-from typing import NamedTuple, Union, Dict, List
+from typing import List, Union, NamedTuple, Dict
 
 class Coordinates(NamedTuple):
     x: int
@@ -136,11 +136,6 @@ class NodeFrontier:
                 existing_nodes.add(node)
         return existing_nodes
 
-class DistArrayCols(Enum):
-    FROM_NODE = 0
-    TO_NODE = 1
-    DISTANCE = 2
-
 @dataclass
 class Grid:
     width: int
@@ -203,24 +198,6 @@ class Grid:
     def get_node_neighbours(self, node: int):
         return set(self.adjacency_list[node].keys())
 
-def compute_distances_array(from_node: int, to_nodes: set[int], predecessors: np.ndarray):
-    distances_array = np.zeros(shape=(len(to_nodes), len(DistArrayCols)), dtype=float)
-    distances_array[:, DistArrayCols.DISTANCE.value] = np.inf
-    for i, to_node in enumerate(to_nodes):
-        predecessor = to_node
-        distance = 0
-        while predecessor != from_node:
-            next_node = predecessor
-            predecessor = predecessors[from_node, next_node]
-            distance += 1
-            if predecessor == -9999:
-                distance = np.inf
-                break
-        distances_array[i, DistArrayCols.FROM_NODE.value] = from_node
-        distances_array[i, DistArrayCols.TO_NODE.value] = to_node
-        distances_array[i, DistArrayCols.DISTANCE.value] = distance
-    return distances_array
-
 @dataclass
 class Action:
     grow: bool = False
@@ -238,21 +215,17 @@ class Action:
             return f'GROW {self.id} {self.x} {self.y} {self.t} {self.message}'
         return f'GROW {self.id} {self.x} {self.y} {self.t} {self.direction} {self.message}'
 
-def choose_organ_and_target(my_organs: set[int], to_nodes: set[int], predecessors: np.ndarray):
+def choose_closest_organ_and_target(my_organs: set[int], to_nodes: set[int], dist_matrix: np.ndarray):
     my_organ_chosen = None
     target = None
     distance_to_target = np.inf
-    if len(to_nodes) > 0:
-        distances_array_to_proteins = []
+    for to_node in to_nodes:
         for my_organ in my_organs:
-            distances_array_to_proteins.append(compute_distances_array(from_node=my_organ, to_nodes=to_nodes, predecessors=predecessors))
-        distances_array_to_proteins = np.concatenate(distances_array_to_proteins, axis=0)
-        array = distances_array_to_proteins[distances_array_to_proteins[:, DistArrayCols.DISTANCE.value].argsort()][0, :]
-        distance_to_target = array[DistArrayCols.DISTANCE.value]
-        if distance_to_target < np.inf:
-            my_organ_chosen = int(array[DistArrayCols.FROM_NODE.value])
-            target = int(array[DistArrayCols.TO_NODE.value])
-            distance_to_target = int(distance_to_target)
+            distance = dist_matrix[my_organ, to_node]
+            if distance < distance_to_target:
+                my_organ_chosen = my_organ
+                target = to_node
+                distance_to_target = int(distance)
     return (my_organ_chosen, target, distance_to_target)
 
 def log(message):
@@ -335,15 +308,17 @@ class GameLoop:
             opp_organs_free_neighbours = set()
             for node in self.entities.opp_organs:
                 opp_organs_free_neighbours = opp_organs_free_neighbours.union(self.grid.get_node_neighbours(node))
-            predecessors = dijkstra(self.grid.adjacency_matrix.sparce_matrix, return_predecessors=True)[1]
+            dijkstra_algorithm = dijkstra(self.grid.adjacency_matrix.sparce_matrix, return_predecessors=True)
+            dist_matrix = dijkstra_algorithm[0]
+            predecessors = dijkstra_algorithm[1]
             for i in range(self.required_actions_count):
                 t = 'BASIC'
                 direction = None
-                my_organ_chosen, target, distance_to_protein = choose_organ_and_target(my_organs=my_organs, to_nodes=proteins, predecessors=predecessors)
+                my_organ_chosen, target, distance_to_protein = choose_closest_organ_and_target(my_organs=my_organs, to_nodes=proteins, dist_matrix=dist_matrix)
                 if target and distance_to_protein == 2 and (self.my_protein_stock[2] > 0) and (self.my_protein_stock[3] > 0):
                     t = 'HARVESTER'
                 if not target:
-                    my_organ_chosen, target, _ = choose_organ_and_target(my_organs=my_organs, to_nodes=opp_organs_free_neighbours, predecessors=predecessors)
+                    my_organ_chosen, target, _ = choose_closest_organ_and_target(my_organs=my_organs, to_nodes=opp_organs_free_neighbours, dist_matrix=dist_matrix)
                 if not target:
                     for my_organ in self.entities.my_organs:
                         node_neighbours = list(self.grid.get_node_neighbours(my_organ))
