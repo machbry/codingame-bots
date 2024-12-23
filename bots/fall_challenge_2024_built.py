@@ -1,9 +1,9 @@
 import numpy as np
 import sys
 from scipy.sparse import csr_matrix
-from dataclasses import field, dataclass
+from dataclasses import dataclass, field
 from scipy.sparse.csgraph import dijkstra
-from typing import Union, Dict, List, NamedTuple
+from typing import Union, NamedTuple, List, Dict
 
 class Coordinates(NamedTuple):
     x: int
@@ -26,8 +26,14 @@ class Entities:
     proteins: dict[str, set[int]] = field(default_factory=dict)
     my_organs_by_root: dict[int, set[int]] = field(default_factory=dict)
     opp_organs: set[int] = field(default_factory=set)
+    harvested_proteins: dict[str, set[int]] = field(default_factory=dict)
+
+    def __post_init__(self):
+        self.harvested_proteins = {'A': set(), 'B': set(), 'C': set(), 'D': set()}
 
     def __getitem__(self, node):
+        if node not in self.nodes:
+            return None
         return self.nodes.__getitem__(node)
 
     def __setitem__(self, node, entity: Entity):
@@ -349,6 +355,22 @@ class GameLoop:
                     if target is not None and distance_to_opp_neighbour == 1 and (self.my_B > 0) and (self.my_C > 0):
                         grow_type = 'TENTACLE'
                 if target is None:
+                    nb_t_max = 0
+                    for t in ['D', 'C', 'B', 'A']:
+                        harvested_nodes = self.entities.harvested_proteins[t]
+                        nb_t = len(harvested_nodes)
+                        if nb_t <= nb_t_max:
+                            continue
+                        for h in harvested_nodes:
+                            cardinals = self.grid.get_node_frontier(h).cardinal_nodes
+                            my_organs_neighbour = [org for org in my_organs if org in cardinals]
+                            if len(my_organs_neighbour) > 0:
+                                my_organ_chosen = my_organs_neighbour[0]
+                                target = h
+                                nb_t_max = nb_t
+                                self.entities.harvested_proteins[t].remove(target)
+                                break
+                if target is None:
                     for my_organ in my_organs:
                         node_neighbours = list(self.grid.get_node_neighbours(my_organ))
                         if len(node_neighbours) > 0:
@@ -390,9 +412,11 @@ class GameLoop:
                             if diff_x > 0:
                                 direction = 'E'
                         if grow_type == 'HARVESTER':
-                            target_neighbours = self.grid.get_node_neighbours(target)
-                            for neighbour in target_neighbours:
-                                self.grid.disconnect_nodes(from_node=target, to_node=neighbour)
+                            target_entity = self.entities[target]
+                            self.entities.harvested_proteins[target_entity.t].add(target)
+                            target_cardinals = self.grid.get_node_frontier(target).cardinal_nodes
+                            for cardinal in target_cardinals:
+                                self.grid.disconnect_nodes(from_node=cardinal, to_node=target, directed=True)
                         if grow_type == 'TENTACLE':
                             self.grid.connect_nodes(from_node=next_node, to_node=target, directed=True)
                     if grow_type == 'BASIC' and self.my_A == 0 and (self.my_B > 0) and (self.my_C > 0):

@@ -25,9 +25,19 @@ class Entities:
     proteins: dict[str, set[int]] = field(default_factory=dict)
     my_organs_by_root: dict[int, set[int]] = field(default_factory=dict)
     opp_organs: set[int] = field(default_factory=set)
-    # TODO : add harvested proteins per type
+    harvested_proteins: dict[str, set[int]] = field(default_factory=dict)
+
+    def __post_init__(self):
+        self.harvested_proteins = {
+            "A": set(),
+            "B": set(),
+            "C": set(),
+            "D": set()
+        }
 
     def __getitem__(self, node):
+        if node not in self.nodes:
+            return None
         return self.nodes.__getitem__(node)
 
     def __setitem__(self, node, entity: Entity):

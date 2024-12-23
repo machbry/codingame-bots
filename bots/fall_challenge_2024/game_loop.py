@@ -162,12 +162,34 @@ class GameLoop:
                         grow_type = "TENTACLE"
 
                 if target is None:
+                    nb_t_max = 0
+
+                    for t in ["D", "C", "B", "A"]:
+                        harvested_nodes = self.entities.harvested_proteins[t]
+
+                        nb_t = len(harvested_nodes)
+
+                        if nb_t <= nb_t_max:
+                            continue
+
+                        for h in harvested_nodes:
+                            cardinals = self.grid.get_node_frontier(h).cardinal_nodes
+                            my_organs_neighbour = [org for org in my_organs
+                                                   if org in cardinals]
+
+                            if len(my_organs_neighbour) > 0:
+                                my_organ_chosen = my_organs_neighbour[0]
+                                target = h
+                                nb_t_max = nb_t
+                                self.entities.harvested_proteins[t].remove(target)
+                                break
+
+                if target is None:
                     for my_organ in my_organs:
                         node_neighbours = list(self.grid.get_node_neighbours(my_organ))
                         if len(node_neighbours) > 0:
                             my_organ_chosen, target = my_organ, node_neighbours[0]
                             break
-                        # TODO : connect harvested proteins
 
                 if target is not None:
                     my_organ_chosen_entity = self.entities[my_organ_chosen]
@@ -220,11 +242,14 @@ class GameLoop:
                                 direction = "E"
 
                         if grow_type == "HARVESTER":
-                            # TODO : possible bad side effects
-                            target_neighbours = self.grid.get_node_neighbours(target)
-                            for neighbour in target_neighbours:
-                                self.grid.disconnect_nodes(from_node=target,
-                                                           to_node=neighbour)
+                            target_entity = self.entities[target]
+                            self.entities.harvested_proteins[target_entity.t].add(target)
+
+                            target_cardinals = self.grid.get_node_frontier(target).cardinal_nodes
+                            for cardinal in target_cardinals:
+                                self.grid.disconnect_nodes(from_node=cardinal,
+                                                           to_node=target,
+                                                           directed=True)
 
                         if grow_type == "TENTACLE":
                             # TODO : target won't appear in opp_organs_free_neighbours
