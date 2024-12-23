@@ -3,7 +3,7 @@ import sys
 from scipy.sparse import csr_matrix
 from dataclasses import dataclass, field
 from scipy.sparse.csgraph import dijkstra
-from typing import Union, NamedTuple, List, Dict
+from typing import List, Union, NamedTuple, Dict
 
 class Coordinates(NamedTuple):
     x: int
@@ -51,6 +51,13 @@ class Entities:
         self.proteins = {'A': set(), 'B': set(), 'C': set(), 'D': set()}
         self.my_organs_by_root = {}
         self.opp_organs = set()
+
+@dataclass
+class ProteinStock:
+    A: int = 0
+    B: int = 0
+    C: int = 0
+    D: int = 0
 
 @dataclass(frozen=True)
 class Edge:
@@ -249,11 +256,23 @@ def choose_closest_organ_and_target(my_organs: set[int], to_nodes: set[int], dis
                 distance_to_target = int(distance)
     return (my_organ_chosen, target, distance_to_target)
 
+def can_create_new_root(protein_stock: ProteinStock):
+    return all((resource > 0 for resource in [protein_stock.A, protein_stock.B, protein_stock.C, protein_stock.D]))
+
+def can_use_sporer(protein_stock: ProteinStock, distance_to_target: int):
+    return distance_to_target > protein_stock.A > 1 and protein_stock.B > 1 and (protein_stock.C > 0) and protein_stock.D
+
+def can_use_harvester(protein_stock: ProteinStock, distance_to_target: int):
+    return distance_to_target == 2 and protein_stock.C > 0 and (protein_stock.D > 0)
+
+def can_use_tentacle(protein_stock: ProteinStock, distance_to_target: int):
+    return distance_to_target == 1 and protein_stock.B > 0 and (protein_stock.C > 0)
+
 def log(message):
     print(message, file=sys.stderr, flush=True)
 
 class GameLoop:
-    __slots__ = ('init_inputs', 'nb_turns', 'turns_inputs', 'width', 'height', 'nb_entities', 'entities', 'my_A', 'my_B', 'my_C', 'my_D', 'opp_protein_stock', 'required_actions_count', 'grid', 'create_new_root')
+    __slots__ = ('init_inputs', 'nb_turns', 'turns_inputs', 'width', 'height', 'nb_entities', 'entities', 'my_protein_stock', 'opp_protein_stock', 'required_actions_count', 'grid', 'create_new_root', 'actions')
     RUNNING = True
     LOG = True
     RESET_TURNS_INPUTS = True
@@ -262,10 +281,11 @@ class GameLoop:
         self.init_inputs: List[str] = []
         self.nb_turns: int = 0
         self.turns_inputs: List[str] = []
+        self.actions: list[str] = []
         self.width, self.height = [int(i) for i in self.get_init_input().split()]
         self.nb_entities: int = 0
-        self.my_A, self.my_B, self.my_C, self.my_D = (0, 0, 0, 0)
-        self.opp_protein_stock: list = []
+        self.my_protein_stock: ProteinStock = ProteinStock()
+        self.opp_protein_stock: ProteinStock = ProteinStock()
         self.required_actions_count: int = 1
         self.grid = Grid(width=self.width, height=self.height)
         self.entities: Entities = Entities()
@@ -314,8 +334,16 @@ class GameLoop:
                     self.grid.disconnect_nodes(from_node=node, to_node=cardinal)
                 if t in ['ROOT', 'BASIC', 'HARVESTER', 'TENTACLE', 'SPORER']:
                     self.grid.disconnect_nodes(from_node=cardinal, to_node=node, directed=True)
-        self.my_A, self.my_B, self.my_C, self.my_D = [int(i) for i in self.get_turn_input().split()]
-        self.opp_protein_stock = [int(i) for i in self.get_turn_input().split()]
+        my_protein_stock = [int(i) for i in self.get_turn_input().split()]
+        self.my_protein_stock.A = my_protein_stock[0]
+        self.my_protein_stock.B = my_protein_stock[1]
+        self.my_protein_stock.C = my_protein_stock[2]
+        self.my_protein_stock.D = my_protein_stock[3]
+        opp_protein_stock = [int(i) for i in self.get_turn_input().split()]
+        self.opp_protein_stock.A = my_protein_stock[0]
+        self.opp_protein_stock.B = my_protein_stock[1]
+        self.opp_protein_stock.C = my_protein_stock[2]
+        self.opp_protein_stock.D = my_protein_stock[3]
         self.required_actions_count = int(self.get_turn_input())
         if GameLoop.LOG:
             self.print_turn_logs()
@@ -323,36 +351,29 @@ class GameLoop:
     def start(self):
         while GameLoop.RUNNING:
             self.update_assets()
-            proteins = set()
-            for nodes in self.entities.proteins.values():
-                proteins = proteins.union(nodes)
+            proteins = set.union(*self.entities.proteins.values())
             my_organs_by_root = self.entities.my_organs_by_root
-            opp_organs_free_neighbours = {}
-            for node in self.entities.opp_organs:
-                for neighbour in self.grid.get_node_neighbours(node):
-                    opp_organs_free_neighbours[neighbour] = node
-            dijkstra_algorithm = dijkstra(self.grid.adjacency_matrix.sparce_matrix, return_predecessors=True)
-            dist_matrix = dijkstra_algorithm[0]
-            predecessors = dijkstra_algorithm[1]
+            opp_organs_free_neighbours = {neighbour: node for node in self.entities.opp_organs for neighbour in self.grid.get_node_neighbours(node)}
+            dist_matrix, predecessors = dijkstra(self.grid.adjacency_matrix.sparce_matrix, return_predecessors=True)
             for my_root_id, my_organs in my_organs_by_root.items():
                 grow = True
                 spore = False
                 grow_type = 'BASIC'
                 direction = None
                 my_organ_chosen, target, distance_to_protein = choose_closest_organ_and_target(my_organs=my_organs, to_nodes=proteins, dist_matrix=dist_matrix)
-                if target is not None and self.create_new_root and (self.my_A > 0) and (self.my_B > 0) and (self.my_C > 0) and (self.my_D > 0):
+                if target is not None and self.create_new_root and can_create_new_root(self.my_protein_stock):
                     self.create_new_root = False
                     grow = False
                     spore = True
                     grow_type = None
-                if target is not None and distance_to_protein > self.my_A > 1 and (self.my_B > 1) and (self.my_C > 0) and (self.my_D > 1) and (not spore):
+                if target is not None and can_use_sporer(self.my_protein_stock, distance_to_protein) and (not spore):
                     grow_type = 'SPORER'
                     self.create_new_root = True
-                if target is not None and distance_to_protein == 2 and (self.my_C > 0) and (self.my_D > 0) and (not spore):
+                if target is not None and can_use_harvester(self.my_protein_stock, distance_to_protein) and (not spore):
                     grow_type = 'HARVESTER'
                 if target is None:
                     my_organ_chosen, target, distance_to_opp_neighbour = choose_closest_organ_and_target(my_organs=my_organs, to_nodes=set(opp_organs_free_neighbours.keys()), dist_matrix=dist_matrix)
-                    if target is not None and distance_to_opp_neighbour == 1 and (self.my_B > 0) and (self.my_C > 0):
+                    if target is not None and can_use_tentacle(self.my_protein_stock, distance_to_opp_neighbour):
                         grow_type = 'TENTACLE'
                 if target is None:
                     nb_t_max = 0
@@ -419,12 +440,14 @@ class GameLoop:
                                 self.grid.disconnect_nodes(from_node=cardinal, to_node=target, directed=True)
                         if grow_type == 'TENTACLE':
                             self.grid.connect_nodes(from_node=next_node, to_node=target, directed=True)
-                    if grow_type == 'BASIC' and self.my_A == 0 and (self.my_B > 0) and (self.my_C > 0):
+                    if grow_type == 'BASIC' and self.my_protein_stock.A == 0 and (self.my_protein_stock.B > 0) and (self.my_protein_stock.C > 0):
                         grow_type = 'TENTACLE'
                     action = Action(grow=grow, spore=spore, id=id, x=x, y=y, t=grow_type, direction=direction, message=f'{my_organ_chosen}/{next_node}/{target}')
                 else:
                     action = Action()
                 if action.grow and action.id == 59:
                     pass
+                self.actions.append(str(action))
                 print(action)
+        return self.actions
 GameLoop().start()

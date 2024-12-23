@@ -60,3 +60,11 @@ class Entities:
         }
         self.my_organs_by_root = {}
         self.opp_organs = set()
+
+
+@dataclass
+class ProteinStock:
+    A: int = 0
+    B: int = 0
+    C: int = 0
+    D: int = 0

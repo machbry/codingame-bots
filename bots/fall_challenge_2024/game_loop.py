@@ -2,16 +2,18 @@ from typing import List
 
 from scipy.sparse.csgraph import dijkstra
 
-from bots.fall_challenge_2024.challengelibs.assets import Entities, Coordinates, Entity
+from bots.fall_challenge_2024.challengelibs.assets import Entities, Coordinates, Entity, ProteinStock
 from bots.fall_challenge_2024.challengelibs.geometry import Grid, is_aligned
-from bots.fall_challenge_2024.challengelibs.act import Action, choose_closest_organ_and_target
+from bots.fall_challenge_2024.challengelibs.act import Action, choose_closest_organ_and_target, can_create_new_root, \
+    can_use_sporer, can_use_harvester, can_use_tentacle
 from bots.fall_challenge_2024.challengelibs.logger import log
 
 
 class GameLoop:
     __slots__ = ("init_inputs", "nb_turns", "turns_inputs", "width", "height", "nb_entities", "entities",
-                 "my_A", "my_B", "my_C", "my_D", "opp_protein_stock",
-                 "required_actions_count", "grid", "create_new_root")
+                 "my_protein_stock", "opp_protein_stock",
+                 "required_actions_count", "grid", "create_new_root",
+                 "actions")
 
     RUNNING = True
     LOG = True
@@ -21,11 +23,12 @@ class GameLoop:
         self.init_inputs: List[str] = []
         self.nb_turns: int = 0
         self.turns_inputs: List[str] = []
+        self.actions: list[str] = []
 
         self.width, self.height = [int(i) for i in self.get_init_input().split()]
         self.nb_entities: int = 0
-        self.my_A, self.my_B, self.my_C, self.my_D = 0, 0, 0, 0
-        self.opp_protein_stock: list = []
+        self.my_protein_stock: ProteinStock = ProteinStock()
+        self.opp_protein_stock: ProteinStock = ProteinStock()
         self.required_actions_count: int = 1
 
         self.grid = Grid(width=self.width, height=self.height)
@@ -96,8 +99,18 @@ class GameLoop:
                                                to_node=node,
                                                directed=True)
 
-        self.my_A, self.my_B, self.my_C, self.my_D = [int(i) for i in self.get_turn_input().split()]
-        self.opp_protein_stock = [int(i) for i in self.get_turn_input().split()]
+        my_protein_stock = [int(i) for i in self.get_turn_input().split()]
+        self.my_protein_stock.A = my_protein_stock[0]
+        self.my_protein_stock.B = my_protein_stock[1]
+        self.my_protein_stock.C = my_protein_stock[2]
+        self.my_protein_stock.D = my_protein_stock[3]
+
+        opp_protein_stock = [int(i) for i in self.get_turn_input().split()]
+        self.opp_protein_stock.A = my_protein_stock[0]
+        self.opp_protein_stock.B = my_protein_stock[1]
+        self.opp_protein_stock.C = my_protein_stock[2]
+        self.opp_protein_stock.D = my_protein_stock[3]
+
         self.required_actions_count = int(self.get_turn_input())
 
         if GameLoop.LOG:
@@ -107,22 +120,20 @@ class GameLoop:
         while GameLoop.RUNNING:
             self.update_assets()
 
-            proteins = set()
-            for nodes in self.entities.proteins.values():
-                proteins = proteins.union(nodes)
+            proteins = set.union(*self.entities.proteins.values())
 
             my_organs_by_root = self.entities.my_organs_by_root
 
-            opp_organs_free_neighbours = {}
-            for node in self.entities.opp_organs:
-                for neighbour in self.grid.get_node_neighbours(node):
-                    opp_organs_free_neighbours[neighbour] = node
+            opp_organs_free_neighbours = {
+                neighbour: node
+                for node in self.entities.opp_organs
+                for neighbour in self.grid.get_node_neighbours(node)
+            }
 
-            dijkstra_algorithm = dijkstra(
+            dist_matrix, predecessors = dijkstra(
                 self.grid.adjacency_matrix.sparce_matrix,
-                return_predecessors=True)
-            dist_matrix = dijkstra_algorithm[0]
-            predecessors = dijkstra_algorithm[1]
+                return_predecessors=True
+            )
 
             for my_root_id, my_organs in my_organs_by_root.items():
                 grow = True
@@ -136,19 +147,25 @@ class GameLoop:
                     dist_matrix=dist_matrix
                 )
 
-                if ((target is not None) and self.create_new_root and self.my_A > 0 and self.my_B > 0 and
-                        self.my_C > 0 and self.my_D > 0):
+                # TODO : use this action more often
+                if ((target is not None)
+                        and self.create_new_root
+                        and can_create_new_root(self.my_protein_stock)):
                     self.create_new_root = False
                     grow = False
                     spore = True
                     grow_type = None
 
-                if ((target is not None) and distance_to_protein > self.my_A > 1 and self.my_B > 1 and
-                        self.my_C > 0 and self.my_D > 1 and not spore):
+                # TODO : use this action more often
+                if ((target is not None)
+                        and can_use_sporer(self.my_protein_stock, distance_to_protein)
+                        and not spore):
                     grow_type = "SPORER"
                     self.create_new_root = True
 
-                if (target is not None) and distance_to_protein == 2 and self.my_C > 0 and self.my_D > 0 and not spore:
+                if ((target is not None)
+                        and can_use_harvester(self.my_protein_stock, distance_to_protein)
+                        and not spore):
                     grow_type = "HARVESTER"
 
                 if target is None:
@@ -158,7 +175,8 @@ class GameLoop:
                         dist_matrix=dist_matrix
                     )
 
-                    if (target is not None) and distance_to_opp_neighbour == 1 and self.my_B > 0 and self.my_C > 0:
+                    if ((target is not None)
+                            and can_use_tentacle(self.my_protein_stock, distance_to_opp_neighbour)):
                         grow_type = "TENTACLE"
 
                 if target is None:
@@ -257,7 +275,10 @@ class GameLoop:
                                                     to_node=target,
                                                     directed=True)
 
-                    if grow_type == "BASIC" and self.my_A == 0 and self.my_B > 0 and self.my_C > 0:
+                    if (grow_type == "BASIC"
+                            and self.my_protein_stock.A == 0
+                            and self.my_protein_stock.B > 0
+                            and self.my_protein_stock.C > 0):
                         grow_type = "TENTACLE"
 
                     action = Action(grow=grow, spore=spore, id=id, x=x, y=y, t=grow_type,
@@ -269,4 +290,7 @@ class GameLoop:
                 if action.grow and action.id == 59:
                     pass
 
+                self.actions.append(str(action))
                 print(action)
+
+        return self.actions
