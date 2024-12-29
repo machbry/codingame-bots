@@ -1,6 +1,8 @@
+import numpy as np
 import pytest
 
-from botlibs.graph.classes import Edge, AdjacencyMatrix, AdjacencyList
+from botlibs.graph.algorithms import DijkstraAlgorithm
+from botlibs.graph.classes import Edge, AdjacencyMatrix, AdjacencyList, NodesPair
 from botlibs.graph.create import create_adjacency_matrix_from_edges, create_adjacency_list_from_edges
 
 
@@ -49,3 +51,57 @@ def test_adjacency_list_remove_edge(adjacency_list, edge_to_remove, adjacency_li
     adjacency_list.remove_edge(edge_to_remove)
 
     assert adjacency_list.nodes_neighbors == adjacency_list_expected.nodes_neighbors
+
+@pytest.mark.parametrize("adjacency_matrix, from_nodes, to_nodes, closest_pair_expected", [
+    ([[0, 1, 0, 0, 0, 0],
+      [1, 0, 1, 0, 0, 0],
+      [0, 0, 0, 1, 0, 0],
+      [0, 0, 1, 0, 1, 0],
+      [1, 0, 0, 1, 0, 0],
+      [0, 0, 0, 1, 0, 0]],
+     [0, 1],
+     [4, 5],
+     NodesPair(
+         from_node=1,
+         to_node=4,
+         distance=3,
+         shortest_path=[2, 3, 4]
+     )),
+
+    ([[0, 1, 0, 0, 0, 0],
+      [1, 0, 1, 0, 0, 0],
+      [0, 0, 0, 1, 0, 0],
+      [0, 0, 1, 0, 1, 0],
+      [1, 0, 0, 1, 0, 0],
+      [0, 0, 0, 1, 0, 0]],
+     [0, 1, 2, 3, 4],
+     [5],
+     NodesPair()),
+
+    ([[0, 1, 0, 0, 0, 0],
+      [1, 0, 1, 0, 0, 0],
+      [0, 0, 0, 1, 0, 0],
+      [0, 0, 1, 0, 1, 0],
+      [1, 0, 0, 1, 0, 0],
+      [0, 0, 0, 1, 0, 0]],
+     [5],
+     [0, 1, 2, 3, 4],
+     NodesPair(
+         from_node=5,
+         to_node=3,
+         distance=1,
+         shortest_path=[3]
+     )),
+])
+def test_dijkstra_algorithm_find_closest_pair(adjacency_matrix, from_nodes, to_nodes, closest_pair_expected):
+    # init
+    dijkstra_algorithm = DijkstraAlgorithm(adjacency_matrix=AdjacencyMatrix(np.array(adjacency_matrix)))
+
+    # act
+    closest_pair = dijkstra_algorithm.find_closest_nodes_pair(
+        from_nodes=from_nodes,
+        to_nodes=to_nodes
+    )
+
+    # assert
+    assert closest_pair == closest_pair_expected

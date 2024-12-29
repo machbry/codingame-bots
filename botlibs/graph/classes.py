@@ -7,8 +7,8 @@
 # https://en.wikipedia.org/wiki/Shortest_path_problem
 
 
-from typing import Dict, Union, List
-from dataclasses import dataclass
+from typing import Dict, Union, List, Optional
+from dataclasses import dataclass, field
 
 import numpy as np
 from scipy.sparse import csr_matrix
@@ -91,3 +91,11 @@ class AdjacencyList:
                     del self[node][neighbor]
                 except KeyError:
                     pass
+
+
+@dataclass
+class NodesPair:
+    from_node: int = None
+    to_node: int = None
+    distance: float = np.inf
+    shortest_path: Optional[list[int]] = None
