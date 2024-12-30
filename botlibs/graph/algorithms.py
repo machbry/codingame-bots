@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Iterable
 
 import numpy as np
 from scipy.sparse.csgraph import dijkstra
@@ -31,7 +31,7 @@ class DijkstraAlgorithm:
 
         return shortest_path
 
-    def find_closest_nodes_pair(self, from_nodes: list[int], to_nodes: list[int]) -> NodesPair:
+    def find_closest_nodes_pair(self, from_nodes: Iterable[int], to_nodes: Iterable[int]) -> NodesPair:
         closest_pair = NodesPair()
 
         for to_node in to_nodes:
