@@ -8,6 +8,22 @@ class Coordinates(NamedTuple):
 
 
 @dataclass
+class ProteinStock:
+    A: int = 0
+    B: int = 0
+    C: int = 0
+    D: int = 0
+
+    def __add__(self, other):
+        return ProteinStock(
+            A=self.A + other.A,
+            B=self.B + other.B,
+            C=self.C + other.C,
+            D=self.D + other.D
+        )
+
+
+@dataclass
 class Entity:
     node: int
     coordinates: Coordinates
@@ -18,6 +34,9 @@ class Entity:
     organ_parent_id: int = 0
     organ_root_id: int = 0
 
+    def __hash__(self):
+        return int(self.node)
+
 
 @dataclass
 class Entities:
@@ -25,15 +44,7 @@ class Entities:
     proteins: dict[str, set[int]] = field(default_factory=dict)
     my_organs_by_root: dict[int, set[int]] = field(default_factory=dict)
     opp_organs: set[int] = field(default_factory=set)
-    harvested_proteins: dict[str, set[int]] = field(default_factory=dict)
-
-    def __post_init__(self):
-        self.harvested_proteins = {
-            "A": set(),
-            "B": set(),
-            "C": set(),
-            "D": set()
-        }
+    harvested_proteins: dict[int, dict[str, set[int]]] = field(default_factory=dict)
 
     def __getitem__(self, node):
         if node not in self.nodes:
@@ -60,11 +71,50 @@ class Entities:
         }
         self.my_organs_by_root = {}
         self.opp_organs = set()
+        self.harvested_proteins = {
+            1: {
+                "A": set(),
+                "B": set(),
+                "C": set(),
+                "D": set()
+            },
+            0: {
+                "A": set(),
+                "B": set(),
+                "C": set(),
+                "D": set()
+            },
+        }
 
+    def update_harvested_proteins(self, aimed_nodes_by_harvester: dict[Entity, int]):
+        for harvester_entity, harvested_node in aimed_nodes_by_harvester.items():
+            harvested_entity = self[harvested_node]
+            if harvested_entity is not None:
+                harvested_entity_type = harvested_entity.t
+                if harvested_entity_type in ["A", "B", "C", "D"]:
+                    self.harvested_proteins[harvester_entity.owner][harvested_entity_type].add(harvested_node)
 
-@dataclass
-class ProteinStock:
-    A: int = 0
-    B: int = 0
-    C: int = 0
-    D: int = 0
+    def get_wanted_proteins_for_owner(
+            self,
+            protein_stock: ProteinStock,
+            max_turns_left,
+            nb_roots: int,
+            harvested_proteins_per_type: dict[str, set[int]]
+    ):
+        wanted_types = ["A", "B", "C", "D"]
+        wanted_proteins = set()
+
+        for t in wanted_types:
+            proteins_t = self.proteins[t]
+            stock_is_not_enough = getattr(protein_stock, t) < max_turns_left * nb_roots / 2
+            protein_type_still_exists = len(proteins_t) > 0
+
+            if stock_is_not_enough and protein_type_still_exists:
+                wanted_proteins = wanted_proteins.union(proteins_t)
+
+            harvested_proteins = harvested_proteins_per_type[t]
+            for harvested_protein in harvested_proteins:
+                if harvested_protein in wanted_proteins:
+                    wanted_proteins.remove(harvested_protein)
+
+        return wanted_proteins

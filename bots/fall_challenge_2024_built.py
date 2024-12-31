@@ -1,63 +1,11 @@
-import numpy as np
+import copy
 import sys
+import numpy as np
+from enum import Enum
 from scipy.sparse import csr_matrix
 from dataclasses import dataclass, field
 from scipy.sparse.csgraph import dijkstra
-from typing import List, Union, NamedTuple, Dict
-
-class Coordinates(NamedTuple):
-    x: int
-    y: int
-
-@dataclass
-class Entity:
-    node: int
-    coordinates: Coordinates
-    t: str = 'EMPTY'
-    owner: int = -1
-    organ_id: int = 0
-    organ_dir: str = 'X'
-    organ_parent_id: int = 0
-    organ_root_id: int = 0
-
-@dataclass
-class Entities:
-    nodes: dict[int, Entity] = field(default_factory=dict)
-    proteins: dict[str, set[int]] = field(default_factory=dict)
-    my_organs_by_root: dict[int, set[int]] = field(default_factory=dict)
-    opp_organs: set[int] = field(default_factory=set)
-    harvested_proteins: dict[str, set[int]] = field(default_factory=dict)
-
-    def __post_init__(self):
-        self.harvested_proteins = {'A': set(), 'B': set(), 'C': set(), 'D': set()}
-
-    def __getitem__(self, node):
-        if node not in self.nodes:
-            return None
-        return self.nodes.__getitem__(node)
-
-    def __setitem__(self, node, entity: Entity):
-        if entity.t in ['A', 'B', 'C', 'D']:
-            self.proteins[entity.t].add(entity.node)
-        if entity.owner == 1:
-            if entity.organ_root_id not in self.my_organs_by_root:
-                self.my_organs_by_root[entity.organ_root_id] = set()
-            self.my_organs_by_root[entity.organ_root_id].add(entity.node)
-        if entity.owner == 0:
-            self.opp_organs.add(entity.node)
-        self.nodes.__setitem__(node, entity)
-
-    def new_turn(self):
-        self.proteins = {'A': set(), 'B': set(), 'C': set(), 'D': set()}
-        self.my_organs_by_root = {}
-        self.opp_organs = set()
-
-@dataclass
-class ProteinStock:
-    A: int = 0
-    B: int = 0
-    C: int = 0
-    D: int = 0
+from typing import NamedTuple, Dict, List, Union, Iterable, Optional
 
 @dataclass(frozen=True)
 class Edge:
@@ -91,6 +39,10 @@ class AdjacencyMatrix:
 
     def remove_edge(self, edge: Edge):
         self.update_edge(edge, 0)
+
+    def copy(self):
+        copy_array = self.array.copy()
+        return AdjacencyMatrix(nodes_edges=copy_array)
 
 class AdjacencyList:
 
@@ -133,6 +85,130 @@ class AdjacencyList:
                 except KeyError:
                     pass
 
+    def copy(self):
+        copy_nodes_neighbors = copy.deepcopy(self.nodes_neighbors)
+        return AdjacencyList(nodes_neighbors=copy_nodes_neighbors)
+
+@dataclass
+class NodesPair:
+    from_node: int = None
+    to_node: int = None
+    distance: float = np.inf
+    shortest_path: Optional[list[int]] = None
+
+class DijkstraAlgorithm:
+
+    def __init__(self, adjacency_matrix: AdjacencyMatrix):
+        self.adjacency_matrix = adjacency_matrix
+        self.dist_matrix, self.predecessors = dijkstra(self.adjacency_matrix.sparce_matrix, return_predecessors=True)
+
+    def get_shortest_path(self, nodes_pair: NodesPair) -> Optional[list[int]]:
+        distance = nodes_pair.distance
+        if distance == 0 or distance == np.inf:
+            return None
+        from_node = nodes_pair.from_node
+        to_node = nodes_pair.to_node
+        shortest_path = [to_node]
+        predecessor = self.predecessors[from_node, to_node]
+        while predecessor != from_node and predecessor != -9999:
+            next_node = predecessor
+            shortest_path.insert(0, next_node)
+            predecessor = self.predecessors[from_node, next_node]
+        return shortest_path
+
+    def find_closest_nodes_pair(self, from_nodes: Iterable[int], to_nodes: Iterable[int]) -> NodesPair:
+        closest_pair = NodesPair()
+        for to_node in to_nodes:
+            for from_node in from_nodes:
+                distance = self.dist_matrix[from_node, to_node]
+                if distance < closest_pair.distance:
+                    closest_pair.from_node = from_node
+                    closest_pair.to_node = to_node
+                    closest_pair.distance = int(distance)
+        closest_pair.shortest_path = self.get_shortest_path(closest_pair)
+        return closest_pair
+
+class Coordinates(NamedTuple):
+    x: int
+    y: int
+
+@dataclass
+class ProteinStock:
+    A: int = 0
+    B: int = 0
+    C: int = 0
+    D: int = 0
+
+    def __add__(self, other):
+        return ProteinStock(A=self.A + other.A, B=self.B + other.B, C=self.C + other.C, D=self.D + other.D)
+
+@dataclass
+class Entity:
+    node: int
+    coordinates: Coordinates
+    t: str = 'EMPTY'
+    owner: int = -1
+    organ_id: int = 0
+    organ_dir: str = 'X'
+    organ_parent_id: int = 0
+    organ_root_id: int = 0
+
+    def __hash__(self):
+        return int(self.node)
+
+@dataclass
+class Entities:
+    nodes: dict[int, Entity] = field(default_factory=dict)
+    proteins: dict[str, set[int]] = field(default_factory=dict)
+    my_organs_by_root: dict[int, set[int]] = field(default_factory=dict)
+    opp_organs: set[int] = field(default_factory=set)
+    harvested_proteins: dict[int, dict[str, set[int]]] = field(default_factory=dict)
+
+    def __getitem__(self, node):
+        if node not in self.nodes:
+            return None
+        return self.nodes.__getitem__(node)
+
+    def __setitem__(self, node, entity: Entity):
+        if entity.t in ['A', 'B', 'C', 'D']:
+            self.proteins[entity.t].add(entity.node)
+        if entity.owner == 1:
+            if entity.organ_root_id not in self.my_organs_by_root:
+                self.my_organs_by_root[entity.organ_root_id] = set()
+            self.my_organs_by_root[entity.organ_root_id].add(entity.node)
+        if entity.owner == 0:
+            self.opp_organs.add(entity.node)
+        self.nodes.__setitem__(node, entity)
+
+    def new_turn(self):
+        self.proteins = {'A': set(), 'B': set(), 'C': set(), 'D': set()}
+        self.my_organs_by_root = {}
+        self.opp_organs = set()
+        self.harvested_proteins = {1: {'A': set(), 'B': set(), 'C': set(), 'D': set()}, 0: {'A': set(), 'B': set(), 'C': set(), 'D': set()}}
+
+    def update_harvested_proteins(self, aimed_nodes_by_harvester: dict[Entity, int]):
+        for harvester_entity, harvested_node in aimed_nodes_by_harvester.items():
+            harvested_entity = self[harvested_node]
+            if harvested_entity is not None:
+                harvested_entity_type = harvested_entity.t
+                if harvested_entity_type in ['A', 'B', 'C', 'D']:
+                    self.harvested_proteins[harvester_entity.owner][harvested_entity_type].add(harvested_node)
+
+    def get_wanted_proteins_for_owner(self, protein_stock: ProteinStock, max_turns_left, nb_roots: int, harvested_proteins_per_type: dict[str, set[int]]):
+        wanted_types = ['A', 'B', 'C', 'D']
+        wanted_proteins = set()
+        for t in wanted_types:
+            proteins_t = self.proteins[t]
+            stock_is_not_enough = getattr(protein_stock, t) < max_turns_left * nb_roots / 2
+            protein_type_still_exists = len(proteins_t) > 0
+            if stock_is_not_enough and protein_type_still_exists:
+                wanted_proteins = wanted_proteins.union(proteins_t)
+            harvested_proteins = harvested_proteins_per_type[t]
+            for harvested_protein in harvested_proteins:
+                if harvested_protein in wanted_proteins:
+                    wanted_proteins.remove(harvested_protein)
+        return wanted_proteins
+
 @dataclass
 class NodeFrontier:
     node: int
@@ -150,6 +226,10 @@ class NodeFrontier:
                 existing_nodes.add(node)
         return existing_nodes
 
+    @property
+    def nodes_by_direction(self):
+        return {'N': self.north, 'S': self.south, 'E': self.east, 'W': self.west}
+
 @dataclass
 class Grid:
     width: int
@@ -158,6 +238,9 @@ class Grid:
     nodes_coordinates: list[Coordinates] = field(init=False)
     nodes_matrix: np.ndarray = field(init=False)
     adjacency_matrix: AdjacencyMatrix = field(init=False)
+    adjacency_list: AdjacencyList = field(init=False)
+    initial_adjacency_matrix: AdjacencyMatrix = field(init=False)
+    initial_adjacency_list: AdjacencyList = field(init=False)
 
     def __post_init__(self):
         self.nb_nodes = self.width * self.height
@@ -174,6 +257,12 @@ class Grid:
             cardinal_nodes = self.get_node_frontier(node).cardinal_nodes
             for cardinal_node in cardinal_nodes:
                 self.connect_nodes(from_node=node, to_node=cardinal_node)
+        self.initial_adjacency_matrix = self.adjacency_matrix.copy()
+        self.initial_adjacency_list = self.adjacency_list.copy()
+
+    def new_turn(self):
+        self.adjacency_matrix = self.initial_adjacency_matrix.copy()
+        self.adjacency_list = self.initial_adjacency_list.copy()
 
     def get_node(self, coordinates: Coordinates) -> int:
         x, y = coordinates
@@ -199,8 +288,8 @@ class Grid:
             node_frontier.south = node_south
         return node_frontier
 
-    def connect_nodes(self, from_node: int, to_node: int, directed: bool=False):
-        edge = Edge(from_node=from_node, to_node=to_node, directed=directed, weight=1)
+    def connect_nodes(self, from_node: int, to_node: int, directed: bool=False, weight: float=1):
+        edge = Edge(from_node=from_node, to_node=to_node, directed=directed, weight=weight)
         self.adjacency_matrix.add_edge(edge=edge)
         self.adjacency_list.add_edge(edge=edge)
 
@@ -212,16 +301,32 @@ class Grid:
     def get_node_neighbours(self, node: int):
         return set(self.adjacency_list[node].keys())
 
-def is_aligned(from_coord: Coordinates, from_direction: str, to_coord: Coordinates):
-    if from_direction == 'N':
-        return from_coord.x == to_coord.x and from_coord.y > to_coord.y
-    if from_direction == 'S':
-        return from_coord.x == to_coord.x and from_coord.y < to_coord.y
-    if from_direction == 'E':
-        return from_coord.y == to_coord.y and from_coord.x < to_coord.x
-    if from_direction == 'W':
-        return from_coord.y == to_coord.y and from_coord.x > to_coord.x
-    return False
+    def update_weight_toward_node(self, node: int, weight: float):
+        cardinal_nodes = self.get_node_frontier(node).cardinal_nodes
+        for cardinal in cardinal_nodes:
+            if node in self.get_node_neighbours(cardinal):
+                self.connect_nodes(from_node=cardinal, to_node=node, directed=True, weight=weight)
+
+def get_direction(from_coordinates: Coordinates, to_coordinates: Coordinates):
+    diff_x = to_coordinates.x - from_coordinates.x
+    diff_y = to_coordinates.y - from_coordinates.y
+    if abs(diff_y) >= abs(diff_x):
+        if diff_y > 0:
+            return 'S'
+        return 'N'
+    if diff_x > 0:
+        return 'E'
+    return 'W'
+
+class Objective(Enum):
+    PROTEINS = 'PROTEINS'
+    REPRODUCTION = 'REPRODUCTION'
+    ATTACK = 'ATTACK'
+    DEFAULT = 'DEFAULT'
+
+class Strategy(NamedTuple):
+    objective: Objective
+    targets: set[int]
 
 @dataclass
 class Action:
@@ -232,7 +337,7 @@ class Action:
     y: int = 0
     t: str = 'BASIC'
     direction: str = None
-    message: str = 'OK'
+    message: str = ''
 
     def __repr__(self):
         if not self.grow and (not self.spore):
@@ -243,30 +348,64 @@ class Action:
             return f'GROW {self.id} {self.x} {self.y} {self.t} {self.message}'
         return f'GROW {self.id} {self.x} {self.y} {self.t} {self.direction} {self.message}'
 
-def choose_closest_organ_and_target(my_organs: set[int], to_nodes: set[int], dist_matrix: np.ndarray):
-    my_organ_chosen = None
-    target = None
-    distance_to_target = np.inf
-    for to_node in to_nodes:
-        for my_organ in my_organs:
-            distance = dist_matrix[my_organ, to_node]
-            if distance < distance_to_target:
-                my_organ_chosen = my_organ
-                target = to_node
-                distance_to_target = int(distance)
-    return (my_organ_chosen, target, distance_to_target)
+    @property
+    def cost(self):
+        if self.grow:
+            if self.t == 'BASIC':
+                return ProteinStock(A=-1)
+            if self.t == 'HARVESTER':
+                return ProteinStock(C=-1, D=-1)
+            if self.t == 'TENTACLE':
+                return ProteinStock(B=-1, C=-1)
+            if self.t == 'SPORER':
+                return ProteinStock(B=-1, D=-1)
+        if self.spore:
+            return ProteinStock(A=-1, B=-1, C=-1, D=-1)
+        return ProteinStock()
 
-def can_create_new_root(protein_stock: ProteinStock):
-    return all((resource > 0 for resource in [protein_stock.A, protein_stock.B, protein_stock.C, protein_stock.D]))
+def can_grow_basic(protein_stock: ProteinStock):
+    return protein_stock.A > 0
 
-def can_use_sporer(protein_stock: ProteinStock, distance_to_target: int):
-    return distance_to_target > protein_stock.A > 1 and protein_stock.B > 1 and (protein_stock.C > 0) and protein_stock.D
+def can_grow_sporer(protein_stock: ProteinStock):
+    return protein_stock.B > 0 and protein_stock.D > 0
 
-def can_use_harvester(protein_stock: ProteinStock, distance_to_target: int):
-    return distance_to_target == 2 and protein_stock.C > 0 and (protein_stock.D > 0)
+def can_grow_harvester(protein_stock: ProteinStock):
+    return protein_stock.C > 0 and protein_stock.D > 0
 
-def can_use_tentacle(protein_stock: ProteinStock, distance_to_target: int):
-    return distance_to_target == 1 and protein_stock.B > 0 and (protein_stock.C > 0)
+def can_grow_tentacle(protein_stock: ProteinStock):
+    return protein_stock.B > 0 and protein_stock.C > 0
+
+def define_grow_type(possible_grow_types: dict[str, bool], grow_types_priority: list[str]):
+    for t in grow_types_priority:
+        if possible_grow_types[t]:
+            return t
+
+def next_action_to_reach_target(nodes_pair: NodesPair, objective: Objective, protein_stock: ProteinStock, entities: Entities, grid: Grid):
+    from_node = nodes_pair.from_node
+    to_node = nodes_pair.to_node
+    distance = nodes_pair.distance
+    shortest_path = nodes_pair.shortest_path
+    if distance == np.inf or len(shortest_path) == 0:
+        action = Action()
+        action.message = 'No targets accessible'
+        return action
+    from_organ = entities[from_node]
+    next_node = shortest_path[0]
+    x, y = grid.get_node_coordinates(next_node)
+    action = Action(id=from_organ.organ_id, x=x, y=y, message=f'{from_node}/{next_node}/{to_node}')
+    possible_grow_types = {'BASIC': can_grow_basic(protein_stock=protein_stock), 'TENTACLE': can_grow_tentacle(protein_stock=protein_stock), 'SPORER': can_grow_sporer(protein_stock=protein_stock), 'HARVESTER': can_grow_harvester(protein_stock=protein_stock)}
+    if True not in possible_grow_types.values():
+        return action
+    action.grow = True
+    grow_types_priority = ['BASIC', 'TENTACLE', 'SPORER', 'HARVESTER']
+    if distance == 2 and objective == Objective.PROTEINS:
+        grow_types_priority = ['HARVESTER', 'BASIC', 'TENTACLE', 'SPORER']
+    if distance == 2 and objective == Objective.ATTACK:
+        grow_types_priority = ['TENTACLE', 'BASIC', 'SPORER', 'HARVESTER']
+    action.t = define_grow_type(possible_grow_types=possible_grow_types, grow_types_priority=grow_types_priority)
+    if action.t in ['HARVESTER', 'TENTACLE', 'SPORER']:
+        action.direction = get_direction(from_coordinates=Coordinates(x=action.x, y=action.y), to_coordinates=grid.get_node_coordinates(to_node))
+    return action
 
 def log(message):
     print(message, file=sys.stderr, flush=True)
@@ -316,6 +455,8 @@ class GameLoop:
         self.nb_turns += 1
         self.nb_entities = int(self.get_turn_input())
         self.entities.new_turn()
+        self.grid.new_turn()
+        aimed_nodes_by_harvester = {}
         for i in range(self.nb_entities):
             inputs = self.get_turn_input().split()
             coordinates = Coordinates(x=int(inputs[0]), y=int(inputs[1]))
@@ -328,22 +469,34 @@ class GameLoop:
             node = self.grid.get_node(coordinates)
             entity = Entity(node=node, coordinates=coordinates, t=t, owner=owner, organ_id=organ_id, organ_dir=organ_dir, organ_parent_id=organ_parent_id, organ_root_id=organ_root_id)
             self.entities[node] = entity
-            cardinal_nodes = self.grid.get_node_frontier(node).cardinal_nodes
+            frontier_nodes = self.grid.get_node_frontier(node)
+            cardinal_nodes = frontier_nodes.cardinal_nodes
             for cardinal in cardinal_nodes:
                 if t == 'WALL':
                     self.grid.disconnect_nodes(from_node=node, to_node=cardinal)
                 if t in ['ROOT', 'BASIC', 'HARVESTER', 'TENTACLE', 'SPORER']:
                     self.grid.disconnect_nodes(from_node=cardinal, to_node=node, directed=True)
+            if t == 'HARVESTER':
+                harvested_node = frontier_nodes.nodes_by_direction[organ_dir]
+                if harvested_node is not None:
+                    aimed_nodes_by_harvester[entity] = harvested_node
+            if t == 'TENTACLE' and owner == 0:
+                node_attacked = frontier_nodes.nodes_by_direction[organ_dir]
+                if node_attacked is not None:
+                    cardinals_attacked = self.grid.get_node_frontier(node_attacked).cardinal_nodes
+                    for cardinal in cardinals_attacked:
+                        self.grid.disconnect_nodes(from_node=cardinal, to_node=node_attacked, directed=True)
+        self.entities.update_harvested_proteins(aimed_nodes_by_harvester=aimed_nodes_by_harvester)
         my_protein_stock = [int(i) for i in self.get_turn_input().split()]
         self.my_protein_stock.A = my_protein_stock[0]
         self.my_protein_stock.B = my_protein_stock[1]
         self.my_protein_stock.C = my_protein_stock[2]
         self.my_protein_stock.D = my_protein_stock[3]
         opp_protein_stock = [int(i) for i in self.get_turn_input().split()]
-        self.opp_protein_stock.A = my_protein_stock[0]
-        self.opp_protein_stock.B = my_protein_stock[1]
-        self.opp_protein_stock.C = my_protein_stock[2]
-        self.opp_protein_stock.D = my_protein_stock[3]
+        self.opp_protein_stock.A = opp_protein_stock[0]
+        self.opp_protein_stock.B = opp_protein_stock[1]
+        self.opp_protein_stock.C = opp_protein_stock[2]
+        self.opp_protein_stock.D = opp_protein_stock[3]
         self.required_actions_count = int(self.get_turn_input())
         if GameLoop.LOG:
             self.print_turn_logs()
@@ -351,103 +504,28 @@ class GameLoop:
     def start(self):
         while GameLoop.RUNNING:
             self.update_assets()
-            proteins = set.union(*self.entities.proteins.values())
             my_organs_by_root = self.entities.my_organs_by_root
-            opp_organs_free_neighbours = {neighbour: node for node in self.entities.opp_organs for neighbour in self.grid.get_node_neighbours(node)}
-            dist_matrix, predecessors = dijkstra(self.grid.adjacency_matrix.sparce_matrix, return_predecessors=True)
+            my_harvested_proteins_per_type = self.entities.harvested_proteins[1]
+            for protein_type, harvested_nodes in my_harvested_proteins_per_type.items():
+                for harvested_node in harvested_nodes:
+                    weight = max(self.grid.nb_nodes - getattr(self.my_protein_stock, protein_type), 1)
+                    self.grid.update_weight_toward_node(node=harvested_node, weight=weight)
+            my_wanted_proteins = self.entities.get_wanted_proteins_for_owner(protein_stock=self.my_protein_stock, max_turns_left=100 - self.nb_turns, nb_roots=len(my_organs_by_root), harvested_proteins_per_type=my_harvested_proteins_per_type)
+            dijkstra_algorithm = DijkstraAlgorithm(adjacency_matrix=self.grid.adjacency_matrix)
             for my_root_id, my_organs in my_organs_by_root.items():
-                grow = True
-                spore = False
-                grow_type = 'BASIC'
-                direction = None
-                my_organ_chosen, target, distance_to_protein = choose_closest_organ_and_target(my_organs=my_organs, to_nodes=proteins, dist_matrix=dist_matrix)
-                if target is not None and self.create_new_root and can_create_new_root(self.my_protein_stock):
-                    self.create_new_root = False
-                    grow = False
-                    spore = True
-                    grow_type = None
-                if target is not None and can_use_sporer(self.my_protein_stock, distance_to_protein) and (not spore):
-                    grow_type = 'SPORER'
-                    self.create_new_root = True
-                if target is not None and can_use_harvester(self.my_protein_stock, distance_to_protein) and (not spore):
-                    grow_type = 'HARVESTER'
-                if target is None:
-                    my_organ_chosen, target, distance_to_opp_neighbour = choose_closest_organ_and_target(my_organs=my_organs, to_nodes=set(opp_organs_free_neighbours.keys()), dist_matrix=dist_matrix)
-                    if target is not None and can_use_tentacle(self.my_protein_stock, distance_to_opp_neighbour):
-                        grow_type = 'TENTACLE'
-                if target is None:
-                    nb_t_max = 0
-                    for t in ['D', 'C', 'B', 'A']:
-                        harvested_nodes = self.entities.harvested_proteins[t]
-                        nb_t = len(harvested_nodes)
-                        if nb_t <= nb_t_max:
-                            continue
-                        for h in harvested_nodes:
-                            cardinals = self.grid.get_node_frontier(h).cardinal_nodes
-                            my_organs_neighbour = [org for org in my_organs if org in cardinals]
-                            if len(my_organs_neighbour) > 0:
-                                my_organ_chosen = my_organs_neighbour[0]
-                                target = h
-                                nb_t_max = nb_t
-                                self.entities.harvested_proteins[t].remove(target)
-                                break
-                if target is None:
-                    for my_organ in my_organs:
-                        node_neighbours = list(self.grid.get_node_neighbours(my_organ))
-                        if len(node_neighbours) > 0:
-                            my_organ_chosen, target = (my_organ, node_neighbours[0])
-                            break
-                if target is not None:
-                    my_organ_chosen_entity = self.entities[my_organ_chosen]
-                    id = my_organ_chosen_entity.organ_id
-                    next_node = target
-                    if grow:
-                        predecessor = predecessors[my_organ_chosen, target]
-                        while predecessor != my_organ_chosen and predecessor != -9999:
-                            next_node = predecessor
-                            predecessor = predecessors[my_organ_chosen, next_node]
-                    if spore:
-                        from_organ_coordinates = my_organ_chosen_entity.coordinates
-                        from_organ_direction = my_organ_chosen_entity.organ_dir
-                        aligned = is_aligned(from_coord=from_organ_coordinates, from_direction=from_organ_direction, to_coord=self.grid.get_node_coordinates(next_node))
-                        predecessor = predecessors[my_organ_chosen, target]
-                        while not (dist_matrix[next_node, target] > 1 and aligned) and predecessor != my_organ_chosen and (predecessor != -9999):
-                            next_node = predecessor
-                            aligned = is_aligned(from_coord=from_organ_coordinates, from_direction=from_organ_direction, to_coord=self.grid.get_node_coordinates(next_node))
-                            predecessor = predecessors[my_organ_chosen, next_node]
-                    x, y = self.grid.get_node_coordinates(next_node)
-                    if grow_type == 'TENTACLE':
-                        target = opp_organs_free_neighbours[target]
-                    if grow_type == 'SPORER':
-                        target = predecessors[my_organ_chosen, target]
-                    if grow_type in ['TENTACLE', 'HARVESTER', 'SPORER']:
-                        x_target, y_target = self.grid.get_node_coordinates(target)
-                        diff_x = x_target - x
-                        diff_y = y_target - y
-                        if abs(diff_y) >= abs(diff_x):
-                            direction = 'N'
-                            if diff_y > 0:
-                                direction = 'S'
-                        else:
-                            direction = 'W'
-                            if diff_x > 0:
-                                direction = 'E'
-                        if grow_type == 'HARVESTER':
-                            target_entity = self.entities[target]
-                            self.entities.harvested_proteins[target_entity.t].add(target)
-                            target_cardinals = self.grid.get_node_frontier(target).cardinal_nodes
-                            for cardinal in target_cardinals:
-                                self.grid.disconnect_nodes(from_node=cardinal, to_node=target, directed=True)
-                        if grow_type == 'TENTACLE':
-                            self.grid.connect_nodes(from_node=next_node, to_node=target, directed=True)
-                    if grow_type == 'BASIC' and self.my_protein_stock.A == 0 and (self.my_protein_stock.B > 0) and (self.my_protein_stock.C > 0):
-                        grow_type = 'TENTACLE'
-                    action = Action(grow=grow, spore=spore, id=id, x=x, y=y, t=grow_type, direction=direction, message=f'{my_organ_chosen}/{next_node}/{target}')
-                else:
-                    action = Action()
-                if action.grow and action.id == 59:
-                    pass
-                self.actions.append(str(action))
+                action = Action()
+                organs_neighbours = set()
+                for organ in my_organs:
+                    organs_neighbours = organs_neighbours.union(self.grid.get_node_neighbours(organ))
+                strategies = [Strategy(objective=Objective.PROTEINS, targets=my_wanted_proteins), Strategy(objective=Objective.ATTACK, targets=self.entities.opp_organs), Strategy(objective=Objective.PROTEINS, targets=set.union(*self.entities.proteins.values())), Strategy(objective=Objective.DEFAULT, targets=organs_neighbours)]
+                i = 0
+                nb_strategies = len(strategies)
+                while i < nb_strategies and str(action) == 'WAIT':
+                    strategy = strategies[i]
+                    closest_organ_target_pair = dijkstra_algorithm.find_closest_nodes_pair(from_nodes=my_organs, to_nodes=strategy.targets)
+                    action = next_action_to_reach_target(nodes_pair=closest_organ_target_pair, objective=strategy.objective, protein_stock=self.my_protein_stock, entities=self.entities, grid=self.grid)
+                    i += 1
+                self.my_protein_stock = self.my_protein_stock + action.cost
+                action.message = f'{i}/{action.message}'
                 print(action)
-        return self.actions
 GameLoop().start()

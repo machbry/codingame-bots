@@ -30,6 +30,15 @@ class NodeFrontier:
 
         return existing_nodes
 
+    @property
+    def nodes_by_direction(self):
+        return {
+            "N": self.north,
+            "S": self.south,
+            "E": self.east,
+            "W": self.west
+        }
+
 
 @dataclass
 class Grid:
@@ -39,6 +48,9 @@ class Grid:
     nodes_coordinates: list[Coordinates] = field(init=False)
     nodes_matrix: np.ndarray = field(init=False)
     adjacency_matrix: AdjacencyMatrix = field(init=False)
+    adjacency_list: AdjacencyList = field(init=False)
+    initial_adjacency_matrix: AdjacencyMatrix = field(init=False)
+    initial_adjacency_list: AdjacencyList = field(init=False)
 
     def __post_init__(self):
         self.nb_nodes = self.width * self.height
@@ -60,6 +72,13 @@ class Grid:
             cardinal_nodes = self.get_node_frontier(node).cardinal_nodes
             for cardinal_node in cardinal_nodes:
                 self.connect_nodes(from_node=node, to_node=cardinal_node)
+
+        self.initial_adjacency_matrix = self.adjacency_matrix.copy()
+        self.initial_adjacency_list = self.adjacency_list.copy()
+
+    def new_turn(self):
+        self.adjacency_matrix = self.initial_adjacency_matrix.copy()
+        self.adjacency_list = self.initial_adjacency_list.copy()
 
     def get_node(self, coordinates: Coordinates) -> int:
         x, y = coordinates
@@ -91,11 +110,11 @@ class Grid:
 
         return node_frontier
 
-    def connect_nodes(self, from_node: int, to_node: int, directed: bool = False):
+    def connect_nodes(self, from_node: int, to_node: int, directed: bool = False, weight: float = 1):
         edge = Edge(from_node=from_node,
                     to_node=to_node,
                     directed=directed,
-                    weight=1)
+                    weight=weight)
 
         self.adjacency_matrix.add_edge(edge=edge)
         self.adjacency_list.add_edge(edge=edge)
@@ -111,6 +130,29 @@ class Grid:
 
     def get_node_neighbours(self, node: int):
         return set(self.adjacency_list[node].keys())
+
+    def update_weight_toward_node(self, node: int, weight: float):
+        cardinal_nodes = self.get_node_frontier(node).cardinal_nodes
+        for cardinal in cardinal_nodes:
+            if node in self.get_node_neighbours(cardinal):
+                self.connect_nodes(
+                    from_node=cardinal,
+                    to_node=node,
+                    directed=True,
+                    weight=weight
+                )
+
+
+def get_direction(from_coordinates: Coordinates, to_coordinates: Coordinates):
+    diff_x = to_coordinates.x - from_coordinates.x
+    diff_y = to_coordinates.y - from_coordinates.y
+    if abs(diff_y) >= abs(diff_x):
+        if diff_y > 0:
+            return "S"
+        return "N"
+    if diff_x > 0:
+        return "E"
+    return "W"
 
 
 def is_aligned(from_coord: Coordinates, from_direction: str, to_coord: Coordinates):

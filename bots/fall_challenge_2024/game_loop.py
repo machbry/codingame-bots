@@ -1,11 +1,9 @@
 from typing import List
 
-from scipy.sparse.csgraph import dijkstra
-
+from botlibs.graph.algorithms import DijkstraAlgorithm
 from bots.fall_challenge_2024.challengelibs.assets import Entities, Coordinates, Entity, ProteinStock
-from bots.fall_challenge_2024.challengelibs.geometry import Grid, is_aligned
-from bots.fall_challenge_2024.challengelibs.act import Action, choose_closest_organ_and_target, can_create_new_root, \
-    can_use_sporer, can_use_harvester, can_use_tentacle
+from bots.fall_challenge_2024.challengelibs.geometry import Grid
+from bots.fall_challenge_2024.challengelibs.act import Action, next_action_to_reach_target, Objective, Strategy
 from bots.fall_challenge_2024.challengelibs.logger import log
 
 
@@ -62,7 +60,9 @@ class GameLoop:
         self.nb_turns += 1
         self.nb_entities = int(self.get_turn_input())
         self.entities.new_turn()
+        self.grid.new_turn()
 
+        aimed_nodes_by_harvester = {}
         for i in range(self.nb_entities):
             inputs = self.get_turn_input().split()
 
@@ -88,7 +88,8 @@ class GameLoop:
 
             self.entities[node] = entity
 
-            cardinal_nodes = self.grid.get_node_frontier(node).cardinal_nodes
+            frontier_nodes = self.grid.get_node_frontier(node)
+            cardinal_nodes = frontier_nodes.cardinal_nodes
             for cardinal in cardinal_nodes:
                 if t == "WALL":
                     self.grid.disconnect_nodes(from_node=node,
@@ -99,6 +100,25 @@ class GameLoop:
                                                to_node=node,
                                                directed=True)
 
+            if t == "HARVESTER":
+                harvested_node = frontier_nodes.nodes_by_direction[organ_dir]
+                if harvested_node is not None:
+                    aimed_nodes_by_harvester[entity] = harvested_node
+
+            if t == "TENTACLE" and owner == 0:
+                node_attacked = frontier_nodes.nodes_by_direction[organ_dir]
+                if node_attacked is not None:
+                    cardinals_attacked = self.grid.get_node_frontier(node_attacked).cardinal_nodes
+                    for cardinal in cardinals_attacked:
+                        self.grid.disconnect_nodes(from_node=cardinal,
+                                                   to_node=node_attacked,
+                                                   directed=True)
+
+
+        self.entities.update_harvested_proteins(
+            aimed_nodes_by_harvester=aimed_nodes_by_harvester
+        )
+
         my_protein_stock = [int(i) for i in self.get_turn_input().split()]
         self.my_protein_stock.A = my_protein_stock[0]
         self.my_protein_stock.B = my_protein_stock[1]
@@ -106,10 +126,10 @@ class GameLoop:
         self.my_protein_stock.D = my_protein_stock[3]
 
         opp_protein_stock = [int(i) for i in self.get_turn_input().split()]
-        self.opp_protein_stock.A = my_protein_stock[0]
-        self.opp_protein_stock.B = my_protein_stock[1]
-        self.opp_protein_stock.C = my_protein_stock[2]
-        self.opp_protein_stock.D = my_protein_stock[3]
+        self.opp_protein_stock.A = opp_protein_stock[0]
+        self.opp_protein_stock.B = opp_protein_stock[1]
+        self.opp_protein_stock.C = opp_protein_stock[2]
+        self.opp_protein_stock.D = opp_protein_stock[3]
 
         self.required_actions_count = int(self.get_turn_input())
 
@@ -120,177 +140,63 @@ class GameLoop:
         while GameLoop.RUNNING:
             self.update_assets()
 
-            proteins = set.union(*self.entities.proteins.values())
-
             my_organs_by_root = self.entities.my_organs_by_root
 
-            opp_organs_free_neighbours = {
-                neighbour: node
-                for node in self.entities.opp_organs
-                for neighbour in self.grid.get_node_neighbours(node)
-            }
+            my_harvested_proteins_per_type = self.entities.harvested_proteins[1]
+            for protein_type, harvested_nodes in my_harvested_proteins_per_type.items():
+                for harvested_node in harvested_nodes:
+                    weight = max(self.grid.nb_nodes - getattr(self.my_protein_stock, protein_type), 1)
+                    self.grid.update_weight_toward_node(
+                        node=harvested_node,
+                        weight=weight
+                    )
 
-            dist_matrix, predecessors = dijkstra(
-                self.grid.adjacency_matrix.sparce_matrix,
-                return_predecessors=True
+            my_wanted_proteins = self.entities.get_wanted_proteins_for_owner(
+                protein_stock=self.my_protein_stock,
+                max_turns_left=100-self.nb_turns,
+                nb_roots=len(my_organs_by_root),
+                harvested_proteins_per_type=my_harvested_proteins_per_type
+            )
+
+            dijkstra_algorithm = DijkstraAlgorithm(
+                adjacency_matrix=self.grid.adjacency_matrix
             )
 
             for my_root_id, my_organs in my_organs_by_root.items():
-                grow = True
-                spore = False
-                grow_type = "BASIC"
-                direction = None
+                action = Action()
 
-                my_organ_chosen, target, distance_to_protein = choose_closest_organ_and_target(
-                    my_organs=my_organs,
-                    to_nodes=proteins,
-                    dist_matrix=dist_matrix
-                )
+                organs_neighbours = set()
+                for organ in my_organs:
+                    organs_neighbours = organs_neighbours.union(self.grid.get_node_neighbours(organ))
 
-                # TODO : use this action more often
-                if ((target is not None)
-                        and self.create_new_root
-                        and can_create_new_root(self.my_protein_stock)):
-                    self.create_new_root = False
-                    grow = False
-                    spore = True
-                    grow_type = None
+                strategies = [
+                    Strategy(objective=Objective.PROTEINS, targets=my_wanted_proteins),
+                    Strategy(objective=Objective.ATTACK, targets=self.entities.opp_organs),
+                    Strategy(objective=Objective.PROTEINS, targets=set.union(*self.entities.proteins.values())),
+                    Strategy(objective=Objective.DEFAULT, targets=organs_neighbours)
+                ]
 
-                # TODO : use this action more often
-                if ((target is not None)
-                        and can_use_sporer(self.my_protein_stock, distance_to_protein)
-                        and not spore):
-                    grow_type = "SPORER"
-                    self.create_new_root = True
+                i = 0
+                nb_strategies = len(strategies)
+                while i < nb_strategies and str(action) == "WAIT":
+                    strategy = strategies[i]
 
-                if ((target is not None)
-                        and can_use_harvester(self.my_protein_stock, distance_to_protein)
-                        and not spore):
-                    grow_type = "HARVESTER"
-
-                if target is None:
-                    my_organ_chosen, target, distance_to_opp_neighbour = choose_closest_organ_and_target(
-                        my_organs=my_organs,
-                        to_nodes=set(opp_organs_free_neighbours.keys()),
-                        dist_matrix=dist_matrix
+                    closest_organ_target_pair = dijkstra_algorithm.find_closest_nodes_pair(
+                        from_nodes=my_organs,
+                        to_nodes=strategy.targets
                     )
 
-                    if ((target is not None)
-                            and can_use_tentacle(self.my_protein_stock, distance_to_opp_neighbour)):
-                        grow_type = "TENTACLE"
+                    action = next_action_to_reach_target(
+                        nodes_pair=closest_organ_target_pair,
+                        objective=strategy.objective,
+                        protein_stock=self.my_protein_stock,
+                        entities=self.entities,
+                        grid=self.grid
+                    )
 
-                if target is None:
-                    nb_t_max = 0
+                    i += 1
 
-                    for t in ["D", "C", "B", "A"]:
-                        harvested_nodes = self.entities.harvested_proteins[t]
+                self.my_protein_stock = self.my_protein_stock + action.cost
+                action.message = f"{i}/{action.message}"
 
-                        nb_t = len(harvested_nodes)
-
-                        if nb_t <= nb_t_max:
-                            continue
-
-                        for h in harvested_nodes:
-                            cardinals = self.grid.get_node_frontier(h).cardinal_nodes
-                            my_organs_neighbour = [org for org in my_organs
-                                                   if org in cardinals]
-
-                            if len(my_organs_neighbour) > 0:
-                                my_organ_chosen = my_organs_neighbour[0]
-                                target = h
-                                nb_t_max = nb_t
-                                self.entities.harvested_proteins[t].remove(target)
-                                break
-
-                if target is None:
-                    for my_organ in my_organs:
-                        node_neighbours = list(self.grid.get_node_neighbours(my_organ))
-                        if len(node_neighbours) > 0:
-                            my_organ_chosen, target = my_organ, node_neighbours[0]
-                            break
-
-                if target is not None:
-                    my_organ_chosen_entity = self.entities[my_organ_chosen]
-                    id = my_organ_chosen_entity.organ_id
-                    next_node = target
-
-                    if grow:
-                        predecessor = predecessors[my_organ_chosen, target]
-                        while predecessor != my_organ_chosen and predecessor != -9999:
-                            next_node = predecessor
-                            predecessor = predecessors[my_organ_chosen, next_node]
-
-                    if spore:
-                        from_organ_coordinates = my_organ_chosen_entity.coordinates
-                        from_organ_direction = my_organ_chosen_entity.organ_dir
-
-                        aligned = is_aligned(from_coord=from_organ_coordinates,
-                                             from_direction=from_organ_direction,
-                                             to_coord=self.grid.get_node_coordinates(next_node))
-                        predecessor = predecessors[my_organ_chosen, target]
-                        while (not (dist_matrix[next_node, target] > 1 and aligned)
-                               and predecessor != my_organ_chosen
-                               and predecessor != -9999):
-                            next_node = predecessor
-                            aligned = is_aligned(from_coord=from_organ_coordinates,
-                                                 from_direction=from_organ_direction,
-                                                 to_coord=self.grid.get_node_coordinates(next_node))
-                            predecessor = predecessors[my_organ_chosen, next_node]
-
-                    x, y = self.grid.get_node_coordinates(next_node)
-
-                    if grow_type == "TENTACLE":
-                        target = opp_organs_free_neighbours[target]
-
-                    if grow_type == "SPORER":
-                        target = predecessors[my_organ_chosen, target]
-
-                    if grow_type in ["TENTACLE", "HARVESTER", "SPORER"]:
-                        x_target, y_target = self.grid.get_node_coordinates(target)
-                        diff_x = x_target - x
-                        diff_y = y_target - y
-
-                        if abs(diff_y) >= abs(diff_x):
-                            direction = "N"
-                            if diff_y > 0:
-                                direction = "S"
-                        else:
-                            direction = "W"
-                            if diff_x > 0:
-                                direction = "E"
-
-                        if grow_type == "HARVESTER":
-                            target_entity = self.entities[target]
-                            self.entities.harvested_proteins[target_entity.t].add(target)
-
-                            target_cardinals = self.grid.get_node_frontier(target).cardinal_nodes
-                            for cardinal in target_cardinals:
-                                self.grid.disconnect_nodes(from_node=cardinal,
-                                                           to_node=target,
-                                                           directed=True)
-
-                        if grow_type == "TENTACLE":
-                            # TODO : target won't appear in opp_organs_free_neighbours
-                            self.grid.connect_nodes(from_node=next_node,
-                                                    to_node=target,
-                                                    directed=True)
-
-                    if (grow_type == "BASIC"
-                            and self.my_protein_stock.A == 0
-                            and self.my_protein_stock.B > 0
-                            and self.my_protein_stock.C > 0):
-                        grow_type = "TENTACLE"
-
-                    action = Action(grow=grow, spore=spore, id=id, x=x, y=y, t=grow_type,
-                                    direction=direction,
-                                    message=f"{my_organ_chosen}/{next_node}/{target}")
-                else:
-                    action = Action()
-
-                if action.grow and action.id == 59:
-                    pass
-
-                self.actions.append(str(action))
                 print(action)
-
-        return self.actions
