@@ -1,11 +1,11 @@
 import copy
-import sys
 import numpy as np
+import sys
 from enum import Enum
 from scipy.sparse import csr_matrix
 from dataclasses import dataclass, field
 from scipy.sparse.csgraph import dijkstra
-from typing import NamedTuple, Dict, List, Union, Iterable, Optional
+from typing import List, NamedTuple, Dict, Union, Optional, Iterable
 
 @dataclass(frozen=True)
 class Edge:
@@ -141,6 +141,9 @@ class ProteinStock:
 
     def __add__(self, other):
         return ProteinStock(A=self.A + other.A, B=self.B + other.B, C=self.C + other.C, D=self.D + other.D)
+
+    def sum(self):
+        return self.A + self.B + self.C + self.D
 
 @dataclass
 class Entity:
@@ -323,10 +326,16 @@ class Objective(Enum):
     REPRODUCTION = 'REPRODUCTION'
     ATTACK = 'ATTACK'
     DEFAULT = 'DEFAULT'
+    WAIT = 'WAIT'
 
 class Strategy(NamedTuple):
-    objective: Objective
-    targets: set[int]
+    name: str = 'Wait'
+    objective: Objective = Objective.WAIT
+    targets: set[int] = set()
+    priority: float = np.inf
+
+    def __hash__(self):
+        return hash((self.objective.value, *self.targets, self.priority))
 
 @dataclass
 class Action:
@@ -338,6 +347,7 @@ class Action:
     t: str = 'BASIC'
     direction: str = None
     message: str = ''
+    value: float = -np.inf
 
     def __repr__(self):
         if not self.grow and (not self.spore):
@@ -363,6 +373,11 @@ class Action:
             return ProteinStock(A=-1, B=-1, C=-1, D=-1)
         return ProteinStock()
 
+def wait_action_with_message(message: str):
+    action = Action()
+    action.message = message
+    return action
+
 def can_grow_basic(protein_stock: ProteinStock):
     return protein_stock.A > 0
 
@@ -380,32 +395,60 @@ def define_grow_type(possible_grow_types: dict[str, bool], grow_types_priority: 
         if possible_grow_types[t]:
             return t
 
-def next_action_to_reach_target(nodes_pair: NodesPair, objective: Objective, protein_stock: ProteinStock, entities: Entities, grid: Grid):
+def next_action_to_reach_target(nodes_pair: NodesPair, objective: Objective, protein_stock: ProteinStock, entities: Entities, grid: Grid, **kwargs):
     from_node = nodes_pair.from_node
     to_node = nodes_pair.to_node
     distance = nodes_pair.distance
     shortest_path = nodes_pair.shortest_path
     if distance == np.inf or len(shortest_path) == 0:
-        action = Action()
-        action.message = 'No targets accessible'
-        return action
+        return wait_action_with_message('No targets accessible')
     from_organ = entities[from_node]
     next_node = shortest_path[0]
     x, y = grid.get_node_coordinates(next_node)
     action = Action(id=from_organ.organ_id, x=x, y=y, message=f'{from_node}/{next_node}/{to_node}')
     possible_grow_types = {'BASIC': can_grow_basic(protein_stock=protein_stock), 'TENTACLE': can_grow_tentacle(protein_stock=protein_stock), 'SPORER': can_grow_sporer(protein_stock=protein_stock), 'HARVESTER': can_grow_harvester(protein_stock=protein_stock)}
     if True not in possible_grow_types.values():
-        return action
-    action.grow = True
-    grow_types_priority = ['BASIC', 'TENTACLE', 'SPORER', 'HARVESTER']
-    if distance == 2 and objective == Objective.PROTEINS:
-        grow_types_priority = ['HARVESTER', 'BASIC', 'TENTACLE', 'SPORER']
-    if distance == 2 and objective == Objective.ATTACK:
-        grow_types_priority = ['TENTACLE', 'BASIC', 'SPORER', 'HARVESTER']
-    action.t = define_grow_type(possible_grow_types=possible_grow_types, grow_types_priority=grow_types_priority)
+        return wait_action_with_message('Not enough proteins to grow or spore')
+    if objective == Objective.PROTEINS:
+        if distance == 2:
+            action.t = 'HARVESTER'
+            action.grow = True
+        else:
+            action.t = 'BASIC'
+            action.grow = True
+    if objective == Objective.ATTACK:
+        if distance == 1:
+            action.t = 'TENTACLE'
+            action.grow = True
+        else:
+            action.t = 'BASIC'
+            action.grow = True
+    if objective == Objective.DEFAULT:
+        grow_types_priority = ['BASIC', 'TENTACLE', 'HARVESTER', 'SPORER']
+        action.t = define_grow_type(possible_grow_types=possible_grow_types, grow_types_priority=grow_types_priority)
+        action.grow = True
+    if not possible_grow_types[action.t]:
+        return wait_action_with_message(f'Not enough proteins for {objective.value}: {action.t}')
     if action.t in ['HARVESTER', 'TENTACLE', 'SPORER']:
-        action.direction = get_direction(from_coordinates=Coordinates(x=action.x, y=action.y), to_coordinates=grid.get_node_coordinates(to_node))
+        if 'real_target' in kwargs:
+            from_coord = Coordinates(x=action.x, y=action.y)
+            to_coord = grid.get_node_coordinates(kwargs['real_target'])
+        else:
+            from_coord = Coordinates(x=action.x, y=action.y)
+            to_coord = grid.get_node_coordinates(to_node)
+        action.direction = get_direction(from_coordinates=from_coord, to_coordinates=to_coord)
+    action.value = -distance - action.cost.sum()
     return action
+
+def choose_best_actions(actions_by_strategy: dict[Strategy, Action]):
+    best_strategy = Strategy()
+    best_action = Action()
+    for strategy, action in actions_by_strategy.items():
+        if strategy.priority <= best_strategy.priority:
+            if action.value > best_action.value:
+                best_strategy = strategy
+                best_action = action
+    return (best_strategy, best_action)
 
 def log(message):
     print(message, file=sys.stderr, flush=True)
@@ -511,21 +554,28 @@ class GameLoop:
                     weight = max(self.grid.nb_nodes - getattr(self.my_protein_stock, protein_type), 1)
                     self.grid.update_weight_toward_node(node=harvested_node, weight=weight)
             my_wanted_proteins = self.entities.get_wanted_proteins_for_owner(protein_stock=self.my_protein_stock, max_turns_left=100 - self.nb_turns, nb_roots=len(my_organs_by_root), harvested_proteins_per_type=my_harvested_proteins_per_type)
+            neighbours_opp_organs = {}
+            for opp_organ in self.entities.opp_organs:
+                neighbours = self.grid.get_node_neighbours(opp_organ)
+                for neighbour in neighbours:
+                    neighbours_opp_organs[neighbour] = opp_organ
             dijkstra_algorithm = DijkstraAlgorithm(adjacency_matrix=self.grid.adjacency_matrix)
             for my_root_id, my_organs in my_organs_by_root.items():
-                action = Action()
                 organs_neighbours = set()
                 for organ in my_organs:
                     organs_neighbours = organs_neighbours.union(self.grid.get_node_neighbours(organ))
-                strategies = [Strategy(objective=Objective.PROTEINS, targets=my_wanted_proteins), Strategy(objective=Objective.ATTACK, targets=self.entities.opp_organs), Strategy(objective=Objective.PROTEINS, targets=set.union(*self.entities.proteins.values())), Strategy(objective=Objective.DEFAULT, targets=organs_neighbours)]
-                i = 0
-                nb_strategies = len(strategies)
-                while i < nb_strategies and str(action) == 'WAIT':
-                    strategy = strategies[i]
+                strategies = [Strategy(name='target_wanted_proteins', objective=Objective.PROTEINS, targets=my_wanted_proteins, priority=0), Strategy(name='attack_opponent', objective=Objective.ATTACK, targets=set(neighbours_opp_organs.keys()), priority=0), Strategy(name='target_proteins', objective=Objective.PROTEINS, targets=set.union(*self.entities.proteins.values()), priority=1), Strategy(name='default', objective=Objective.DEFAULT, targets=organs_neighbours, priority=2)]
+                actions_by_strategy = {}
+                for strategy in strategies:
                     closest_organ_target_pair = dijkstra_algorithm.find_closest_nodes_pair(from_nodes=my_organs, to_nodes=strategy.targets)
-                    action = next_action_to_reach_target(nodes_pair=closest_organ_target_pair, objective=strategy.objective, protein_stock=self.my_protein_stock, entities=self.entities, grid=self.grid)
-                    i += 1
+                    kwargs = {}
+                    if strategy.objective == Objective.ATTACK:
+                        opp_organ_neighbour = closest_organ_target_pair.to_node
+                        kwargs['real_target'] = neighbours_opp_organs[opp_organ_neighbour]
+                    action = next_action_to_reach_target(nodes_pair=closest_organ_target_pair, objective=strategy.objective, protein_stock=self.my_protein_stock, entities=self.entities, grid=self.grid, **kwargs)
+                    actions_by_strategy[strategy] = action
+                strategy, action = choose_best_actions(actions_by_strategy=actions_by_strategy)
                 self.my_protein_stock = self.my_protein_stock + action.cost
-                action.message = f'{i}/{action.message}'
+                action.message = f'{strategy.name}/{action.message}'
                 print(action)
 GameLoop().start()

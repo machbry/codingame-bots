@@ -3,7 +3,8 @@ from typing import List
 from botlibs.graph.algorithms import DijkstraAlgorithm
 from bots.fall_challenge_2024.challengelibs.assets import Entities, Coordinates, Entity, ProteinStock
 from bots.fall_challenge_2024.challengelibs.geometry import Grid
-from bots.fall_challenge_2024.challengelibs.act import Action, next_action_to_reach_target, Objective, Strategy
+from bots.fall_challenge_2024.challengelibs.act import Action, next_action_to_reach_target, Objective, Strategy, \
+    choose_best_actions
 from bots.fall_challenge_2024.challengelibs.logger import log
 
 
@@ -114,7 +115,6 @@ class GameLoop:
                                                    to_node=node_attacked,
                                                    directed=True)
 
-
         self.entities.update_harvested_proteins(
             aimed_nodes_by_harvester=aimed_nodes_by_harvester
         )
@@ -158,45 +158,74 @@ class GameLoop:
                 harvested_proteins_per_type=my_harvested_proteins_per_type
             )
 
+            neighbours_opp_organs = {}
+            for opp_organ in self.entities.opp_organs:
+                neighbours = self.grid.get_node_neighbours(opp_organ)
+                for neighbour in neighbours:
+                    neighbours_opp_organs[neighbour] = opp_organ
+
             dijkstra_algorithm = DijkstraAlgorithm(
                 adjacency_matrix=self.grid.adjacency_matrix
             )
 
             for my_root_id, my_organs in my_organs_by_root.items():
-                action = Action()
-
                 organs_neighbours = set()
                 for organ in my_organs:
                     organs_neighbours = organs_neighbours.union(self.grid.get_node_neighbours(organ))
 
                 strategies = [
-                    Strategy(objective=Objective.PROTEINS, targets=my_wanted_proteins),
-                    Strategy(objective=Objective.ATTACK, targets=self.entities.opp_organs),
-                    Strategy(objective=Objective.PROTEINS, targets=set.union(*self.entities.proteins.values())),
-                    Strategy(objective=Objective.DEFAULT, targets=organs_neighbours)
+                    Strategy(
+                        name="target_wanted_proteins",
+                        objective=Objective.PROTEINS,
+                        targets=my_wanted_proteins,
+                        priority=0
+                    ),
+                    Strategy(
+                        name="attack_opponent",
+                        objective=Objective.ATTACK,
+                        targets=set(neighbours_opp_organs.keys()),
+                        priority=0
+                    ),
+                    Strategy(
+                        name="target_proteins",
+                        objective=Objective.PROTEINS,
+                        targets=set.union(*self.entities.proteins.values()),
+                        priority=1
+                    ),
+                    Strategy(
+                        name="default",
+                        objective=Objective.DEFAULT,
+                        targets=organs_neighbours,
+                        priority=2
+                    )
                 ]
 
-                i = 0
-                nb_strategies = len(strategies)
-                while i < nb_strategies and str(action) == "WAIT":
-                    strategy = strategies[i]
-
+                actions_by_strategy = {}
+                for strategy in strategies:
                     closest_organ_target_pair = dijkstra_algorithm.find_closest_nodes_pair(
                         from_nodes=my_organs,
                         to_nodes=strategy.targets
                     )
+
+                    kwargs = {}
+                    if strategy.objective == Objective.ATTACK:
+                        opp_organ_neighbour = closest_organ_target_pair.to_node
+                        kwargs["real_target"] = neighbours_opp_organs[opp_organ_neighbour]
 
                     action = next_action_to_reach_target(
                         nodes_pair=closest_organ_target_pair,
                         objective=strategy.objective,
                         protein_stock=self.my_protein_stock,
                         entities=self.entities,
-                        grid=self.grid
+                        grid=self.grid,
+                        **kwargs
                     )
 
-                    i += 1
+                    actions_by_strategy[strategy] = action
+
+                strategy, action = choose_best_actions(actions_by_strategy=actions_by_strategy)
 
                 self.my_protein_stock = self.my_protein_stock + action.cost
-                action.message = f"{i}/{action.message}"
+                action.message = f"{strategy.name}/{action.message}"
 
                 print(action)

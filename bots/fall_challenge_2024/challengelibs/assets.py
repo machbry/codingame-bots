@@ -22,6 +22,9 @@ class ProteinStock:
             D=self.D + other.D
         )
 
+    def sum(self):
+        return self.A + self.B + self.C + self.D
+
 
 @dataclass
 class Entity:
