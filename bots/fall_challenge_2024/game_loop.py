@@ -208,7 +208,8 @@ class GameLoop:
                     )
 
                     kwargs = {}
-                    if strategy.objective == Objective.ATTACK:
+                    to_node = closest_organ_target_pair.to_node
+                    if to_node is not None and strategy.objective == Objective.ATTACK:
                         opp_organ_neighbour = closest_organ_target_pair.to_node
                         kwargs["real_target"] = neighbours_opp_organs[opp_organ_neighbour]
 

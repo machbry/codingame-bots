@@ -3,9 +3,9 @@ import numpy as np
 import sys
 from enum import Enum
 from scipy.sparse import csr_matrix
-from dataclasses import dataclass, field
+from dataclasses import field, dataclass
 from scipy.sparse.csgraph import dijkstra
-from typing import List, NamedTuple, Dict, Union, Optional, Iterable
+from typing import List, Iterable, Dict, Union, Optional, NamedTuple
 
 @dataclass(frozen=True)
 class Edge:
@@ -569,7 +569,8 @@ class GameLoop:
                 for strategy in strategies:
                     closest_organ_target_pair = dijkstra_algorithm.find_closest_nodes_pair(from_nodes=my_organs, to_nodes=strategy.targets)
                     kwargs = {}
-                    if strategy.objective == Objective.ATTACK:
+                    to_node = closest_organ_target_pair.to_node
+                    if to_node is not None and strategy.objective == Objective.ATTACK:
                         opp_organ_neighbour = closest_organ_target_pair.to_node
                         kwargs['real_target'] = neighbours_opp_organs[opp_organ_neighbour]
                     action = next_action_to_reach_target(nodes_pair=closest_organ_target_pair, objective=strategy.objective, protein_stock=self.my_protein_stock, entities=self.entities, grid=self.grid, **kwargs)
