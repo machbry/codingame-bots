@@ -1,11 +1,11 @@
-import copy
 import numpy as np
 import sys
+import copy
 from enum import Enum
 from scipy.sparse import csr_matrix
 from dataclasses import field, dataclass
 from scipy.sparse.csgraph import dijkstra
-from typing import List, Iterable, Dict, Union, Optional, NamedTuple
+from typing import Union, List, NamedTuple, Dict, Iterable, Optional
 
 @dataclass(frozen=True)
 class Edge:
@@ -329,13 +329,13 @@ class Objective(Enum):
     WAIT = 'WAIT'
 
 class Strategy(NamedTuple):
-    name: str = 'Wait'
+    name: str = 'wait'
     objective: Objective = Objective.WAIT
     targets: set[int] = set()
     priority: float = np.inf
 
     def __hash__(self):
-        return hash((self.objective.value, *self.targets, self.priority))
+        return hash(self.name)
 
 @dataclass
 class Action:
@@ -348,6 +348,7 @@ class Action:
     direction: str = None
     message: str = ''
     value: float = -np.inf
+    nodes_pair: NodesPair = field(default_factory=NodesPair)
 
     def __repr__(self):
         if not self.grow and (not self.spore):
@@ -395,7 +396,7 @@ def define_grow_type(possible_grow_types: dict[str, bool], grow_types_priority: 
         if possible_grow_types[t]:
             return t
 
-def next_action_to_reach_target(nodes_pair: NodesPair, objective: Objective, protein_stock: ProteinStock, entities: Entities, grid: Grid, **kwargs):
+def next_action_to_reach_target(nodes_pair: NodesPair, objective: Objective, protein_stock: ProteinStock, entities: Entities, grid: Grid, real_target: int):
     from_node = nodes_pair.from_node
     to_node = nodes_pair.to_node
     distance = nodes_pair.distance
@@ -405,7 +406,7 @@ def next_action_to_reach_target(nodes_pair: NodesPair, objective: Objective, pro
     from_organ = entities[from_node]
     next_node = shortest_path[0]
     x, y = grid.get_node_coordinates(next_node)
-    action = Action(id=from_organ.organ_id, x=x, y=y, message=f'{from_node}/{next_node}/{to_node}')
+    action = Action(id=from_organ.organ_id, x=x, y=y, message=f'{from_node}/{next_node}/{to_node}', nodes_pair=nodes_pair)
     possible_grow_types = {'BASIC': can_grow_basic(protein_stock=protein_stock), 'TENTACLE': can_grow_tentacle(protein_stock=protein_stock), 'SPORER': can_grow_sporer(protein_stock=protein_stock), 'HARVESTER': can_grow_harvester(protein_stock=protein_stock)}
     if True not in possible_grow_types.values():
         return wait_action_with_message('Not enough proteins to grow or spore')
@@ -430,11 +431,10 @@ def next_action_to_reach_target(nodes_pair: NodesPair, objective: Objective, pro
     if not possible_grow_types[action.t]:
         return wait_action_with_message(f'Not enough proteins for {objective.value}: {action.t}')
     if action.t in ['HARVESTER', 'TENTACLE', 'SPORER']:
-        if 'real_target' in kwargs:
-            from_coord = Coordinates(x=action.x, y=action.y)
-            to_coord = grid.get_node_coordinates(kwargs['real_target'])
+        from_coord = Coordinates(x=action.x, y=action.y)
+        if real_target != to_node:
+            to_coord = grid.get_node_coordinates(real_target)
         else:
-            from_coord = Coordinates(x=action.x, y=action.y)
             to_coord = grid.get_node_coordinates(to_node)
         action.direction = get_direction(from_coordinates=from_coord, to_coordinates=to_coord)
     action.value = -distance - action.cost.sum()
@@ -560,23 +560,25 @@ class GameLoop:
                 for neighbour in neighbours:
                     neighbours_opp_organs[neighbour] = opp_organ
             dijkstra_algorithm = DijkstraAlgorithm(adjacency_matrix=self.grid.adjacency_matrix)
+            strategies = {'target_wanted_proteins': Strategy(name='target_wanted_proteins', objective=Objective.PROTEINS, targets=my_wanted_proteins, priority=0), 'attack_opponent': Strategy(name='attack_opponent', objective=Objective.ATTACK, targets=set(neighbours_opp_organs.keys()), priority=0), 'reproduct': Strategy(name='reproduct', objective=Objective.REPRODUCTION, targets=set(), priority=0), 'target_proteins': Strategy(name='target_proteins', objective=Objective.PROTEINS, targets=set.union(*self.entities.proteins.values()), priority=1)}
             for my_root_id, my_organs in my_organs_by_root.items():
                 organs_neighbours = set()
                 for organ in my_organs:
                     organs_neighbours = organs_neighbours.union(self.grid.get_node_neighbours(organ))
-                strategies = [Strategy(name='target_wanted_proteins', objective=Objective.PROTEINS, targets=my_wanted_proteins, priority=0), Strategy(name='attack_opponent', objective=Objective.ATTACK, targets=set(neighbours_opp_organs.keys()), priority=0), Strategy(name='target_proteins', objective=Objective.PROTEINS, targets=set.union(*self.entities.proteins.values()), priority=1), Strategy(name='default', objective=Objective.DEFAULT, targets=organs_neighbours, priority=2)]
+                strategies['default'] = Strategy(name='default', objective=Objective.DEFAULT, targets=organs_neighbours, priority=2)
                 actions_by_strategy = {}
-                for strategy in strategies:
+                for strategy in strategies.values():
                     closest_organ_target_pair = dijkstra_algorithm.find_closest_nodes_pair(from_nodes=my_organs, to_nodes=strategy.targets)
-                    kwargs = {}
-                    to_node = closest_organ_target_pair.to_node
-                    if to_node is not None and strategy.objective == Objective.ATTACK:
-                        opp_organ_neighbour = closest_organ_target_pair.to_node
-                        kwargs['real_target'] = neighbours_opp_organs[opp_organ_neighbour]
-                    action = next_action_to_reach_target(nodes_pair=closest_organ_target_pair, objective=strategy.objective, protein_stock=self.my_protein_stock, entities=self.entities, grid=self.grid, **kwargs)
+                    real_target = closest_organ_target_pair.to_node
+                    if real_target is not None and strategy.objective == Objective.ATTACK:
+                        real_target = neighbours_opp_organs[real_target]
+                    action = next_action_to_reach_target(nodes_pair=closest_organ_target_pair, objective=strategy.objective, protein_stock=self.my_protein_stock, entities=self.entities, grid=self.grid, real_target=real_target)
                     actions_by_strategy[strategy] = action
                 strategy, action = choose_best_actions(actions_by_strategy=actions_by_strategy)
-                self.my_protein_stock = self.my_protein_stock + action.cost
                 action.message = f'{strategy.name}/{action.message}'
+                self.my_protein_stock = self.my_protein_stock + action.cost
+                to_node = action.nodes_pair.to_node
+                if to_node in strategy.targets:
+                    strategy.targets.remove(to_node)
                 print(action)
 GameLoop().start()

@@ -3,7 +3,7 @@ from typing import List
 from botlibs.graph.algorithms import DijkstraAlgorithm
 from bots.fall_challenge_2024.challengelibs.assets import Entities, Coordinates, Entity, ProteinStock
 from bots.fall_challenge_2024.challengelibs.geometry import Grid
-from bots.fall_challenge_2024.challengelibs.act import Action, next_action_to_reach_target, Objective, Strategy, \
+from bots.fall_challenge_2024.challengelibs.act import next_action_to_reach_target, Objective, Strategy, \
     choose_best_actions
 from bots.fall_challenge_2024.challengelibs.logger import log
 
@@ -168,50 +168,56 @@ class GameLoop:
                 adjacency_matrix=self.grid.adjacency_matrix
             )
 
+            # TODO : REPRODUCTION strategy if proteins harvest / stock is enough ?
+            strategies = {
+                "target_wanted_proteins": Strategy(
+                    name="target_wanted_proteins",
+                    objective=Objective.PROTEINS,
+                    targets=my_wanted_proteins,
+                    priority=0
+                ),
+                "attack_opponent": Strategy(
+                    name="attack_opponent",
+                    objective=Objective.ATTACK,
+                    targets=set(neighbours_opp_organs.keys()),
+                    priority=0
+                ),
+                "reproduct": Strategy(
+                    name="reproduct",
+                    objective=Objective.REPRODUCTION,
+                    targets=set(),
+                    priority=0
+                ),
+                "target_proteins": Strategy(
+                    name="target_proteins",
+                    objective=Objective.PROTEINS,
+                    targets=set.union(*self.entities.proteins.values()),
+                    priority=1
+                ),
+            }
+
             for my_root_id, my_organs in my_organs_by_root.items():
                 organs_neighbours = set()
                 for organ in my_organs:
                     organs_neighbours = organs_neighbours.union(self.grid.get_node_neighbours(organ))
 
-                strategies = [
-                    Strategy(
-                        name="target_wanted_proteins",
-                        objective=Objective.PROTEINS,
-                        targets=my_wanted_proteins,
-                        priority=0
-                    ),
-                    Strategy(
-                        name="attack_opponent",
-                        objective=Objective.ATTACK,
-                        targets=set(neighbours_opp_organs.keys()),
-                        priority=0
-                    ),
-                    Strategy(
-                        name="target_proteins",
-                        objective=Objective.PROTEINS,
-                        targets=set.union(*self.entities.proteins.values()),
-                        priority=1
-                    ),
-                    Strategy(
-                        name="default",
-                        objective=Objective.DEFAULT,
-                        targets=organs_neighbours,
-                        priority=2
-                    )
-                ]
+                strategies["default"] = Strategy(
+                    name="default",
+                    objective=Objective.DEFAULT,
+                    targets=organs_neighbours,
+                    priority=2
+                )
 
                 actions_by_strategy = {}
-                for strategy in strategies:
+                for strategy in strategies.values():
                     closest_organ_target_pair = dijkstra_algorithm.find_closest_nodes_pair(
                         from_nodes=my_organs,
                         to_nodes=strategy.targets
                     )
 
-                    kwargs = {}
-                    to_node = closest_organ_target_pair.to_node
-                    if to_node is not None and strategy.objective == Objective.ATTACK:
-                        opp_organ_neighbour = closest_organ_target_pair.to_node
-                        kwargs["real_target"] = neighbours_opp_organs[opp_organ_neighbour]
+                    real_target = closest_organ_target_pair.to_node
+                    if real_target is not None and strategy.objective == Objective.ATTACK:
+                        real_target = neighbours_opp_organs[real_target]
 
                     action = next_action_to_reach_target(
                         nodes_pair=closest_organ_target_pair,
@@ -219,14 +225,17 @@ class GameLoop:
                         protein_stock=self.my_protein_stock,
                         entities=self.entities,
                         grid=self.grid,
-                        **kwargs
+                        real_target=real_target
                     )
 
                     actions_by_strategy[strategy] = action
 
                 strategy, action = choose_best_actions(actions_by_strategy=actions_by_strategy)
+                action.message = f"{strategy.name}/{action.message}"
 
                 self.my_protein_stock = self.my_protein_stock + action.cost
-                action.message = f"{strategy.name}/{action.message}"
+                to_node = action.nodes_pair.to_node
+                if to_node in strategy.targets:
+                    strategy.targets.remove(to_node)
 
                 print(action)

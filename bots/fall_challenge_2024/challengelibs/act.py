@@ -1,5 +1,5 @@
 from enum import Enum
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import NamedTuple
 
 import numpy as np
@@ -10,21 +10,21 @@ from bots.fall_challenge_2024.challengelibs.geometry import Grid, get_direction
 
 
 class Objective(Enum):
-    PROTEINS = "PROTEINS" # HARVEST target
-    REPRODUCTION = "REPRODUCTION" # SPORE + ROOT on target
-    ATTACK = "ATTACK" # TENTACLE target
+    PROTEINS = "PROTEINS"  # HARVEST target
+    REPRODUCTION = "REPRODUCTION"  # SPORE + ROOT on target
+    ATTACK = "ATTACK"  # TENTACLE target
     DEFAULT = "DEFAULT"
     WAIT = "WAIT"
 
 
 class Strategy(NamedTuple):
-    name: str = "Wait"
+    name: str = "wait"
     objective: Objective = Objective.WAIT
     targets: set[int] = set()
     priority: float = np.inf
 
     def __hash__(self):
-        return hash((self.objective.value, *self.targets, self.priority))
+        return hash(self.name)
 
 
 @dataclass
@@ -38,6 +38,7 @@ class Action:
     direction: str = None
     message: str = ""
     value: float = - np.inf
+    nodes_pair: NodesPair = field(default_factory=NodesPair)
 
     def __repr__(self):
         if not self.grow and not self.spore:
@@ -106,8 +107,9 @@ def next_action_to_reach_target(
         protein_stock: ProteinStock,
         entities: Entities,
         grid: Grid,
-        **kwargs
+        real_target: int
 ):
+    # TODO : use sporer and spore if long straight lines between nodes pair
     # init
     from_node = nodes_pair.from_node
     to_node = nodes_pair.to_node
@@ -127,7 +129,8 @@ def next_action_to_reach_target(
         id=from_organ.organ_id,
         x=x,
         y=y,
-        message=f"{from_node}/{next_node}/{to_node}"
+        message=f"{from_node}/{next_node}/{to_node}",
+        nodes_pair=nodes_pair
     )
 
     # what can we do
@@ -174,11 +177,10 @@ def next_action_to_reach_target(
 
     # choose direction
     if action.t in ["HARVESTER", "TENTACLE", "SPORER"]:
-        if "real_target" in kwargs:
-            from_coord = Coordinates(x=action.x, y=action.y)
-            to_coord = grid.get_node_coordinates(kwargs["real_target"])
+        from_coord = Coordinates(x=action.x, y=action.y)
+        if real_target != to_node:
+            to_coord = grid.get_node_coordinates(real_target)
         else:
-            from_coord = Coordinates(x=action.x, y=action.y)
             to_coord = grid.get_node_coordinates(to_node)
 
         action.direction = get_direction(
