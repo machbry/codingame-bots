@@ -7,8 +7,9 @@
 # https://en.wikipedia.org/wiki/Shortest_path_problem
 
 
-from typing import Dict, Union, List
+from typing import Dict, Union, List, Optional
 from dataclasses import dataclass
+import copy
 
 import numpy as np
 from scipy.sparse import csr_matrix
@@ -46,6 +47,10 @@ class AdjacencyMatrix:
 
     def remove_edge(self, edge: Edge):
         self.update_edge(edge, 0)
+
+    def copy(self):
+        copy_array = self.array.copy()
+        return AdjacencyMatrix(nodes_edges=copy_array)
 
 
 class AdjacencyList:
@@ -91,3 +96,15 @@ class AdjacencyList:
                     del self[node][neighbor]
                 except KeyError:
                     pass
+
+    def copy(self):
+        copy_nodes_neighbors = copy.deepcopy(self.nodes_neighbors)
+        return AdjacencyList(nodes_neighbors=copy_nodes_neighbors)
+
+
+@dataclass
+class NodesPair:
+    from_node: int = None
+    to_node: int = None
+    distance: float = np.inf
+    shortest_path: Optional[list[int]] = None
