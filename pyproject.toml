@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "codingame-bots"
+name = "src"
 version = "0.1.0"
 description = "tools to help coding bots on codingame"
 authors = ["Matt Matt <matthieu.chambery@gmail.com>"]
