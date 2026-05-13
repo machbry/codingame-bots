@@ -1,10 +1,12 @@
 from typing import List
 
+from bots.summer_challenge_2026.challengelibs.grid import Coordinates
+from bots.summer_challenge_2026.challengelibs.assets import Tree, Troll
 from bots.summer_challenge_2026.challengelibs.logger import log
 
 
 class GameLoop:
-    __slots__ = ('init_inputs', 'nb_turns', 'turns_inputs', 'actions', 'width', 'height', 'lines')
+    __slots__ = ('init_inputs', 'nb_turns', 'turns_inputs', 'actions', 'width', 'height', 'lines', 'trees', 'trolls')
 
     RUNNING = True
     LOG = True
@@ -21,6 +23,9 @@ class GameLoop:
         for i in range(self.height):
             line = self.get_init_input()
             self.lines.append(line)
+
+        self.trees = []
+        self.trolls = []
 
         if GameLoop.LOG:
             self.print_init_logs()
@@ -51,6 +56,7 @@ class GameLoop:
             plum, lemon, apple, banana, iron, wood = [int(j) for j in self.get_turn_input().split()]
         
         trees_count = int(self.get_turn_input())
+        self.trees = []
         for i in range(trees_count):
             inputs = self.get_turn_input().split()
             _type = inputs[0]
@@ -60,10 +66,32 @@ class GameLoop:
             health = int(inputs[4])
             fruits = int(inputs[5])
             cooldown = int(inputs[6])
+
+            tree = Tree(
+                coordinates=Coordinates(x, y),
+                _type=_type,
+                size=size,
+                health=health,
+                fruits=fruits,
+                cooldown=cooldown,
+            )
+            self.trees.append(tree)
         
         trolls_count = int(self.get_turn_input())
+        self.trolls = []
         for i in range(trolls_count):
             _id, player, x, y, movement_speed, carry_capacity, harvest_power, chop_power, carry_plum, carry_lemon, carry_apple, carry_banana, carry_iron, carry_wood = [int(j) for j in self.get_turn_input().split()]
+
+            troll = Troll(
+                _id=_id,
+                player=player,
+                coordinates=Coordinates(x, y),
+                movement_speed=movement_speed,
+                carry_capacity=carry_capacity,
+                harvest_power=harvest_power,
+                chop_power=chop_power,
+            )
+            self.trolls.append(troll)
 
         if GameLoop.LOG:
             self.print_turn_logs()
