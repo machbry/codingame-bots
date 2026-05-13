@@ -1,5 +1,6 @@
 from typing import List
 
+from bots.summer_challenge_2026.challengelibs.actions import Action
 from bots.summer_challenge_2026.challengelibs.grid import Coordinates
 from bots.summer_challenge_2026.challengelibs.assets import Tree, Troll
 from bots.summer_challenge_2026.challengelibs.logger import log
@@ -16,7 +17,7 @@ class GameLoop:
         self.init_inputs: List[str] = []
         self.nb_turns: int = 0
         self.turns_inputs: List[str] = []
-        self.actions: list[str] = []
+        self.actions: list[Action] = []
 
         self.width, self.height = [int(i) for i in self.get_init_input().split()]
         self.lines = []
@@ -24,8 +25,8 @@ class GameLoop:
             line = self.get_init_input()
             self.lines.append(line)
 
-        self.trees = []
-        self.trolls = []
+        self.trees: list[Tree] = []
+        self.trolls: list[Troll] = []
 
         if GameLoop.LOG:
             self.print_init_logs()
@@ -100,5 +101,15 @@ class GameLoop:
         while GameLoop.RUNNING:
             self.update_assets()
 
-            print("MOVE 0 7 7")
+            my_trolls = [troll for troll in self.trolls if troll.is_my_troll]
+
+            self.actions = []
+
+            for troll in my_trolls:
+                troll_action = Action()
+
+                self.actions.append(troll_action)
+
+            for action in self.actions:
+                print(action)
 

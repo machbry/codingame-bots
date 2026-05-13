@@ -12,6 +12,27 @@ class Coordinates:
     def __eq__(self, other):
         return self.x == other.x and self.y == other.y
 
+class ActionType(Enum):
+    MOVE = 'MOVE'
+    HARVEST = 'HARVEST'
+    DROP = 'DROP'
+    WAIT = 'WAIT'
+    MSG = 'MSG'
+
+class Action:
+    __slots__ = ('action_type', 'coordinates', '_id', 'text')
+
+    def __init__(self, action_type: ActionType=ActionType.WAIT, coordinates: Coordinates=None, _id: int=None, text: str=None):
+        self.action_type = action_type
+        self.coordinates = coordinates
+        self._id = _id
+        self.text = text
+
+    def __repr__(self):
+        attrs = [self.action_type.value, self._id, self.coordinates.x if self.coordinates else None, self.coordinates.y if self.coordinates else None, self.text]
+        not_null_attrs = [attr for attr in attrs if attr is not None]
+        return ' '.join(not_null_attrs)
+
 class Tree:
     __slots__ = ('coordinates', '_type', 'size', 'health', 'fruits', 'cooldown')
 
@@ -46,6 +67,10 @@ class Troll:
             return 0
         return min(self.carry_capacity, self.harvest_power, tree.fruits)
 
+    @property
+    def is_my_troll(self) -> bool:
+        return self.player == 0
+
 def log(message):
     print(message, file=sys.stderr, flush=True)
 
@@ -59,14 +84,14 @@ class GameLoop:
         self.init_inputs: List[str] = []
         self.nb_turns: int = 0
         self.turns_inputs: List[str] = []
-        self.actions: list[str] = []
+        self.actions: list[Action] = []
         self.width, self.height = [int(i) for i in self.get_init_input().split()]
         self.lines = []
         for i in range(self.height):
             line = self.get_init_input()
             self.lines.append(line)
-        self.trees = []
-        self.trolls = []
+        self.trees: list[Tree] = []
+        self.trolls: list[Troll] = []
         if GameLoop.LOG:
             self.print_init_logs()
 
@@ -118,5 +143,11 @@ class GameLoop:
     def start(self):
         while GameLoop.RUNNING:
             self.update_assets()
-            print('MOVE 0 7 7')
+            my_trolls = [troll for troll in self.trolls if troll.is_my_troll]
+            self.actions = []
+            for troll in my_trolls:
+                troll_action = Action()
+                self.actions.append(troll_action)
+            for action in self.actions:
+                print(action)
 GameLoop().start()

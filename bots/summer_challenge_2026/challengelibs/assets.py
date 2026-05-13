@@ -49,4 +49,8 @@ class Troll:
         
         return min(self.carry_capacity, self.harvest_power, tree.fruits)
     
+    @property
+    def is_my_troll(self) -> bool:
+        return self.player == 0
+    
     # TODO: Lorsqu'un troll portant des ressources est adjacent (horizontalement ou verticalement) à son shack, DROP (déposer) transfère tous les objets portés au shack.
