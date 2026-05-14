@@ -52,6 +52,12 @@ class Troll:
         "carry_capacity",
         "harvest_power",
         "chop_power",
+        "carry_plum",
+        "carry_lemon",
+        "carry_apple",
+        "carry_banana",
+        "carry_iron",
+        "carry_wood",
     )
 
     def __init__(
@@ -63,6 +69,12 @@ class Troll:
         carry_capacity: int,
         harvest_power: int,
         chop_power: int,
+        carry_plum: int,
+        carry_lemon: int,
+        carry_apple: int,
+        carry_banana: int,
+        carry_iron: int,
+        carry_wood: int,
     ):
         self._id = _id
         self.player = player
@@ -71,15 +83,12 @@ class Troll:
         self.carry_capacity = carry_capacity
         self.harvest_power = harvest_power
         self.chop_power = chop_power
-
-    def harvest(self, tree: Tree) -> int:
-        if not tree.can_be_harvested:
-            return 0
-
-        if self.coordinates != tree.coordinates:
-            return 0
-
-        return min(self.carry_capacity, self.harvest_power, tree.fruits)
+        self.carry_plum = carry_plum
+        self.carry_lemon = carry_lemon
+        self.carry_apple = carry_apple
+        self.carry_banana = carry_banana
+        self.carry_iron = carry_iron
+        self.carry_wood = carry_wood
 
     @property
     def is_my_troll(self) -> bool:

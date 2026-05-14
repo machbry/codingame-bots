@@ -120,6 +120,12 @@ class GameLoop:
                 carry_capacity=carry_capacity,
                 harvest_power=harvest_power,
                 chop_power=chop_power,
+                carry_plum=carry_plum,
+                carry_lemon=carry_lemon,
+                carry_apple=carry_apple,
+                carry_banana=carry_banana,
+                carry_iron=carry_iron,
+                carry_wood=carry_wood,
             )
             self.trolls.append(troll)
 
