@@ -7,7 +7,17 @@ from bots.summer_challenge_2026.challengelibs.logger import log
 
 
 class GameLoop:
-    __slots__ = ('init_inputs', 'nb_turns', 'turns_inputs', 'actions', 'width', 'height', 'lines', 'trees', 'trolls')
+    __slots__ = (
+        "init_inputs",
+        "nb_turns",
+        "turns_inputs",
+        "actions",
+        "width",
+        "height",
+        "lines",
+        "trees",
+        "trolls",
+    )
 
     RUNNING = True
     LOG = True
@@ -19,7 +29,9 @@ class GameLoop:
         self.turns_inputs: List[str] = []
         self.actions: list[Action] = []
 
-        self.width, self.height = [int(i) for i in self.get_init_input().split()]
+        self.width, self.height = [
+            int(i) for i in self.get_init_input().split()
+        ]
         self.lines = []
         for i in range(self.height):
             line = self.get_init_input()
@@ -54,8 +66,10 @@ class GameLoop:
         self.nb_turns += 1
 
         for i in range(2):
-            plum, lemon, apple, banana, iron, wood = [int(j) for j in self.get_turn_input().split()]
-        
+            plum, lemon, apple, banana, iron, wood = [
+                int(j) for j in self.get_turn_input().split()
+            ]
+
         trees_count = int(self.get_turn_input())
         self.trees = []
         for i in range(trees_count):
@@ -77,11 +91,26 @@ class GameLoop:
                 cooldown=cooldown,
             )
             self.trees.append(tree)
-        
+
         trolls_count = int(self.get_turn_input())
         self.trolls = []
         for i in range(trolls_count):
-            _id, player, x, y, movement_speed, carry_capacity, harvest_power, chop_power, carry_plum, carry_lemon, carry_apple, carry_banana, carry_iron, carry_wood = [int(j) for j in self.get_turn_input().split()]
+            (
+                _id,
+                player,
+                x,
+                y,
+                movement_speed,
+                carry_capacity,
+                harvest_power,
+                chop_power,
+                carry_plum,
+                carry_lemon,
+                carry_apple,
+                carry_banana,
+                carry_iron,
+                carry_wood,
+            ) = [int(j) for j in self.get_turn_input().split()]
 
             troll = Troll(
                 _id=_id,
@@ -112,4 +141,3 @@ class GameLoop:
 
             for action in self.actions:
                 print(action)
-
