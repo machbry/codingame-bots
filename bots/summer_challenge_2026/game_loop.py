@@ -1,7 +1,7 @@
 from typing import List
 
 from bots.summer_challenge_2026.challengelibs.actions import Action
-from bots.summer_challenge_2026.challengelibs.grid import Coordinates
+from bots.summer_challenge_2026.challengelibs.grid import Coordinates, Grid
 from bots.summer_challenge_2026.challengelibs.assets import Tree, Troll
 from bots.summer_challenge_2026.challengelibs.logger import log
 
@@ -15,6 +15,8 @@ class GameLoop:
         "width",
         "height",
         "lines",
+        "grid",
+        "my_chack_coordinates",
         "trees",
         "trolls",
     )
@@ -36,6 +38,10 @@ class GameLoop:
         for i in range(self.height):
             line = self.get_init_input()
             self.lines.append(line)
+        self.grid = Grid(lines=self.lines)
+        self.my_chack_coordinates = self.grid.player_shack_coordinates(
+            player=0
+        )
 
         self.trees: list[Tree] = []
         self.trolls: list[Troll] = []

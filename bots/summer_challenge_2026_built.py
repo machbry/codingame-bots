@@ -2,6 +2,18 @@ import sys
 from enum import Enum
 from typing import List
 
+class BoxType(Enum):
+    GRASS = '.'
+    MY_SHACK = '0'
+    ENNEMY_SHACK = '1'
+
+class ActionType(Enum):
+    MOVE = 'MOVE'
+    HARVEST = 'HARVEST'
+    DROP = 'DROP'
+    WAIT = 'WAIT'
+    MSG = 'MSG'
+
 class Coordinates:
     __slots__ = ('x', 'y')
 
@@ -12,12 +24,18 @@ class Coordinates:
     def __eq__(self, other):
         return self.x == other.x and self.y == other.y
 
-class ActionType(Enum):
-    MOVE = 'MOVE'
-    HARVEST = 'HARVEST'
-    DROP = 'DROP'
-    WAIT = 'WAIT'
-    MSG = 'MSG'
+class Grid:
+    __slots__ = 'lines'
+
+    def __init__(self, lines: list[str]):
+        self.lines = lines
+
+    def player_shack_coordinates(self, player: int) -> Coordinates:
+        looking_for_box_type = BoxType.MY_SHACK if player == 0 else BoxType.ENNEMY_SHACK
+        for y, line in enumerate(self.lines):
+            for x, car in enumerate(line):
+                if car == looking_for_box_type.value:
+                    return Coordinates(x, y)
 
 class Action:
     __slots__ = ('action_type', 'coordinates', '_id', 'text')
@@ -74,7 +92,7 @@ def log(message):
     print(message, file=sys.stderr, flush=True)
 
 class GameLoop:
-    __slots__ = ('init_inputs', 'nb_turns', 'turns_inputs', 'actions', 'width', 'height', 'lines', 'trees', 'trolls')
+    __slots__ = ('init_inputs', 'nb_turns', 'turns_inputs', 'actions', 'width', 'height', 'lines', 'grid', 'my_chack_coordinates', 'trees', 'trolls')
     RUNNING = True
     LOG = True
     RESET_TURNS_INPUTS = True
@@ -89,6 +107,8 @@ class GameLoop:
         for i in range(self.height):
             line = self.get_init_input()
             self.lines.append(line)
+        self.grid = Grid(lines=self.lines)
+        self.my_chack_coordinates = self.grid.player_shack_coordinates(player=0)
         self.trees: list[Tree] = []
         self.trolls: list[Troll] = []
         if GameLoop.LOG:
