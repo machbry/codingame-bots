@@ -21,8 +21,18 @@ class Coordinates:
         self.x = x
         self.y = y
 
-    def __eq__(self, other):
+    def __eq__(self, other: 'Coordinates'):
         return self.x == other.x and self.y == other.y
+
+    def is_adjacent_to(self, other: 'Coordinates'):
+        if self.x == other.x:
+            return self.y == other.y + 1 or self.y == other.y - 1
+        if self.y == other.y:
+            return self.x == other.x + 1 or self.x == other.x - 1
+        return False
+
+    def distance_to(self, other: 'Coordinates'):
+        return abs(self.x - other.x) + abs(self.y - other.y)
 
 class Grid:
     __slots__ = 'lines'
@@ -48,7 +58,7 @@ class Action:
 
     def __repr__(self):
         attrs = [self.action_type.value, self._id, self.coordinates.x if self.coordinates else None, self.coordinates.y if self.coordinates else None, self.text]
-        not_null_attrs = [attr for attr in attrs if attr is not None]
+        not_null_attrs = [str(attr) for attr in attrs if attr is not None]
         return ' '.join(not_null_attrs)
 
 class Tree:
@@ -88,8 +98,44 @@ class Troll:
     def is_my_troll(self) -> bool:
         return self.player == 0
 
+    @property
+    def carry_total(self) -> int:
+        return self.carry_plum + self.carry_lemon + self.carry_apple + self.carry_banana + self.carry_iron + self.carry_wood
+
+    @property
+    def is_inventory_full(self) -> bool:
+        return self.carry_total >= self.carry_capacity
+
+    def can_drop(self, troll_shack_coordinates: Coordinates) -> bool:
+        return self.carry_total > 0 and self.coordinates.is_adjacent_to(troll_shack_coordinates)
+
+    def can_harvest(self, tree: Tree) -> bool:
+        return tree.can_be_harvested and self.coordinates == tree.coordinates and (not self.is_inventory_full)
+
 def log(message):
     print(message, file=sys.stderr, flush=True)
+
+def closest_tree_from_troll(troll: Troll, trees: list[Tree]) -> Tree:
+    min_distance = 999
+    closest_tree = None
+    for tree in trees:
+        d = troll.coordinates.distance_to(tree.coordinates)
+        if d < min_distance:
+            min_distance = d
+            closest_tree = tree
+    return closest_tree
+
+def basic_strategy_for_troll(troll: Troll, trees: list[Tree], troll_shack_coordinates: Coordinates) -> Action:
+    if troll.is_inventory_full:
+        if troll.can_drop(troll_shack_coordinates=troll_shack_coordinates):
+            return Action(action_type=ActionType.DROP, _id=troll._id)
+        return Action(action_type=ActionType.MOVE, _id=troll._id, coordinates=troll_shack_coordinates)
+    if len(trees) == 0:
+        return Action(action_type=ActionType.WAIT)
+    closest_tree = closest_tree_from_troll(troll=troll, trees=trees)
+    if troll.can_harvest(tree=closest_tree):
+        return Action(action_type=ActionType.HARVEST, _id=troll._id)
+    return Action(action_type=ActionType.MOVE, _id=troll._id, coordinates=closest_tree.coordinates)
 
 class GameLoop:
     __slots__ = ('init_inputs', 'nb_turns', 'turns_inputs', 'actions', 'width', 'height', 'lines', 'grid', 'my_chack_coordinates', 'trees', 'trolls')
@@ -165,8 +211,8 @@ class GameLoop:
             my_trolls = [troll for troll in self.trolls if troll.is_my_troll]
             self.actions = []
             for troll in my_trolls:
-                troll_action = Action()
-                self.actions.append(troll_action)
+                action = basic_strategy_for_troll(troll=troll, trees=self.trees, troll_shack_coordinates=self.my_chack_coordinates)
+                self.actions.append(action)
             for action in self.actions:
                 print(action)
 GameLoop().start()

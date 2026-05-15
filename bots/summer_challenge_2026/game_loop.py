@@ -4,6 +4,9 @@ from bots.summer_challenge_2026.challengelibs.actions import Action
 from bots.summer_challenge_2026.challengelibs.grid import Coordinates, Grid
 from bots.summer_challenge_2026.challengelibs.assets import Tree, Troll
 from bots.summer_challenge_2026.challengelibs.logger import log
+from bots.summer_challenge_2026.challengelibs.algorithms import (
+    basic_strategy_for_troll,
+)
 
 
 class GameLoop:
@@ -147,9 +150,13 @@ class GameLoop:
             self.actions = []
 
             for troll in my_trolls:
-                troll_action = Action()
+                action = basic_strategy_for_troll(
+                    troll=troll,
+                    trees=self.trees,
+                    troll_shack_coordinates=self.my_chack_coordinates,
+                )
 
-                self.actions.append(troll_action)
+                self.actions.append(action)
 
             for action in self.actions:
                 print(action)

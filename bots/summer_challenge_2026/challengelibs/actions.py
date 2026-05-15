@@ -25,5 +25,5 @@ class Action:
             self.coordinates.y if self.coordinates else None,
             self.text,
         ]
-        not_null_attrs = [attr for attr in attrs if attr is not None]
+        not_null_attrs = [str(attr) for attr in attrs if attr is not None]
         return " ".join(not_null_attrs)

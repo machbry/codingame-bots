@@ -94,4 +94,29 @@ class Troll:
     def is_my_troll(self) -> bool:
         return self.player == 0
 
-    # TODO: Lorsqu'un troll portant des ressources est adjacent (horizontalement ou verticalement) à son shack, DROP (déposer) transfère tous les objets portés au shack.
+    @property
+    def carry_total(self) -> int:
+        return (
+            self.carry_plum
+            + self.carry_lemon
+            + self.carry_apple
+            + self.carry_banana
+            + self.carry_iron
+            + self.carry_wood
+        )
+
+    @property
+    def is_inventory_full(self) -> bool:
+        return self.carry_total >= self.carry_capacity
+
+    def can_drop(self, troll_shack_coordinates: Coordinates) -> bool:
+        return (self.carry_total > 0) and (
+            self.coordinates.is_adjacent_to(troll_shack_coordinates)
+        )
+
+    def can_harvest(self, tree: Tree) -> bool:
+        return (
+            (tree.can_be_harvested)
+            and (self.coordinates == tree.coordinates)
+            and (not self.is_inventory_full)
+        )

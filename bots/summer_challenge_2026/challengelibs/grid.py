@@ -8,8 +8,21 @@ class Coordinates:
         self.x = x
         self.y = y
 
-    def __eq__(self, other):
+    def __eq__(self, other: "Coordinates"):
         return self.x == other.x and self.y == other.y
+
+    def is_adjacent_to(self, other: "Coordinates"):
+        if self.x == other.x:
+            return (self.y == other.y + 1) or (self.y == other.y - 1)
+
+        if self.y == other.y:
+            return (self.x == other.x + 1) or (self.x == other.x - 1)
+
+        return False
+
+    def distance_to(self, other: "Coordinates"):
+        # TODO: can be wrong if there are obstacles
+        return abs(self.x - other.x) + abs(self.y - other.y)
 
 
 class Grid:
