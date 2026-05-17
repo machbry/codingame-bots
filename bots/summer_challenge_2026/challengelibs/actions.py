@@ -27,3 +27,28 @@ class Action:
         ]
         not_null_attrs = [str(attr) for attr in attrs if attr is not None]
         return " ".join(not_null_attrs)
+
+
+def move_action(_id: int, coordinates: Coordinates) -> Action:
+    return Action(
+        action_type=ActionType.MOVE,
+        _id=_id,
+        coordinates=coordinates,
+    )
+
+
+def wait_action() -> Action:
+    return Action(action_type=ActionType.WAIT)
+
+
+def harvest_action(_id: int) -> Action:
+    return Action(
+        action_type=ActionType.HARVEST, 
+        _id=_id,
+    )
+
+def drop_action(_id: int) -> Action:
+    return Action(
+        action_type=ActionType.DROP, 
+        _id=_id
+    )

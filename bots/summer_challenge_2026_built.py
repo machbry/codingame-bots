@@ -61,6 +61,18 @@ class Action:
         not_null_attrs = [str(attr) for attr in attrs if attr is not None]
         return ' '.join(not_null_attrs)
 
+def move_action(_id: int, coordinates: Coordinates) -> Action:
+    return Action(action_type=ActionType.MOVE, _id=_id, coordinates=coordinates)
+
+def wait_action() -> Action:
+    return Action(action_type=ActionType.WAIT)
+
+def harvest_action(_id: int) -> Action:
+    return Action(action_type=ActionType.HARVEST, _id=_id)
+
+def drop_action(_id: int) -> Action:
+    return Action(action_type=ActionType.DROP, _id=_id)
+
 class Tree:
     __slots__ = ('coordinates', '_type', 'size', 'health', 'fruits', 'cooldown')
 
@@ -128,14 +140,14 @@ def closest_tree_from_troll(troll: Troll, trees: list[Tree]) -> Tree:
 def basic_strategy_for_troll(troll: Troll, trees: list[Tree], troll_shack_coordinates: Coordinates) -> Action:
     if troll.is_inventory_full:
         if troll.can_drop(troll_shack_coordinates=troll_shack_coordinates):
-            return Action(action_type=ActionType.DROP, _id=troll._id)
-        return Action(action_type=ActionType.MOVE, _id=troll._id, coordinates=troll_shack_coordinates)
+            return drop_action(_id=troll._id)
+        return move_action(_id=troll._id, coordinates=troll_shack_coordinates)
     if len(trees) == 0:
-        return Action(action_type=ActionType.WAIT)
+        return wait_action()
     closest_tree = closest_tree_from_troll(troll=troll, trees=trees)
     if troll.can_harvest(tree=closest_tree):
-        return Action(action_type=ActionType.HARVEST, _id=troll._id)
-    return Action(action_type=ActionType.MOVE, _id=troll._id, coordinates=closest_tree.coordinates)
+        return harvest_action(_id=troll._id)
+    return move_action(_id=troll._id, coordinates=closest_tree.coordinates)
 
 class GameLoop:
     __slots__ = ('init_inputs', 'nb_turns', 'turns_inputs', 'actions', 'width', 'height', 'lines', 'grid', 'my_chack_coordinates', 'trees', 'trolls')

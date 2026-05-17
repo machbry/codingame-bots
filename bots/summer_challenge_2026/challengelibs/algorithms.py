@@ -1,7 +1,6 @@
-from bots.summer_challenge_2026.challengelibs.actions import Action
+from bots.summer_challenge_2026.challengelibs.actions import Action, drop_action, harvest_action, move_action, wait_action
 from bots.summer_challenge_2026.challengelibs.assets import Tree, Troll
 from bots.summer_challenge_2026.challengelibs.grid import Coordinates
-from bots.summer_challenge_2026.constants import ActionType
 
 
 def closest_tree_from_troll(
@@ -27,34 +26,25 @@ def basic_strategy_for_troll(
 ) -> Action:
     if troll.is_inventory_full:
         if troll.can_drop(troll_shack_coordinates=troll_shack_coordinates):
-            return Action(
-                action_type=ActionType.DROP,
-                _id=troll._id,
-            )
-        return Action(
-            action_type=ActionType.MOVE,
+            return drop_action(_id=troll._id)
+
+        return move_action(
             _id=troll._id,
             coordinates=troll_shack_coordinates,
         )
 
     if len(trees) == 0:
-        return Action(
-            action_type=ActionType.WAIT,
-        )
-
+        return wait_action()
+    
     closest_tree = closest_tree_from_troll(
         troll=troll,
         trees=trees,
     )
 
     if troll.can_harvest(tree=closest_tree):
-        return Action(
-            action_type=ActionType.HARVEST,
-            _id=troll._id,
-        )
-
-    return Action(
-        action_type=ActionType.MOVE,
+        return harvest_action(_id=troll._id)
+    
+    return move_action(
         _id=troll._id,
         coordinates=closest_tree.coordinates,
     )
